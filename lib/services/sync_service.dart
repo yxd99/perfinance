@@ -1,0 +1,423 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:perfinance/data/database/database_provider.dart';
+import 'package:perfinance/data/models/card_payment.dart';
+import 'package:perfinance/data/models/credit_card.dart';
+import 'package:perfinance/data/models/expense.dart';
+import 'package:perfinance/data/models/min_payment_config.dart';
+import 'package:perfinance/data/models/payment_method.dart';
+import 'package:perfinance/data/repositories/card_payment_repository.dart';
+import 'package:perfinance/data/repositories/credit_card_repository.dart';
+import 'package:perfinance/data/models/debt.dart';
+import 'package:perfinance/data/models/debt_payment.dart';
+import 'package:perfinance/data/models/automatic_payment.dart';
+import 'package:perfinance/data/repositories/debt_payment_repository.dart';
+import 'package:perfinance/data/repositories/debt_repository.dart';
+import 'package:perfinance/data/repositories/automatic_payment_repository.dart';
+import 'package:perfinance/data/repositories/expense_repository.dart';
+import 'package:perfinance/data/repositories/min_payment_config_repository.dart';
+import 'package:perfinance/data/repositories/payment_method_repository.dart';
+import 'package:perfinance/features/auth/auth_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:io';
+
+const String _keyLastSync = 'perfinance_last_sync';
+
+final syncServiceProvider = Provider<SyncService>((ref) {
+  return SyncService(ref);
+});
+
+class SyncService {
+  SyncService(this._ref);
+  final Ref _ref;
+
+  Future<String?> get _userId async => _ref.read(authServiceProvider).userId;
+  SupabaseClient get _supabase => Supabase.instance.client;
+
+  Future<DateTime?> getLastSync() async {
+    final prefs = await SharedPreferences.getInstance();
+    final s = prefs.getString(_keyLastSync);
+    if (s == null) return null;
+    return DateTime.tryParse(s);
+  }
+
+  Future<void> setLastSync(DateTime t) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyLastSync, t.toIso8601String());
+  }
+
+  /// Elimina la preferencia de última sincronización (p. ej. al hacer logout).
+  Future<void> clearLastSync() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_keyLastSync);
+  }
+
+  /// Cierra la base SQLite, elimina el archivo local y limpia last sync. Llamar antes de signOut.
+  /// Después hay que invalidar [databaseProvider] para que la próxima sesión abra una base nueva.
+  Future<void> clearLocalDataOnLogout() async {
+    final db = await _ref.read(databaseProvider.future);
+    final path = db.path;
+    await db.close();
+    final file = File(path);
+    if (await file.exists()) await file.delete();
+    await clearLastSync();
+  }
+
+  Future<void> syncNow() async {
+    final userId = await _userId;
+    if (userId == null) return;
+
+    await _push(userId);
+    await _pull(userId);
+    await setLastSync(DateTime.now());
+  }
+
+  Future<void> _push(String userId) async {
+    final ccRepo = _ref.read(creditCardRepositoryProvider);
+    final pmRepo = _ref.read(paymentMethodRepositoryProvider);
+    final expRepo = _ref.read(expenseRepositoryProvider);
+    final payRepo = _ref.read(cardPaymentRepositoryProvider);
+    final minRepo = _ref.read(minPaymentConfigRepositoryProvider);
+
+    final debtRepo = _ref.read(debtRepositoryProvider);
+    final debtPayRepo = _ref.read(debtPaymentRepositoryProvider);
+    final autoPayRepo = _ref.read(automaticPaymentRepositoryProvider);
+
+    final ccTable = _supabase.from('credit_cards');
+    final pmTable = _supabase.from('payment_methods');
+    final expTable = _supabase.from('expenses');
+    final payTable = _supabase.from('card_payments');
+    final minTable = _supabase.from('min_payment_configs');
+    final debtsTable = _supabase.from('debts');
+    final debtPaymentsTable = _supabase.from('debt_payments');
+    final automaticPaymentsTable = _supabase.from('automatic_payments');
+
+    for (final c in await ccRepo.getPendingForPush(userId)) {
+      try {
+        if (c.syncStatus == 'pending_delete') {
+          await ccTable.delete().eq('id', c.id);
+          await ccRepo.deleteLocal(c.id);
+        } else if (c.syncStatus == 'pending_insert') {
+          await ccTable.insert(_toRemoteCard(c));
+        } else {
+          await ccTable.update(_toRemoteCard(c)).eq('id', c.id);
+        }
+        if (c.syncStatus != 'pending_delete') await ccRepo.markSynced(c.id);
+      } catch (_) {}
+    }
+
+    for (final p in await pmRepo.getPendingForPush(userId)) {
+      try {
+        if (p.syncStatus == 'pending_delete') {
+          await pmTable.delete().eq('id', p.id);
+          await pmRepo.deleteLocal(p.id);
+        } else if (p.syncStatus == 'pending_insert') {
+          await pmTable.insert(_toRemotePaymentMethod(p));
+        } else {
+          await pmTable.update(_toRemotePaymentMethod(p)).eq('id', p.id);
+        }
+        if (p.syncStatus != 'pending_delete') await pmRepo.markSynced(p.id);
+      } catch (_) {}
+    }
+
+    for (final e in await expRepo.getPendingForPush(userId)) {
+      try {
+        if (e.syncStatus == 'pending_delete') {
+          await expTable.delete().eq('id', e.id);
+          await expRepo.deleteLocal(e.id);
+        } else if (e.syncStatus == 'pending_insert') {
+          await expTable.insert(_toRemoteExpense(e));
+        } else if (e.syncStatus == 'pending_update') {
+          await expTable.update(_toRemoteExpense(e)).eq('id', e.id);
+        }
+        if (e.syncStatus != 'pending_delete') await expRepo.markSynced(e.id);
+      } catch (_) {}
+    }
+
+    for (final p in await payRepo.getPendingForPush()) {
+      try {
+        if (p.syncStatus == 'pending_insert') {
+          await payTable.insert(_toRemoteCardPayment(p));
+          await payRepo.markSynced(p.id);
+        }
+      } catch (_) {}
+    }
+
+    for (final m in await minRepo.getPendingForPush()) {
+      try {
+        if (m.syncStatus == 'pending_insert' || m.syncStatus == 'pending_update') {
+          await minTable.upsert(_toRemoteMinConfig(m), onConflict: 'id');
+          await minRepo.markSynced(m.id);
+        }
+      } catch (_) {}
+    }
+
+    for (final d in await debtRepo.getPendingForPush(userId)) {
+      try {
+        if (d.syncStatus == 'pending_delete') {
+          await debtsTable.delete().eq('id', d.id);
+          await debtRepo.deleteLocal(d.id);
+        } else if (d.syncStatus == 'pending_insert') {
+          await debtsTable.insert(_toRemoteDebt(d));
+        } else {
+          await debtsTable.update(_toRemoteDebt(d)).eq('id', d.id);
+        }
+        if (d.syncStatus != 'pending_delete') await debtRepo.markSynced(d.id);
+      } catch (_) {}
+    }
+
+    for (final p in await debtPayRepo.getPendingForPush()) {
+      try {
+        if (p.syncStatus == 'pending_delete') {
+          await debtPaymentsTable.delete().eq('id', p.id);
+          await debtPayRepo.deleteLocal(p.id);
+        } else if (p.syncStatus == 'pending_insert') {
+          await debtPaymentsTable.insert(_toRemoteDebtPayment(p));
+          await debtPayRepo.markSynced(p.id);
+        }
+      } catch (_) {}
+    }
+
+    for (final a in await autoPayRepo.getPendingForPush(userId)) {
+      try {
+        if (a.syncStatus == 'pending_delete') {
+          await automaticPaymentsTable.delete().eq('id', a.id);
+          await autoPayRepo.deleteLocal(a.id);
+        } else if (a.syncStatus == 'pending_insert') {
+          await automaticPaymentsTable.insert(_toRemoteAutomaticPayment(a));
+          await autoPayRepo.markSynced(a.id);
+        } else {
+          await automaticPaymentsTable.update(_toRemoteAutomaticPayment(a)).eq('id', a.id);
+          await autoPayRepo.markSynced(a.id);
+        }
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _pull(String userId) async {
+    final ccRepo = _ref.read(creditCardRepositoryProvider);
+    final pmRepo = _ref.read(paymentMethodRepositoryProvider);
+    final expRepo = _ref.read(expenseRepositoryProvider);
+    final payRepo = _ref.read(cardPaymentRepositoryProvider);
+    final minRepo = _ref.read(minPaymentConfigRepositoryProvider);
+    final debtRepo = _ref.read(debtRepositoryProvider);
+    final debtPayRepo = _ref.read(debtPaymentRepositoryProvider);
+    final autoPayRepo = _ref.read(automaticPaymentRepositoryProvider);
+
+    final ccRes = await _supabase.from('credit_cards').select().eq('user_id', userId);
+    for (final row in ccRes as List) {
+      final map = Map<String, dynamic>.from(row as Map);
+      final card = CreditCard(
+        id: map['id'] as String,
+        userId: map['user_id'] as String,
+        alias: map['alias'] as String,
+        cutOffDay: map['cut_off_day'] as int,
+        managementFee: (map['management_fee'] as num).toDouble(),
+        syncStatus: 'synced',
+        updatedAt: map['updated_at']?.toString(),
+        createdAt: map['created_at']?.toString(),
+      );
+      await ccRepo.upsertFromRemote(card);
+    }
+
+    final pmRes = await _supabase.from('payment_methods').select().eq('user_id', userId);
+    for (final row in pmRes as List) {
+      final map = Map<String, dynamic>.from(row as Map);
+      final pm = PaymentMethod(
+        id: map['id'] as String,
+        userId: map['user_id'] as String,
+        name: map['name'] as String,
+        type: map['type'] as String? ?? 'other',
+        syncStatus: 'synced',
+        updatedAt: map['updated_at']?.toString(),
+        createdAt: map['created_at']?.toString(),
+      );
+      await pmRepo.upsertFromRemote(pm);
+    }
+
+    final expRes = await _supabase.from('expenses').select().eq('user_id', userId);
+    for (final row in expRes as List) {
+      final map = Map<String, dynamic>.from(row as Map);
+      final e = Expense(
+        id: map['id'] as String,
+        userId: map['user_id'] as String,
+        amount: (map['amount'] as num).toDouble(),
+        date: DateTime.parse(map['date'] as String),
+        paymentType: map['payment_type'] as String,
+        paymentRef: map['payment_ref'] as String,
+        description: map['description'] as String?,
+        syncStatus: 'synced',
+        updatedAt: map['updated_at']?.toString(),
+        createdAt: map['created_at']?.toString(),
+      );
+      await expRepo.upsertFromRemote(e);
+    }
+
+    final cardIds = (await ccRepo.getAll(userId)).map((c) => c.id).toList();
+    for (final cardId in cardIds) {
+      final payRes = await _supabase.from('card_payments').select().eq('card_id', cardId);
+      for (final row in payRes as List) {
+        final map = Map<String, dynamic>.from(row as Map);
+        final p = CardPayment(
+          id: map['id'] as String,
+          cardId: map['card_id'] as String,
+          amount: (map['amount'] as num).toDouble(),
+          date: DateTime.parse(map['date'] as String),
+          syncStatus: 'synced',
+          updatedAt: map['updated_at']?.toString(),
+          createdAt: map['created_at']?.toString(),
+        );
+        await payRepo.upsertFromRemote(p);
+      }
+    }
+
+    for (final cardId in cardIds) {
+      final minRes = await _supabase.from('min_payment_configs').select().eq('card_id', cardId);
+      for (final row in minRes as List) {
+        final map = Map<String, dynamic>.from(row as Map);
+        final m = MinPaymentConfig(
+          id: map['id'] as String,
+          cardId: map['card_id'] as String,
+          amount: (map['amount'] as num).toDouble(),
+          year: map['year'] as int,
+          month: map['month'] as int,
+          syncStatus: 'synced',
+          updatedAt: map['updated_at']?.toString(),
+          createdAt: map['created_at']?.toString(),
+        );
+        await minRepo.upsertFromRemote(m);
+      }
+    }
+
+    final debtRes = await _supabase.from('debts').select().eq('user_id', userId);
+    for (final row in debtRes as List) {
+      final map = Map<String, dynamic>.from(row as Map);
+      final dueStr = map['due_date']?.toString() ?? '';
+      final dueDateTime = dueStr.length >= 10
+          ? DateTime.tryParse(dueStr.substring(0, 10)) ?? DateTime.now()
+          : DateTime.now();
+      final d = Debt(
+        id: map['id'] as String,
+        userId: map['user_id'] as String,
+        name: map['name'] as String,
+        totalAmount: (map['total_amount'] as num).toDouble(),
+        numberOfInstallments: map['number_of_installments'] as int,
+        dueDate: dueDateTime,
+        syncStatus: 'synced',
+        updatedAt: map['updated_at']?.toString(),
+        createdAt: map['created_at']?.toString(),
+      );
+      await debtRepo.upsertFromRemote(d);
+    }
+
+    final debtIds = (await debtRepo.getAll(userId)).map((d) => d.id).toList();
+    for (final debtId in debtIds) {
+      final payRes = await _supabase.from('debt_payments').select().eq('debt_id', debtId);
+      for (final row in payRes as List) {
+        final map = Map<String, dynamic>.from(row as Map);
+        final p = DebtPayment(
+          id: map['id'] as String,
+          debtId: map['debt_id'] as String,
+          amount: (map['amount'] as num).toDouble(),
+          date: DateTime.parse(map['date'] as String),
+          syncStatus: 'synced',
+          updatedAt: map['updated_at']?.toString(),
+          createdAt: map['created_at']?.toString(),
+        );
+        await debtPayRepo.upsertFromRemote(p);
+      }
+    }
+
+    final autoRes = await _supabase.from('automatic_payments').select().eq('user_id', userId);
+    for (final row in autoRes as List) {
+      final map = Map<String, dynamic>.from(row as Map);
+      final nextStr = map['next_run_date']?.toString() ?? '';
+      final nextDate = nextStr.length >= 10
+          ? DateTime.tryParse(nextStr.substring(0, 10)) ?? DateTime.now()
+          : DateTime.now();
+      final a = AutomaticPayment(
+        id: map['id'] as String,
+        userId: map['user_id'] as String,
+        paymentType: map['payment_type'] as String,
+        paymentRef: map['payment_ref'] as String,
+        amount: (map['amount'] as num).toDouble(),
+        description: map['description'] as String,
+        nextRunDate: nextDate,
+        syncStatus: 'synced',
+        updatedAt: map['updated_at']?.toString(),
+        createdAt: map['created_at']?.toString(),
+      );
+      await autoPayRepo.upsertFromRemote(a);
+    }
+  }
+
+  Map<String, dynamic> _toRemoteCard(CreditCard c) {
+    final m = c.toJson();
+    m.remove('sync_status');
+    m.remove('updated_at');
+    m.remove('created_at');
+    return m;
+  }
+
+  Map<String, dynamic> _toRemotePaymentMethod(PaymentMethod p) {
+    final m = p.toJson();
+    m.remove('sync_status');
+    m.remove('updated_at');
+    m.remove('created_at');
+    return m;
+  }
+
+  Map<String, dynamic> _toRemoteExpense(Expense e) {
+    final m = e.toJson();
+    m.remove('sync_status');
+    m.remove('updated_at');
+    m.remove('created_at');
+    return m;
+  }
+
+  Map<String, dynamic> _toRemoteCardPayment(CardPayment p) {
+    final m = p.toJson();
+    m.remove('sync_status');
+    m.remove('updated_at');
+    m.remove('created_at');
+    return m;
+  }
+
+  Map<String, dynamic> _toRemoteMinConfig(MinPaymentConfig m) {
+    final map = m.toJson();
+    map.remove('sync_status');
+    map.remove('updated_at');
+    map.remove('created_at');
+    return map;
+  }
+
+  Map<String, dynamic> _toRemoteDebt(Debt d) {
+    final map = d.toJson();
+    map.remove('sync_status');
+    map.remove('updated_at');
+    map.remove('created_at');
+    if (map['due_date'] is String) {
+      map['due_date'] = (map['due_date'] as String).substring(0, 10);
+    }
+    return map;
+  }
+
+  Map<String, dynamic> _toRemoteDebtPayment(DebtPayment p) {
+    final map = p.toJson();
+    map.remove('sync_status');
+    map.remove('updated_at');
+    map.remove('created_at');
+    return map;
+  }
+
+  Map<String, dynamic> _toRemoteAutomaticPayment(AutomaticPayment a) {
+    final map = a.toJson();
+    map.remove('sync_status');
+    map.remove('updated_at');
+    map.remove('created_at');
+    if (map['next_run_date'] is String) {
+      map['next_run_date'] = (map['next_run_date'] as String).substring(0, 10);
+    }
+    return map;
+  }
+}
