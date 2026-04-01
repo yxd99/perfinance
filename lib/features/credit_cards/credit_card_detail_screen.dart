@@ -1,14 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perfinance/core/providers/hide_values_provider.dart';
+import 'package:perfinance/core/utils/user_friendly_errors.dart';
 import 'package:perfinance/core/widgets/currency_input.dart';
 import 'package:perfinance/data/models/card_payment.dart';
 import 'package:perfinance/data/models/credit_card.dart';
+import 'package:perfinance/data/models/expense.dart';
 import 'package:perfinance/data/models/min_payment_config.dart';
 import 'package:perfinance/data/repositories/card_payment_repository.dart';
+import 'package:perfinance/data/repositories/expense_repository.dart';
 import 'package:perfinance/data/repositories/min_payment_config_repository.dart';
-import 'package:perfinance/core/utils/user_friendly_errors.dart';
+import 'package:perfinance/features/auth/auth_provider.dart';
+import 'package:perfinance/features/credit_cards/card_debt_validation_dialog.dart';
 import 'package:perfinance/features/credit_cards/credit_cards_provider.dart';
+import 'package:perfinance/features/dashboard/dashboard_provider.dart';
+import 'package:perfinance/features/expenses/expenses_provider.dart';
+import 'package:perfinance/services/card_debt_reconciliation_service.dart';
 import 'package:perfinance/services/min_payment_service.dart';
 import 'package:uuid/uuid.dart';
 
@@ -76,6 +83,20 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
     return MinPaymentService.getStatus(repo, payRepo, widget.card.id);
   }
 
+  Future<double> _getCurrentDebt() async {
+    final user = await ref.read(authStateProvider.future);
+    if (user == null) return 0;
+    final expenseRepo = ref.read(expenseRepositoryProvider);
+    final paymentRepo = ref.read(cardPaymentRepositoryProvider);
+    final expenses = await expenseRepo.getAll(user.id);
+    final payments = await paymentRepo.getByCardId(widget.card.id);
+    return CardDebtReconciliationService.currentDebtForCard(
+      cardId: widget.card.id,
+      expenses: expenses,
+      payments: payments,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final hideValues = ref.watch(hideValuesProvider).value ?? false;
@@ -92,6 +113,29 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
                 children: [
                   Text('Corte día ${widget.card.cutOffDay}', style: Theme.of(context).textTheme.titleSmall),
                   Text('Cuota de manejo: \$${formatCurrencyDisplay(widget.card.managementFee, hideValues)}'),
+                  const SizedBox(height: 16),
+                  FutureBuilder<double>(
+                    future: _getCurrentDebt(),
+                    builder: (context, snapshot) {
+                      final debt = snapshot.data ?? 0;
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Deuda total', style: Theme.of(context).textTheme.titleSmall),
+                          const SizedBox(height: 4),
+                          if (snapshot.connectionState == ConnectionState.waiting)
+                            const LinearProgressIndicator()
+                          else
+                            Text(
+                              '\$${formatCurrencyDisplay(debt, hideValues)}',
+                              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
                 ],
               ),
             ),
@@ -128,6 +172,11 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
                           ),
                         ],
                       ),
+                      const SizedBox(height: 8),
+                      TextButton(
+                        onPressed: () => _validateCurrentDebt(context),
+                        child: const Text('Validar deuda actual'),
+                      ),
                     ],
                   ),
                 ),
@@ -143,6 +192,7 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
     final now = DateTime.now();
     final repo = ref.read(minPaymentConfigRepositoryProvider);
     final existing = await repo.getForCardAndMonth(widget.card.id, now.year, now.month);
+    if (!context.mounted) return;
     final c = TextEditingController();
     if (existing != null) {
       c.text = formatCurrency(existing.amount);
@@ -220,7 +270,68 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
     ));
     if (mounted) {
       setState(() {});
+      ref.invalidate(dashboardDebtProvider);
       ref.invalidate(creditCardsListProvider);
     }
+  }
+
+  Future<void> _validateCurrentDebt(BuildContext context) async {
+    final user = await ref.read(authStateProvider.future);
+    if (user == null || !mounted) return;
+
+    final expenseRepo = ref.read(expenseRepositoryProvider);
+    final paymentRepo = ref.read(cardPaymentRepositoryProvider);
+    final expenses = await expenseRepo.getAll(user.id);
+    final payments = await paymentRepo.getByCardId(widget.card.id);
+    final expectedDebt = CardDebtReconciliationService.currentDebtForCard(
+      cardId: widget.card.id,
+      expenses: expenses,
+      payments: payments,
+    );
+    if (!context.mounted) return;
+
+    final decision = await showCardDebtValidationDialog(
+      context: context,
+      expectedDebt: expectedDebt,
+      title: 'Validar deuda de ${widget.card.alias}',
+    );
+    if (decision == null) return;
+
+    if (decision.reconciliation.action == CardDebtAdjustmentAction.missingExpense) {
+      await expenseRepo.insert(
+        Expense(
+          id: const Uuid().v4(),
+          userId: user.id,
+          amount: decision.reconciliation.delta,
+          date: DateTime.now(),
+          paymentType: 'credit_card',
+          paymentRef: widget.card.id,
+          description: 'Faltante de deuda',
+        ),
+      );
+    } else if (decision.reconciliation.action == CardDebtAdjustmentAction.cardPayment) {
+      await paymentRepo.insert(
+        CardPayment(
+          id: const Uuid().v4(),
+          cardId: widget.card.id,
+          amount: decision.reconciliation.delta,
+          date: DateTime.now(),
+        ),
+      );
+    }
+
+    if (!mounted) return;
+    setState(() {});
+    ref.invalidate(expensesListProvider);
+    ref.invalidate(dashboardDebtProvider);
+    ref.invalidate(creditCardsListProvider);
+    final message = switch (decision.reconciliation.action) {
+      CardDebtAdjustmentAction.missingExpense =>
+        'Se agregó un egreso por faltante de deuda.',
+      CardDebtAdjustmentAction.cardPayment =>
+        'Se registró un pago por la diferencia.',
+      CardDebtAdjustmentAction.none => 'La deuda ya coincide con el cálculo.',
+    };
+    ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(content: Text(message)));
   }
 }

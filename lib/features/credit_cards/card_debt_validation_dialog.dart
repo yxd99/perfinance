@@ -1,0 +1,203 @@
+import 'package:flutter/material.dart';
+import 'package:perfinance/core/widgets/currency_input.dart';
+import 'package:perfinance/services/card_debt_reconciliation_service.dart';
+
+class CardDebtValidationDecision {
+  const CardDebtValidationDecision({
+    required this.actualDebt,
+    required this.reconciliation,
+  });
+
+  final double actualDebt;
+  final CardDebtReconciliationResult reconciliation;
+}
+
+Future<CardDebtValidationDecision?> showCardDebtValidationDialog({
+  required BuildContext context,
+  required double expectedDebt,
+  String title = 'Validar deuda',
+}) async {
+  final controller = TextEditingController(text: formatCurrency(expectedDebt));
+  final decision = await showDialog<CardDebtValidationDecision>(
+    context: context,
+    builder: (dialogContext) {
+      return StatefulBuilder(
+        builder: (context, setState) {
+          final actualDebt = parseCurrency(controller.text) ?? expectedDebt;
+          final reconciliation = CardDebtReconciliationService.reconcile(
+            expectedDebt: expectedDebt,
+            actualDebt: actualDebt,
+          );
+          final deltaColor = switch (reconciliation.action) {
+            CardDebtAdjustmentAction.missingExpense => Colors.orange.shade700,
+            CardDebtAdjustmentAction.cardPayment => Colors.green.shade700,
+            CardDebtAdjustmentAction.none => Theme.of(context).colorScheme.primary,
+          };
+          final deltaLabel = switch (reconciliation.action) {
+            CardDebtAdjustmentAction.missingExpense => 'Faltante detectado',
+            CardDebtAdjustmentAction.cardPayment => 'Pago a registrar',
+            CardDebtAdjustmentAction.none => 'Deuda conciliada',
+          };
+          final helperText = switch (reconciliation.action) {
+            CardDebtAdjustmentAction.missingExpense =>
+              'La deuda real es mayor que la calculada. Se agregará un egreso extra con la descripción Faltante de deuda.',
+            CardDebtAdjustmentAction.cardPayment =>
+              'La deuda real es menor que la calculada. Se registrará un pago de tarjeta por la diferencia.',
+            CardDebtAdjustmentAction.none => 'La deuda ingresada coincide con el cálculo actual. No se crearán movimientos adicionales.',
+          };
+          final confirmLabel = switch (reconciliation.action) {
+            CardDebtAdjustmentAction.missingExpense => 'Agregar faltante',
+            CardDebtAdjustmentAction.cardPayment => 'Registrar pago',
+            CardDebtAdjustmentAction.none => 'Confirmar deuda',
+          };
+
+          return AlertDialog(
+            title: Text(title),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Confirma si el saldo real de la tarjeta coincide con el cálculo actual.',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _DebtSummaryCard(
+                        label: 'Calculada',
+                        value: '\$${formatCurrency(expectedDebt)}',
+                        icon: Icons.calculate_outlined,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _DebtSummaryCard(
+                        label: deltaLabel,
+                        value: reconciliation.action == CardDebtAdjustmentAction.none
+                            ? 'Sin ajuste'
+                            : '\$${formatCurrency(reconciliation.delta)}',
+                        icon: reconciliation.action == CardDebtAdjustmentAction.cardPayment
+                            ? Icons.arrow_downward_rounded
+                            : reconciliation.action == CardDebtAdjustmentAction.missingExpense
+                                ? Icons.arrow_upward_rounded
+                                : Icons.check_circle_outline,
+                        valueColor: deltaColor,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                CurrencyTextField(
+                  controller: controller,
+                  decoration: const InputDecoration(
+                    labelText: 'Deuda real actual',
+                    helperText: 'Puedes dejar el valor calculado si ya está correcto.',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) {
+                    final parsed = parseCurrency(value ?? '');
+                    if (parsed == null || parsed < 0) return 'Monto inválido';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: deltaColor.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: deltaColor.withValues(alpha: 0.2)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Resultado',
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: deltaColor,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(helperText),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancelar'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  final parsed = parseCurrency(controller.text);
+                  if (parsed == null || parsed < 0) return;
+                  Navigator.pop(
+                    dialogContext,
+                    CardDebtValidationDecision(
+                      actualDebt: parsed,
+                      reconciliation: CardDebtReconciliationService.reconcile(
+                        expectedDebt: expectedDebt,
+                        actualDebt: parsed,
+                      ),
+                    ),
+                  );
+                },
+                child: Text(confirmLabel),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
+  controller.dispose();
+  return decision;
+}
+
+class _DebtSummaryCard extends StatelessWidget {
+  const _DebtSummaryCard({
+    required this.label,
+    required this.value,
+    required this.icon,
+    this.valueColor,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color? valueColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: colorScheme.primary),
+          const SizedBox(height: 8),
+          Text(label, style: Theme.of(context).textTheme.labelMedium),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: valueColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
