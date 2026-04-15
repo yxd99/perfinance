@@ -1,19 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perfinance/core/widgets/currency_input.dart';
-import 'package:perfinance/data/models/card_payment.dart';
 import 'package:perfinance/data/models/expense.dart';
-import 'package:perfinance/data/repositories/card_payment_repository.dart';
 import 'package:perfinance/data/repositories/expense_repository.dart';
 import 'package:perfinance/features/auth/auth_provider.dart';
-import 'package:perfinance/features/credit_cards/card_debt_validation_dialog.dart';
 import 'package:perfinance/features/credit_cards/credit_cards_provider.dart';
 import 'package:perfinance/features/credit_cards/credit_card_form_screen.dart';
 import 'package:perfinance/features/dashboard/dashboard_provider.dart';
 import 'package:perfinance/features/expenses/expenses_provider.dart';
 import 'package:perfinance/features/savings/savings_provider.dart';
 import 'package:perfinance/features/savings/payment_method_form_screen.dart';
-import 'package:perfinance/services/card_debt_reconciliation_service.dart';
 import 'package:uuid/uuid.dart';
 
 class ExpenseFormScreen extends ConsumerStatefulWidget {
@@ -179,28 +175,6 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
     if (amount == null || amount <= 0) return;
     final description = _descriptionController.text.trim().isEmpty ? null : _descriptionController.text.trim();
     final repo = ref.read(expenseRepositoryProvider);
-    final paymentRepo = ref.read(cardPaymentRepositoryProvider);
-    CardDebtValidationDecision? debtDecision;
-    if (_isCreditCard) {
-      final expenses = await repo.getAll(user.id);
-      final payments = await paymentRepo.getByCardId(paymentRef);
-      final expectedDebt = CardDebtReconciliationService.projectedDebtForCard(
-        cardId: paymentRef,
-        expenses: expenses,
-        payments: payments,
-        newExpenseAmount: amount,
-        newPaymentType: paymentType,
-        newPaymentRef: paymentRef,
-        existingExpense: widget.edit,
-      );
-      if (!mounted) return;
-      debtDecision = await showCardDebtValidationDialog(
-        context: context,
-        expectedDebt: expectedDebt,
-        title: 'Validar deuda proyectada',
-      );
-      if (debtDecision == null) return;
-    }
     if (widget.edit != null) {
       await repo.update(widget.edit!.copyWith(
         amount: amount,
@@ -219,26 +193,6 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
         paymentRef: paymentRef,
         description: description,
       ));
-    }
-    if (_isCreditCard && debtDecision != null) {
-      if (debtDecision.reconciliation.action == CardDebtAdjustmentAction.missingExpense) {
-        await repo.insert(Expense(
-          id: const Uuid().v4(),
-          userId: user.id,
-          amount: debtDecision.reconciliation.delta,
-          date: _date,
-          paymentType: 'credit_card',
-          paymentRef: paymentRef,
-          description: 'Faltante de deuda',
-        ));
-      } else if (debtDecision.reconciliation.action == CardDebtAdjustmentAction.cardPayment) {
-        await paymentRepo.insert(CardPayment(
-          id: const Uuid().v4(),
-          cardId: paymentRef,
-          amount: debtDecision.reconciliation.delta,
-          date: _date,
-        ));
-      }
     }
     if (mounted) {
       ref.invalidate(expensesListProvider);
