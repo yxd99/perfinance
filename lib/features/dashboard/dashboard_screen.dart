@@ -427,7 +427,7 @@ class DashboardScreen extends ConsumerWidget {
                                           borderRadius: BorderRadius.circular(10),
                                         ),
                                         child: Text(
-                                          hideValues ? '•••' : (isEqual ? '=' : '${c.percentChange.toStringAsFixed(0)}% ${isIncrease ? "↑" : "↓"}'),
+                                          isEqual ? '=' : '${c.percentChange.toStringAsFixed(0)}% ${isIncrease ? "↑" : "↓"}',
                                           style: TextStyle(
                                             color: isEqual
                                                 ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)
