@@ -1,0 +1,15 @@
+# Configuración local/CI para Supabase CLI.
+#
+# Las claves modernas `sb_publishable_...` no son JWT; la verificación JWT integrada
+# del proxy de Edge Functions solo entiende las claves anon legacy (`eyJ...`).
+# Tu app puede seguir usando la publishable en el cliente; aquí desactivamos la
+# verificación en el proxy porque `send-expense-export` ya valida el Bearer con
+# supabase.auth.getUser(jwt) y el cuerpo de la petición.
+#
+# Tras añadir o cambiar esto: `supabase functions deploy send-expense-export`
+# (o equivalente en el panel si tu flujo lo soporta).
+#
+# Docs: https://supabase.com/docs/guides/troubleshooting/edge-function-401-error-response
+
+[functions.send-expense-export]
+verify_jwt = false
