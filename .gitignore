@@ -46,3 +46,9 @@ app.*.map.json
 
 # Definiciones locales (URL y claves de Supabase); no subir al repositorio
 dart_defines.json
+
+# Artefacto local de despliegue MCP (puede contener el bundle completo de la función)
+supabase/functions/**/.deploy_mcp_args.json
+
+# Dependencias instaladas con pnpm junto a Edge Functions (el deploy usa deno.json)
+supabase/functions/**/node_modules/
