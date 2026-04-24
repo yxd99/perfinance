@@ -4,7 +4,9 @@ import 'package:perfinance/data/repositories/credit_card_repository.dart';
 import 'package:perfinance/data/repositories/expense_repository.dart';
 import 'package:perfinance/data/repositories/payment_method_repository.dart';
 import 'package:perfinance/features/auth/auth_provider.dart';
+import 'package:perfinance/features/credit_cards/credit_cards_provider.dart';
 import 'package:perfinance/features/expenses/expense_date_filter.dart';
+import 'package:perfinance/features/savings/savings_provider.dart';
 
 /// Alias/nombres de tarjetas y medios de pago del usuario para mostrar en egresos.
 class ExpensePaymentDisplay {
@@ -37,10 +39,21 @@ final expensesListProvider = FutureProvider.autoDispose<List<Expense>>((ref) asy
 
 final selectedExpenseDateFilterProvider = StateProvider<ExpenseDateFilter>((ref) => ExpenseDateFilter.today);
 
+/// IDs de tarjeta o cuenta de ahorro (`payment_ref`). Vacío = no filtrar por medio.
+final selectedExpensePaymentIdsFilterProvider = StateProvider<Set<String>>((ref) => {});
+
 final filteredExpensesListProvider = FutureProvider.autoDispose<List<Expense>>((ref) async {
   final list = await ref.watch(expensesListProvider.future);
   final filter = ref.watch(selectedExpenseDateFilterProvider);
   final range = filter.rangeOrNow;
+  final paymentFilter = ref.watch(selectedExpensePaymentIdsFilterProvider);
+  final cards = await ref.watch(creditCardsListProvider.future);
+  final methods = await ref.watch(paymentMethodsListProvider.future);
+  final validIds = {
+    ...cards.map((c) => c.id),
+    ...methods.map((m) => m.id),
+  };
+  final activePaymentFilter = paymentFilter.intersection(validIds);
   return list.where((e) {
     // Comparar por día natural en hora local para evitar que fechas en UTC
     // (p. ej. desde sync) aparezcan en el filtro del día anterior.
@@ -48,6 +61,9 @@ final filteredExpensesListProvider = FutureProvider.autoDispose<List<Expense>>((
     final expenseDay = DateTime(dLocal.year, dLocal.month, dLocal.day);
     final rangeStartDay = DateTime(range.start.year, range.start.month, range.start.day);
     final rangeEndDay = DateTime(range.end.year, range.end.month, range.end.day);
-    return !expenseDay.isBefore(rangeStartDay) && !expenseDay.isAfter(rangeEndDay);
+    if (expenseDay.isBefore(rangeStartDay) || expenseDay.isAfter(rangeEndDay)) return false;
+    if (activePaymentFilter.isEmpty) return true;
+    return (e.paymentType == 'credit_card' || e.paymentType == 'payment_method') &&
+        activePaymentFilter.contains(e.paymentRef);
   }).toList();
 });
