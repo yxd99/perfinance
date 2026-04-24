@@ -4,7 +4,10 @@ import 'package:perfinance/core/widgets/currency_input.dart';
 import 'package:perfinance/data/models/credit_card.dart';
 import 'package:perfinance/features/auth/auth_provider.dart';
 import 'package:perfinance/data/repositories/credit_card_repository.dart';
+import 'package:perfinance/features/automatic_payments/automatic_payments_provider.dart';
 import 'package:perfinance/features/credit_cards/credit_cards_provider.dart';
+import 'package:perfinance/features/dashboard/dashboard_provider.dart';
+import 'package:perfinance/features/expenses/expenses_provider.dart';
 import 'package:uuid/uuid.dart';
 
 class CreditCardFormScreen extends ConsumerStatefulWidget {
@@ -89,10 +92,47 @@ class _CreditCardFormScreenState extends ConsumerState<CreditCardFormScreen> {
               onPressed: _save,
               child: const Text('Guardar'),
             ),
+            if (widget.editCard != null) ...[
+              const SizedBox(height: 24),
+              TextButton.icon(
+                onPressed: _confirmDelete,
+                icon: const Icon(Icons.delete_outline),
+                label: const Text('Eliminar tarjeta'),
+                style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
+              ),
+            ],
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _confirmDelete() async {
+    final card = widget.editCard;
+    if (card == null) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Eliminar tarjeta'),
+        content: Text('¿Eliminar "${card.alias}"? Los pagos de esta tarjeta se quitarán al sincronizar.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.error),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    await ref.read(creditCardRepositoryProvider).delete(card.id);
+    if (!mounted) return;
+    ref.invalidate(creditCardsListProvider);
+    ref.invalidate(dashboardDebtProvider);
+    ref.invalidate(expensesListProvider);
+    ref.invalidate(automaticPaymentsListProvider);
+    Navigator.of(context).pop();
   }
 
   Future<void> _save() async {

@@ -18,8 +18,8 @@ class PaymentMethodRepository {
     final db = await _db;
     final rows = await db.query(
       tablePaymentMethods,
-      where: 'user_id = ?',
-      whereArgs: [userId],
+      where: 'user_id = ? AND sync_status != ?',
+      whereArgs: [userId, 'pending_delete'],
     );
     return rows.map(_rowToMethod).toList();
   }

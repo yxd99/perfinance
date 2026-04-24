@@ -5,7 +5,7 @@ enum ExpenseDateFilterType {
   today,
   yesterday,
   thisWeek,
-  last15Days,
+  last30Days,
   currentMonth,
   custom,
 }
@@ -19,7 +19,7 @@ class ExpenseDateFilter {
   static const ExpenseDateFilter today = ExpenseDateFilter._(ExpenseDateFilterType.today);
   static const ExpenseDateFilter yesterday = ExpenseDateFilter._(ExpenseDateFilterType.yesterday);
   static const ExpenseDateFilter thisWeek = ExpenseDateFilter._(ExpenseDateFilterType.thisWeek);
-  static const ExpenseDateFilter last15Days = ExpenseDateFilter._(ExpenseDateFilterType.last15Days);
+  static const ExpenseDateFilter last30Days = ExpenseDateFilter._(ExpenseDateFilterType.last30Days);
   static const ExpenseDateFilter currentMonth = ExpenseDateFilter._(ExpenseDateFilterType.currentMonth);
 
   static ExpenseDateFilter custom(DateTimeRange range) =>
@@ -38,8 +38,8 @@ class ExpenseDateFilter {
         final weekday = now.weekday;
         final startWeek = startOfToday.subtract(Duration(days: weekday - 1));
         return DateTimeRange(start: startWeek, end: now);
-      case ExpenseDateFilterType.last15Days:
-        return DateTimeRange(start: startOfToday.subtract(const Duration(days: 14)), end: now);
+      case ExpenseDateFilterType.last30Days:
+        return DateTimeRange(start: startOfToday.subtract(const Duration(days: 29)), end: now);
       case ExpenseDateFilterType.currentMonth:
         final startMonth = DateTime(now.year, now.month, 1);
         return DateTimeRange(start: startMonth, end: now);
@@ -59,8 +59,8 @@ class ExpenseDateFilter {
         return 'Ayer';
       case ExpenseDateFilterType.thisWeek:
         return 'Esta semana';
-      case ExpenseDateFilterType.last15Days:
-        return 'Últimos 15 días';
+      case ExpenseDateFilterType.last30Days:
+        return 'Últimos 30 días';
       case ExpenseDateFilterType.currentMonth:
         return 'Mes actual';
       case ExpenseDateFilterType.custom:

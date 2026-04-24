@@ -11,8 +11,10 @@ import 'package:perfinance/data/repositories/card_payment_repository.dart';
 import 'package:perfinance/data/repositories/expense_repository.dart';
 import 'package:perfinance/data/repositories/min_payment_config_repository.dart';
 import 'package:perfinance/features/auth/auth_provider.dart';
+import 'package:perfinance/features/credit_cards/card_payment_date_filter.dart';
 import 'package:perfinance/features/credit_cards/card_debt_validation_dialog.dart';
 import 'package:perfinance/features/credit_cards/credit_cards_provider.dart';
+import 'package:perfinance/features/credit_cards/credit_card_payments_provider.dart';
 import 'package:perfinance/features/dashboard/dashboard_provider.dart';
 import 'package:perfinance/features/expenses/expenses_provider.dart';
 import 'package:perfinance/services/card_debt_reconciliation_service.dart';
@@ -100,6 +102,8 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
   @override
   Widget build(BuildContext context) {
     final hideValues = ref.watch(hideValuesProvider).value ?? false;
+    final asyncPayments = ref.watch(filteredCardPaymentsByCardProvider(widget.card.id));
+    final selectedPaymentFilter = ref.watch(selectedCardPaymentDateFilterProvider(widget.card.id));
     return Scaffold(
       appBar: AppBar(title: Text(widget.card.alias)),
       body: ListView(
@@ -183,9 +187,89 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
               );
             },
           ),
+          const SizedBox(height: 16),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Historial de pagos', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 12),
+                  _PaymentFilterBar(
+                    selected: selectedPaymentFilter,
+                    onSelected: (f) =>
+                        ref.read(selectedCardPaymentDateFilterProvider(widget.card.id).notifier).state = f,
+                    onPickCustomRange: () => _pickCustomPaymentRange(context),
+                  ),
+                  const SizedBox(height: 12),
+                  asyncPayments.when(
+                    data: (payments) {
+                      final total = payments.fold<double>(0, (s, p) => s + p.amount);
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Total del rango: \$${formatCurrencyDisplay(total, hideValues)}',
+                            style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 12),
+                          if (payments.isEmpty)
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 16),
+                              child: Text('No hay pagos en este rango.'),
+                            )
+                          else
+                            ListView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: payments.length,
+                              itemBuilder: (context, i) {
+                                final p = payments[i];
+                                final d = p.date.toLocal();
+                                return ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: const Icon(Icons.payments_outlined),
+                                  title: Text('\$${formatCurrencyDisplay(p.amount, hideValues)}'),
+                                  subtitle: Text('${d.day}/${d.month}/${d.year}'),
+                                );
+                              },
+                            ),
+                        ],
+                      );
+                    },
+                    loading: () => const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16),
+                      child: LinearProgressIndicator(),
+                    ),
+                    error: (e, _) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      child: Text(
+                        UserFriendlyErrors.fromAsyncError(e, 'No pudimos cargar el historial de pagos.'),
+                        style: TextStyle(color: Theme.of(context).colorScheme.error),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
+  }
+
+  Future<void> _pickCustomPaymentRange(BuildContext context) async {
+    final now = DateTime.now();
+    final range = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: now,
+      initialDateRange: DateTimeRange(start: now.subtract(const Duration(days: 30)), end: now),
+    );
+    if (range != null) {
+      ref.read(selectedCardPaymentDateFilterProvider(widget.card.id).notifier).state = CardPaymentDateFilter.custom(range);
+    }
   }
 
   Future<void> _setMinPayment(BuildContext context) async {
@@ -272,6 +356,7 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
       setState(() {});
       ref.invalidate(dashboardDebtProvider);
       ref.invalidate(creditCardsListProvider);
+      ref.invalidate(cardPaymentsByCardProvider(widget.card.id));
     }
   }
 
@@ -325,6 +410,7 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
     ref.invalidate(expensesListProvider);
     ref.invalidate(dashboardDebtProvider);
     ref.invalidate(creditCardsListProvider);
+    ref.invalidate(cardPaymentsByCardProvider(widget.card.id));
     final message = switch (decision.reconciliation.action) {
       CardDebtAdjustmentAction.missingExpense =>
         'Se agregó un egreso por faltante de deuda.',
@@ -333,5 +419,51 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
       CardDebtAdjustmentAction.none => 'La deuda ya coincide con el cálculo.',
     };
     ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+
+class _PaymentFilterBar extends StatelessWidget {
+  const _PaymentFilterBar({
+    required this.selected,
+    required this.onSelected,
+    required this.onPickCustomRange,
+  });
+
+  final CardPaymentDateFilter selected;
+  final void Function(CardPaymentDateFilter filter) onSelected;
+  final Future<void> Function() onPickCustomRange;
+
+  @override
+  Widget build(BuildContext context) {
+    const filters = [
+      CardPaymentDateFilter.today,
+      CardPaymentDateFilter.yesterday,
+      CardPaymentDateFilter.thisWeek,
+      CardPaymentDateFilter.last30Days,
+      CardPaymentDateFilter.currentMonth,
+    ];
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          ...filters.map((f) => Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: FilterChip(
+                  label: Text(f.label),
+                  selected: selected.type == f.type,
+                  onSelected: (_) => onSelected(f),
+                ),
+              )),
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: FilterChip(
+              label: const Text('Rango personalizado'),
+              selected: selected.type == CardPaymentDateFilterType.custom,
+              onSelected: (_) => onPickCustomRange(),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

@@ -18,8 +18,8 @@ class CreditCardRepository {
     final db = await _db;
     final rows = await db.query(
       tableCreditCards,
-      where: 'user_id = ?',
-      whereArgs: [userId],
+      where: 'user_id = ? AND sync_status != ?',
+      whereArgs: [userId, 'pending_delete'],
     );
     return rows.map((r) => _rowToCard(r)).toList();
   }

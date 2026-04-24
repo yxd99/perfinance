@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:perfinance/core/config/supabase_config.dart';
 import 'package:perfinance/core/providers/hide_values_provider.dart';
 import 'package:perfinance/core/theme/app_theme.dart';
 import 'package:perfinance/core/utils/user_friendly_errors.dart';
@@ -8,6 +9,8 @@ import 'package:perfinance/data/models/expense.dart';
 import 'package:perfinance/data/repositories/expense_repository.dart';
 import 'package:perfinance/features/expenses/expenses_provider.dart';
 import 'package:perfinance/features/expenses/expense_date_filter.dart';
+import 'package:perfinance/features/expenses/expense_export_service.dart';
+import 'package:perfinance/features/expenses/expense_export_window.dart';
 import 'package:perfinance/features/expenses/expense_form_screen.dart';
 
 class ExpensesScreen extends ConsumerWidget {
@@ -178,7 +181,7 @@ class ExpensesScreen extends ConsumerWidget {
       ExpenseDateFilter.today,
       ExpenseDateFilter.yesterday,
       ExpenseDateFilter.thisWeek,
-      ExpenseDateFilter.last15Days,
+      ExpenseDateFilter.last30Days,
       ExpenseDateFilter.currentMonth,
     ];
     return SingleChildScrollView(
@@ -202,9 +205,73 @@ class ExpensesScreen extends ConsumerWidget {
               onSelected: (_) => _pickCustomRange(context, ref),
             ),
           ),
+          IconButton(
+            icon: const Icon(Icons.outgoing_mail),
+            tooltip: 'Enviar exportación por correo',
+            onPressed: () => _sendExpenseExportEmail(context, ref),
+          ),
         ],
       ),
     );
+  }
+
+  Future<void> _sendExpenseExportEmail(BuildContext context, WidgetRef ref) async {
+    if (!SupabaseConfig.isConfigured) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Supabase no está configurado en esta compilación.'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+      return;
+    }
+
+    final list = await ref.read(filteredExpensesListProvider.future);
+    if (!context.mounted) return;
+    if (list.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text(UserFriendlyErrors.expenseExportNoRows)),
+      );
+      return;
+    }
+
+    final filter = ref.read(selectedExpenseDateFilterProvider);
+    final window = ExpenseExportWindow.fromFilter(filter);
+
+    BuildContext? loadingDialogContext;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        loadingDialogContext = dialogContext;
+        return const PopScope(
+          canPop: false,
+          child: Center(child: CircularProgressIndicator()),
+        );
+      },
+    );
+
+    try {
+      await ref.read(expenseExportServiceProvider).sendExpenseExportEmail(window);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Te enviamos el archivo por correo.')),
+      );
+    } catch (e, _) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(UserFriendlyErrors.expenseExportEmailMessage(e)),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    } finally {
+      final dc = loadingDialogContext;
+      if (dc != null && dc.mounted) {
+        Navigator.of(dc).pop();
+      }
+    }
   }
 
   Future<void> _pickCustomRange(BuildContext context, WidgetRef ref) async {

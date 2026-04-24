@@ -26,10 +26,14 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
+
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 6, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       startConnectivitySyncListener(() => ref.read(syncServiceProvider).syncNow());
       _syncIfOnline();
@@ -41,6 +45,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     await ref.read(processAutomaticPaymentsServiceProvider).run();
     ref.invalidate(expensesListProvider);
     ref.invalidate(automaticPaymentsListProvider);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> _syncIfOnline() async {
@@ -137,36 +147,35 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               decoration: Theme.of(context).brightness == Brightness.dark
                   ? null
                   : const BoxDecoration(gradient: AppThemeColors.backgroundGradientLight),
-              child: DefaultTabController(
-                length: 6,
-                child: Column(
-                  children: [
-                    const TabBar(
-                      isScrollable: true,
-                      tabAlignment: TabAlignment.center,
-                      tabs: [
-                        Tab(icon: Icon(Icons.dashboard), text: 'Dashboard'),
-                        Tab(icon: Icon(Icons.credit_card), text: 'Tarjetas'),
-                        Tab(icon: Icon(Icons.savings), text: 'Ahorros'),
-                        Tab(icon: Icon(Icons.payments), text: 'Egresos'),
-                        Tab(icon: Icon(Icons.account_balance_wallet), text: 'Deudas'),
-                        Tab(icon: Icon(Icons.autorenew), text: 'Pagos auto'),
+              child: Column(
+                children: [
+                  TabBar(
+                    controller: _tabController,
+                    isScrollable: true,
+                    tabAlignment: TabAlignment.center,
+                    tabs: const [
+                      Tab(icon: Icon(Icons.dashboard), text: 'Dashboard'),
+                      Tab(icon: Icon(Icons.credit_card), text: 'Tarjetas'),
+                      Tab(icon: Icon(Icons.savings), text: 'Ahorros'),
+                      Tab(icon: Icon(Icons.payments), text: 'Egresos'),
+                      Tab(icon: Icon(Icons.account_balance_wallet), text: 'Deudas'),
+                      Tab(icon: Icon(Icons.autorenew), text: 'Pagos auto'),
+                    ],
+                  ),
+                  Expanded(
+                    child: TabBarView(
+                      controller: _tabController,
+                      children: const [
+                        DashboardScreen(),
+                        CreditCardsScreen(),
+                        SavingsScreen(),
+                        ExpensesScreen(),
+                        DebtsScreen(),
+                        AutomaticPaymentsScreen(),
                       ],
                     ),
-                    const Expanded(
-                      child: TabBarView(
-                        children: [
-                          DashboardScreen(),
-                          CreditCardsScreen(),
-                          SavingsScreen(),
-                          ExpensesScreen(),
-                          DebtsScreen(),
-                          AutomaticPaymentsScreen(),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
