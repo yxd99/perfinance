@@ -37,7 +37,7 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
       final e = widget.edit!;
       _amountController.text = formatCurrency(e.amount.round());
       _descriptionController.text = e.description ?? '';
-      _date = e.date;
+      _date = e.date.toLocal();
       _isCreditCard = e.paymentType == 'credit_card';
       _selectedCardId = _isCreditCard ? e.paymentRef : null;
       _selectedMethodId = !_isCreditCard ? e.paymentRef : null;
