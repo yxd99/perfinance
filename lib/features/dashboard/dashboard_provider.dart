@@ -11,9 +11,9 @@ import 'package:perfinance/services/dashboard_service.dart';
 /// Mes seleccionado para consultar en el dashboard (solo año y mes se usan).
 final selectedDashboardMonthProvider = StateProvider<DateTime>((ref) => DateTime.now());
 
-final dashboardDebtProvider = FutureProvider.autoDispose<double>((ref) async {
+final dashboardDebtProvider = FutureProvider.autoDispose<DebtBreakdown>((ref) async {
   final user = await ref.watch(authStateProvider.future);
-  if (user == null) return 0;
+  if (user == null) return const DebtBreakdown(total: 0, items: []);
   final month = ref.watch(selectedDashboardMonthProvider);
   final cardRepo = ref.read(creditCardRepositoryProvider);
   final expenseRepo = ref.read(expenseRepositoryProvider);
@@ -21,7 +21,7 @@ final dashboardDebtProvider = FutureProvider.autoDispose<double>((ref) async {
   final debtRepo = ref.read(debtRepositoryProvider);
   final debtPayRepo = ref.read(debtPaymentRepositoryProvider);
   final asOfEndOfMonth = DateTime(month.year, month.month, 1);
-  return DashboardService.totalDebt(
+  return DashboardService.debtBreakdown(
     cardRepo,
     expenseRepo,
     payRepo,
