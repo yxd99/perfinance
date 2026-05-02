@@ -33,7 +33,7 @@ class CardDebtReconciliationService {
     final paid = payments
         .where((payment) => payment.cardId == cardId)
         .fold<double>(0, (sum, payment) => sum + payment.amount);
-    return spent - paid;
+    return (spent - paid).clamp(0.0, double.infinity);
   }
 
   static double projectedDebt({

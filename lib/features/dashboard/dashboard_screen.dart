@@ -395,7 +395,7 @@ class DashboardScreen extends ConsumerWidget {
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: list
                                 .map((c) {
-                                  final isEqual = c.percentChange < 0.5;
+                                  final isEqual = c.percentChange == null || c.percentChange! < 0.5;
                                   final isIncrease = c.isIncrease && !isEqual;
                                   final isDecrease = !c.isIncrease && !isEqual;
                                   return Card(
@@ -427,7 +427,7 @@ class DashboardScreen extends ConsumerWidget {
                                           borderRadius: BorderRadius.circular(10),
                                         ),
                                         child: Text(
-                                          isEqual ? '=' : '${c.percentChange.toStringAsFixed(0)}% ${isIncrease ? "↑" : "↓"}',
+                                          isEqual ? '=' : '${c.percentChange!.toStringAsFixed(0)}% ${isIncrease ? "↑" : "↓"}',
                                           style: TextStyle(
                                             color: isEqual
                                                 ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)
@@ -550,16 +550,7 @@ class _DebtHeroCard extends StatelessWidget {
             offset: const Offset(0, 4),
           ),
         ],
-        gradient: hasDebt
-            ? LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Colors.red.shade400,
-                  Colors.red.shade700,
-                ],
-              )
-            : AppThemeColors.primaryGradient,
+        gradient: hasDebt ? AppThemeColors.debtGradient : AppThemeColors.primaryGradient,
       ),
       child: Padding(
         padding: const EdgeInsets.all(20),

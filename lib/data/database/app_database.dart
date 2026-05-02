@@ -24,54 +24,63 @@ Future<Database> openAppDatabase(String path) async {
     version: _version,
     onCreate: _onCreate,
     onUpgrade: _onUpgrade,
+    onOpen: (db) async {
+      await db.execute('PRAGMA foreign_keys = ON');
+    },
   );
 }
 
 Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
   if (oldVersion < 2) {
-    await db.execute('ALTER TABLE $tableExpenses ADD COLUMN description TEXT');
+    await db.transaction((txn) async {
+      await txn.execute('ALTER TABLE $tableExpenses ADD COLUMN description TEXT');
+    });
   }
   if (oldVersion < 3) {
-    await db.execute('''
-      CREATE TABLE $tableDebts (
-        id TEXT PRIMARY KEY,
-        user_id TEXT NOT NULL,
-        name TEXT NOT NULL,
-        total_amount REAL NOT NULL,
-        number_of_installments INTEGER NOT NULL,
-        due_date TEXT NOT NULL,
-        $columnSyncStatus TEXT NOT NULL DEFAULT 'synced',
-        $columnUpdatedAt TEXT,
-        created_at TEXT
-      )
-    ''');
-    await db.execute('''
-      CREATE TABLE $tableDebtPayments (
-        id TEXT PRIMARY KEY,
-        debt_id TEXT NOT NULL,
-        amount REAL NOT NULL,
-        date TEXT NOT NULL,
-        $columnSyncStatus TEXT NOT NULL DEFAULT 'synced',
-        $columnUpdatedAt TEXT,
-        created_at TEXT
-      )
-    ''');
+    await db.transaction((txn) async {
+      await txn.execute('''
+        CREATE TABLE $tableDebts (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          name TEXT NOT NULL,
+          total_amount REAL NOT NULL,
+          number_of_installments INTEGER NOT NULL,
+          due_date TEXT NOT NULL,
+          $columnSyncStatus TEXT NOT NULL DEFAULT 'synced',
+          $columnUpdatedAt TEXT,
+          created_at TEXT
+        )
+      ''');
+      await txn.execute('''
+        CREATE TABLE $tableDebtPayments (
+          id TEXT PRIMARY KEY,
+          debt_id TEXT NOT NULL REFERENCES $tableDebts(id) ON DELETE CASCADE,
+          amount REAL NOT NULL,
+          date TEXT NOT NULL,
+          $columnSyncStatus TEXT NOT NULL DEFAULT 'synced',
+          $columnUpdatedAt TEXT,
+          created_at TEXT
+        )
+      ''');
+    });
   }
   if (oldVersion < 4) {
-    await db.execute('''
-      CREATE TABLE $tableAutomaticPayments (
-        id TEXT PRIMARY KEY,
-        user_id TEXT NOT NULL,
-        payment_type TEXT NOT NULL,
-        payment_ref TEXT NOT NULL,
-        amount REAL NOT NULL,
-        description TEXT NOT NULL,
-        next_run_date TEXT NOT NULL,
-        $columnSyncStatus TEXT NOT NULL DEFAULT 'synced',
-        $columnUpdatedAt TEXT,
-        created_at TEXT
-      )
-    ''');
+    await db.transaction((txn) async {
+      await txn.execute('''
+        CREATE TABLE $tableAutomaticPayments (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          payment_type TEXT NOT NULL,
+          payment_ref TEXT NOT NULL,
+          amount REAL NOT NULL,
+          description TEXT NOT NULL,
+          next_run_date TEXT NOT NULL,
+          $columnSyncStatus TEXT NOT NULL DEFAULT 'synced',
+          $columnUpdatedAt TEXT,
+          created_at TEXT
+        )
+      ''');
+    });
   }
 }
 
@@ -116,7 +125,7 @@ Future<void> _onCreate(Database db, int version) async {
   await db.execute('''
     CREATE TABLE $tableCardPayments (
       id TEXT PRIMARY KEY,
-      card_id TEXT NOT NULL,
+      card_id TEXT NOT NULL REFERENCES $tableCreditCards(id) ON DELETE CASCADE,
       amount REAL NOT NULL,
       date TEXT NOT NULL,
       $columnSyncStatus TEXT NOT NULL DEFAULT 'synced',
@@ -127,7 +136,7 @@ Future<void> _onCreate(Database db, int version) async {
   await db.execute('''
     CREATE TABLE $tableMinPaymentConfigs (
       id TEXT PRIMARY KEY,
-      card_id TEXT NOT NULL,
+      card_id TEXT NOT NULL REFERENCES $tableCreditCards(id) ON DELETE CASCADE,
       amount REAL NOT NULL,
       year INTEGER NOT NULL,
       month INTEGER NOT NULL,

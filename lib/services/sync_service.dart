@@ -17,6 +17,12 @@ import 'package:perfinance/data/repositories/expense_repository.dart';
 import 'package:perfinance/data/repositories/min_payment_config_repository.dart';
 import 'package:perfinance/data/repositories/payment_method_repository.dart';
 import 'package:perfinance/features/auth/auth_service.dart';
+import 'package:perfinance/features/automatic_payments/automatic_payments_provider.dart';
+import 'package:perfinance/features/credit_cards/credit_cards_provider.dart';
+import 'package:perfinance/features/dashboard/dashboard_provider.dart';
+import 'package:perfinance/features/debts/debts_provider.dart';
+import 'package:perfinance/features/expenses/expenses_provider.dart';
+import 'package:perfinance/features/savings/savings_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:io';
@@ -53,11 +59,11 @@ class SyncService {
   }
 
   /// Cierra la base SQLite, elimina el archivo local y limpia last sync. Llamar antes de signOut.
-  /// Después hay que invalidar [databaseProvider] para que la próxima sesión abra una base nueva.
   Future<void> clearLocalDataOnLogout() async {
     final db = await _ref.read(databaseProvider.future);
     final path = db.path;
     await db.close();
+    _ref.invalidate(databaseProvider);
     final file = File(path);
     if (await file.exists()) await file.delete();
     await clearLastSync();
@@ -70,6 +76,16 @@ class SyncService {
     await _push(userId);
     await _pull(userId);
     await setLastSync(DateTime.now());
+
+    _ref.invalidate(expensesListProvider);
+    _ref.invalidate(creditCardsListProvider);
+    _ref.invalidate(debtsListProvider);
+    _ref.invalidate(paymentMethodsListProvider);
+    _ref.invalidate(automaticPaymentsListProvider);
+    _ref.invalidate(dashboardDebtProvider);
+    _ref.invalidate(dashboardUsageProvider);
+    _ref.invalidate(dashboardComparisonProvider);
+    _ref.invalidate(dashboardAutomaticPaymentsSummaryProvider);
   }
 
   Future<void> _push(String userId) async {
@@ -98,12 +114,14 @@ class SyncService {
           await ccTable.delete().eq('id', c.id);
           await ccRepo.deleteLocal(c.id);
         } else if (c.syncStatus == 'pending_insert') {
-          await ccTable.insert(_toRemoteCard(c));
+          await ccTable.upsert(_toRemoteCard(c), onConflict: 'id');
         } else {
           await ccTable.update(_toRemoteCard(c)).eq('id', c.id);
         }
         if (c.syncStatus != 'pending_delete') await ccRepo.markSynced(c.id);
-      } catch (_) {}
+      } catch (e) {
+        if (e is AuthException) rethrow;
+      }
     }
 
     for (final p in await pmRepo.getPendingForPush(userId)) {
@@ -112,12 +130,14 @@ class SyncService {
           await pmTable.delete().eq('id', p.id);
           await pmRepo.deleteLocal(p.id);
         } else if (p.syncStatus == 'pending_insert') {
-          await pmTable.insert(_toRemotePaymentMethod(p));
+          await pmTable.upsert(_toRemotePaymentMethod(p), onConflict: 'id');
         } else {
           await pmTable.update(_toRemotePaymentMethod(p)).eq('id', p.id);
         }
         if (p.syncStatus != 'pending_delete') await pmRepo.markSynced(p.id);
-      } catch (_) {}
+      } catch (e) {
+        if (e is AuthException) rethrow;
+      }
     }
 
     for (final e in await expRepo.getPendingForPush(userId)) {
@@ -126,21 +146,25 @@ class SyncService {
           await expTable.delete().eq('id', e.id);
           await expRepo.deleteLocal(e.id);
         } else if (e.syncStatus == 'pending_insert') {
-          await expTable.insert(_toRemoteExpense(e));
+          await expTable.upsert(_toRemoteExpense(e), onConflict: 'id');
         } else if (e.syncStatus == 'pending_update') {
           await expTable.update(_toRemoteExpense(e)).eq('id', e.id);
         }
         if (e.syncStatus != 'pending_delete') await expRepo.markSynced(e.id);
-      } catch (_) {}
+      } catch (e) {
+        if (e is AuthException) rethrow;
+      }
     }
 
     for (final p in await payRepo.getPendingForPush()) {
       try {
         if (p.syncStatus == 'pending_insert') {
-          await payTable.insert(_toRemoteCardPayment(p));
+          await payTable.upsert(_toRemoteCardPayment(p), onConflict: 'id');
           await payRepo.markSynced(p.id);
         }
-      } catch (_) {}
+      } catch (e) {
+        if (e is AuthException) rethrow;
+      }
     }
 
     for (final m in await minRepo.getPendingForPush()) {
@@ -149,7 +173,9 @@ class SyncService {
           await minTable.upsert(_toRemoteMinConfig(m), onConflict: 'id');
           await minRepo.markSynced(m.id);
         }
-      } catch (_) {}
+      } catch (e) {
+        if (e is AuthException) rethrow;
+      }
     }
 
     for (final d in await debtRepo.getPendingForPush(userId)) {
@@ -158,12 +184,14 @@ class SyncService {
           await debtsTable.delete().eq('id', d.id);
           await debtRepo.deleteLocal(d.id);
         } else if (d.syncStatus == 'pending_insert') {
-          await debtsTable.insert(_toRemoteDebt(d));
+          await debtsTable.upsert(_toRemoteDebt(d), onConflict: 'id');
         } else {
           await debtsTable.update(_toRemoteDebt(d)).eq('id', d.id);
         }
         if (d.syncStatus != 'pending_delete') await debtRepo.markSynced(d.id);
-      } catch (_) {}
+      } catch (e) {
+        if (e is AuthException) rethrow;
+      }
     }
 
     for (final p in await debtPayRepo.getPendingForPush()) {
@@ -172,10 +200,12 @@ class SyncService {
           await debtPaymentsTable.delete().eq('id', p.id);
           await debtPayRepo.deleteLocal(p.id);
         } else if (p.syncStatus == 'pending_insert') {
-          await debtPaymentsTable.insert(_toRemoteDebtPayment(p));
+          await debtPaymentsTable.upsert(_toRemoteDebtPayment(p), onConflict: 'id');
           await debtPayRepo.markSynced(p.id);
         }
-      } catch (_) {}
+      } catch (e) {
+        if (e is AuthException) rethrow;
+      }
     }
 
     for (final a in await autoPayRepo.getPendingForPush(userId)) {
@@ -184,13 +214,15 @@ class SyncService {
           await automaticPaymentsTable.delete().eq('id', a.id);
           await autoPayRepo.deleteLocal(a.id);
         } else if (a.syncStatus == 'pending_insert') {
-          await automaticPaymentsTable.insert(_toRemoteAutomaticPayment(a));
+          await automaticPaymentsTable.upsert(_toRemoteAutomaticPayment(a), onConflict: 'id');
           await autoPayRepo.markSynced(a.id);
         } else {
           await automaticPaymentsTable.update(_toRemoteAutomaticPayment(a)).eq('id', a.id);
           await autoPayRepo.markSynced(a.id);
         }
-      } catch (_) {}
+      } catch (e) {
+        if (e is AuthException) rethrow;
+      }
     }
   }
 

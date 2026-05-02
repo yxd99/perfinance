@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perfinance/core/providers/hide_values_provider.dart';
 import 'package:perfinance/core/theme/app_theme.dart';
+import 'package:perfinance/core/widgets/app_empty_state.dart';
+import 'package:perfinance/core/widgets/app_error_state.dart';
 import 'package:perfinance/core/widgets/currency_input.dart';
 import 'package:perfinance/data/models/automatic_payment.dart';
 import 'package:perfinance/data/repositories/automatic_payment_repository.dart';
@@ -22,19 +24,11 @@ class AutomaticPaymentsScreen extends ConsumerWidget {
     return asyncList.when(
       data: (list) {
         if (list.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text('No hay pagos automáticos.'),
-                const SizedBox(height: 16),
-                FilledButton.icon(
-                  onPressed: () => _openForm(context, ref),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Agregar pago automático'),
-                ),
-              ],
-            ),
+          return AppEmptyState(
+            icon: Icons.autorenew_outlined,
+            message: 'No hay pagos automáticos.',
+            actionLabel: 'Agregar pago automático',
+            onAction: () => _openForm(context, ref),
           );
         }
         return asyncDisplay.when(
@@ -116,7 +110,7 @@ class AutomaticPaymentsScreen extends ConsumerWidget {
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(child: Text('Error: $e')),
+      error: (e, _) => AppErrorState(message: 'Error al cargar pagos automáticos.'),
     );
   }
 

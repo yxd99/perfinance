@@ -3,7 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perfinance/core/providers/hide_values_provider.dart';
 import 'package:perfinance/core/theme/app_theme.dart';
 import 'package:perfinance/core/utils/user_friendly_errors.dart';
+import 'package:perfinance/core/widgets/app_empty_state.dart';
+import 'package:perfinance/core/widgets/app_error_state.dart';
 import 'package:perfinance/core/widgets/currency_input.dart';
+import 'package:perfinance/core/widgets/summary_total_bar.dart';
 import 'package:perfinance/data/models/debt.dart';
 import 'package:perfinance/features/debts/debts_provider.dart';
 import 'package:perfinance/features/debts/debt_detail_screen.dart';
@@ -93,70 +96,63 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
           child: asyncList.when(
             data: (list) {
               if (list.isEmpty) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text('No hay deudas que coincidan.'),
-                      const SizedBox(height: 16),
-                      FilledButton.icon(
-                        onPressed: () => _openForm(context, ref),
-                        icon: const Icon(Icons.add),
-                        label: const Text('Agregar deuda'),
-                      ),
-                    ],
-                  ),
+                return AppEmptyState(
+                  icon: Icons.account_balance_wallet_outlined,
+                  message: 'No hay deudas que coincidan.',
+                  actionLabel: 'Agregar deuda',
+                  onAction: () => _openForm(context, ref),
                 );
               }
-              return ListView.builder(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                itemCount: list.length + 1,
-                itemBuilder: (context, i) {
-                  if (i == 0) {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: FilledButton.icon(
-                        onPressed: () => _openForm(context, ref),
-                        icon: const Icon(Icons.add),
-                        label: const Text('Agregar deuda'),
-                      ),
-                    );
-                  }
-                  final item = list[i - 1];
-                  return _DebtCard(
-                    item: item,
-                    hideValues: hideValues,
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => DebtDetailScreen(debt: item.debt),
-                      ),
-                    ).then((_) {
-                      ref.invalidate(debtsListProvider);
-                      ref.invalidate(filteredDebtsWithPaidProvider);
-                    }),
-                    onLongPress: () => _editDebt(context, ref, item.debt),
-                  );
-                },
+              final total = list.fold<double>(0, (s, item) => s + item.debt.totalAmount);
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    child: SummaryTotalBar(
+                      label: 'Total deudas',
+                      amount: '\$${formatCurrencyDisplay(total, hideValues)}',
+                    ),
+                  ),
+                  Expanded(
+                    child: ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                      itemCount: list.length + 1,
+                      itemBuilder: (context, i) {
+                        if (i == 0) {
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: FilledButton.icon(
+                              onPressed: () => _openForm(context, ref),
+                              icon: const Icon(Icons.add),
+                              label: const Text('Agregar deuda'),
+                            ),
+                          );
+                        }
+                        final item = list[i - 1];
+                        return _DebtCard(
+                          item: item,
+                          hideValues: hideValues,
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => DebtDetailScreen(debt: item.debt),
+                            ),
+                          ).then((_) {
+                            ref.invalidate(debtsListProvider);
+                            ref.invalidate(filteredDebtsWithPaidProvider);
+                          }),
+                          onLongPress: () => _editDebt(context, ref, item.debt),
+                        );
+                      },
+                    ),
+                  ),
+                ],
               );
             },
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.cloud_off, size: 48, color: Theme.of(context).colorScheme.error),
-                    const SizedBox(height: 16),
-                    Text(
-                      UserFriendlyErrors.fromAsyncError(e, UserFriendlyErrors.debtsLoadFailed),
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyLarge,
-                    ),
-                  ],
-                ),
-              ),
+            error: (e, _) => AppErrorState(
+              message: UserFriendlyErrors.fromAsyncError(e, UserFriendlyErrors.debtsLoadFailed),
             ),
           ),
         ),
