@@ -1,4 +1,5 @@
 import 'package:perfinance/data/models/expense.dart';
+import 'package:perfinance/data/models/debt.dart';
 import 'package:perfinance/data/repositories/card_payment_repository.dart';
 import 'package:perfinance/data/repositories/credit_card_repository.dart';
 import 'package:perfinance/data/repositories/debt_payment_repository.dart';
@@ -35,8 +36,29 @@ class CardComparison {
   });
 }
 
+class DebtBreakdownItem {
+  final String id;
+  final String label;
+  final bool isCreditCard;
+  final double balance;
+
+  const DebtBreakdownItem({
+    required this.id,
+    required this.label,
+    required this.isCreditCard,
+    required this.balance,
+  });
+}
+
+class DebtBreakdown {
+  final double total;
+  final List<DebtBreakdownItem> items;
+
+  const DebtBreakdown({required this.total, required this.items});
+}
+
 class DashboardService {
-  static Future<double> totalDebt(
+  static Future<DebtBreakdown> debtBreakdown(
     CreditCardRepository cardRepo,
     ExpenseRepository expenseRepo,
     CardPaymentRepository paymentRepo,
@@ -51,30 +73,47 @@ class DashboardService {
             : DateTime(asOfEndOfMonth.year, asOfEndOfMonth.month + 1, 1))
         : null;
     double total = 0;
+    final breakdownItems = <DebtBreakdownItem>[];
     final cards = await cardRepo.getAll(userId);
     final allExpenses = await expenseRepo.getAll(userId);
+    final filteredExpenses = cutoff != null
+        ? allExpenses.where((e) => e.date.isBefore(cutoff)).toList()
+        : allExpenses;
     for (final c in cards) {
-      final cardExpenses = cutoff != null
-          ? allExpenses.where((e) => e.date.isBefore(cutoff)).toList()
-          : allExpenses;
       var payments = await paymentRepo.getByCardId(c.id);
       if (cutoff != null) payments = payments.where((p) => p.date.isBefore(cutoff)).toList();
       final debt = CardDebtReconciliationService.currentDebtForCard(
         cardId: c.id,
-        expenses: cardExpenses,
+        expenses: filteredExpenses,
         payments: payments,
       );
       total += debt.clamp(0.0, double.infinity);
+      if (debt > 0.005) {
+        breakdownItems.add(DebtBreakdownItem(id: c.id, label: c.alias, isCreditCard: true, balance: debt));
+      }
     }
     var debts = await debtRepo.getAll(userId);
-    if (cutoff != null) debts = debts.where((d) => (d.createdAt != null && DateTime.parse(d.createdAt!).isBefore(cutoff)) || d.createdAt == null).toList();
+    if (cutoff != null) {
+      debts = debts.where((d) {
+        final parsed = DateTime.tryParse(d.createdAt ?? '');
+        return parsed == null || parsed.isBefore(cutoff);
+      }).toList();
+    }
     for (final d in debts) {
       var payments = await debtPayRepo.getByDebtId(d.id);
       if (cutoff != null) payments = payments.where((p) => p.date.isBefore(cutoff)).toList();
       final paid = payments.fold<double>(0, (s, p) => s + p.amount);
-      total += (d.totalAmount - paid);
+      final balance = (d.totalAmount - paid).clamp(0.0, double.infinity);
+      total += balance;
+      if (balance > 0.005) {
+        breakdownItems.add(DebtBreakdownItem(id: d.id, label: d.name, isCreditCard: false, balance: balance));
+      }
     }
-    return total;
+    final cardItems = breakdownItems.where((i) => i.isCreditCard).toList()
+      ..sort((a, b) => b.balance.compareTo(a.balance));
+    final debtItems = breakdownItems.where((i) => !i.isCreditCard).toList()
+      ..sort((a, b) => b.balance.compareTo(a.balance));
+    return DebtBreakdown(total: total, items: [...cardItems, ...debtItems]);
   }
 
   /// Indica si el usuario tiene fuentes de deuda activas (tarjetas o deudas a cuotas)

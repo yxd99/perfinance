@@ -9,6 +9,7 @@ import 'package:perfinance/features/dashboard/dashboard_account_automatic_paymen
 import 'package:perfinance/features/dashboard/dashboard_account_expenses_screen.dart';
 import 'package:perfinance/features/dashboard/dashboard_provider.dart';
 import 'package:perfinance/features/automatic_payments/automatic_payments_provider.dart';
+import 'package:perfinance/services/dashboard_service.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -54,7 +55,35 @@ class DashboardScreen extends ConsumerWidget {
                     children: [
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                        child: _DebtHeroCard(amount: debt, isDark: isDark, hideValues: hideValues),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _DebtHeroCard(amount: debt.total, isDark: isDark, hideValues: hideValues),
+                            if (debt.items.isNotEmpty) ...[
+                              const SizedBox(height: 12),
+                              ExpansionTile(
+                                key: const PageStorageKey('debt_detalle'),
+                                initiallyExpanded: true,
+                                tilePadding: const EdgeInsets.symmetric(vertical: 8),
+                                childrenPadding: EdgeInsets.zero,
+                                backgroundColor: Colors.transparent,
+                                collapsedBackgroundColor: Colors.transparent,
+                                title: Text(
+                                  'Detalle',
+                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: AppThemeColors.primaryGreen,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                iconColor: AppThemeColors.primaryGreen,
+                                collapsedIconColor: AppThemeColors.primaryGreen,
+                                children: [
+                                  _DebtBreakdownSection(items: debt.items, isDark: isDark, hideValues: hideValues),
+                                ],
+                              ),
+                            ],
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -427,7 +456,7 @@ class DashboardScreen extends ConsumerWidget {
                                           borderRadius: BorderRadius.circular(10),
                                         ),
                                         child: Text(
-                                          isEqual ? '=' : '${c.percentChange!.toStringAsFixed(0)}% ${isIncrease ? "↑" : "↓"}',
+                                          isEqual ? '=' : '${(c.percentChange ?? 0).toStringAsFixed(0)}% ${isIncrease ? "↑" : "↓"}',
                                           style: TextStyle(
                                             color: isEqual
                                                 ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)
@@ -592,6 +621,68 @@ class _DebtHeroCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _DebtBreakdownSection extends StatelessWidget {
+  const _DebtBreakdownSection({required this.items, required this.isDark, required this.hideValues});
+
+  final List<DebtBreakdownItem> items;
+  final bool isDark;
+  final bool hideValues;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (int i = 0; i < items.length; i++) ...[
+          _DebtBreakdownTile(item: items[i], isDark: isDark, hideValues: hideValues),
+          if (i < items.length - 1)
+            const Divider(height: 1),
+        ],
+      ],
+    );
+  }
+}
+
+class _DebtBreakdownTile extends StatelessWidget {
+  const _DebtBreakdownTile({required this.item, required this.isDark, required this.hideValues});
+
+  final DebtBreakdownItem item;
+  final bool isDark;
+  final bool hideValues;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        children: [
+          Icon(
+            item.isCreditCard ? Icons.credit_card : Icons.receipt_long,
+            size: 18,
+            color: colorScheme.onSurface.withValues(alpha: 0.5),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              item.label,
+              style: textTheme.bodyMedium,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '\$${formatCurrencyDisplay(item.balance, hideValues)}',
+            style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+          ),
+        ],
       ),
     );
   }
