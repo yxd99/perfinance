@@ -29,8 +29,11 @@ class ProcessAutomaticPaymentsService {
     final due = await autoRepo.getDue(user.id, today);
     for (final p in due) {
       final expenseDate = DateTime(p.nextRunDate.year, p.nextRunDate.month, p.nextRunDate.day);
+      // Deterministic UUID: same payment + same date → same id → idempotent on retry
+      final expenseId = const Uuid().v5(Uuid.NAMESPACE_OID, '${p.id}:${expenseDate.toIso8601String()}');
+      final nextRun = _nextMonthSameDay(p.nextRunDate);
       await expenseRepo.insert(Expense(
-        id: const Uuid().v4(),
+        id: expenseId,
         userId: user.id,
         amount: p.amount,
         date: expenseDate,
@@ -38,7 +41,6 @@ class ProcessAutomaticPaymentsService {
         paymentRef: p.paymentRef,
         description: '$_expenseDescriptionPrefix${p.description}',
       ));
-      final nextRun = _nextMonthSameDay(p.nextRunDate);
       await autoRepo.updateNextRunDate(p.id, nextRun);
     }
   }

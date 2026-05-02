@@ -4,7 +4,10 @@ import 'package:perfinance/core/config/supabase_config.dart';
 import 'package:perfinance/core/providers/hide_values_provider.dart';
 import 'package:perfinance/core/theme/app_theme.dart';
 import 'package:perfinance/core/utils/user_friendly_errors.dart';
+import 'package:perfinance/core/widgets/app_empty_state.dart';
+import 'package:perfinance/core/widgets/app_error_state.dart';
 import 'package:perfinance/core/widgets/currency_input.dart';
+import 'package:perfinance/core/widgets/summary_total_bar.dart';
 import 'package:perfinance/data/models/credit_card.dart';
 import 'package:perfinance/data/models/expense.dart';
 import 'package:perfinance/data/models/payment_method.dart';
@@ -37,12 +40,10 @@ class ExpensesScreen extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    child: Text(
-                      'Total egresos: \$${formatCurrencyDisplay(total, hideValues)}',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    child: SummaryTotalBar(
+                      label: 'Total egresos',
+                      amount: '\$${formatCurrencyDisplay(total, hideValues)}',
                     ),
                   ),
                   Expanded(
@@ -52,22 +53,8 @@ class ExpensesScreen extends ConsumerWidget {
               );
             },
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.cloud_off, size: 48, color: Theme.of(context).colorScheme.error),
-                    const SizedBox(height: 16),
-                    Text(
-                      UserFriendlyErrors.fromAsyncError(e, UserFriendlyErrors.expensesLoadFailed),
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyLarge,
-                    ),
-                  ],
-                ),
-              ),
+            error: (e, _) => AppErrorState(
+              message: UserFriendlyErrors.fromAsyncError(e, UserFriendlyErrors.expensesLoadFailed),
             ),
           ),
         ),
@@ -83,19 +70,11 @@ class ExpensesScreen extends ConsumerWidget {
     bool hideValues,
   ) {
     if (list.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text('No hay egresos.'),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: () => _openForm(context, ref),
-              icon: const Icon(Icons.add),
-              label: const Text('Registrar egreso'),
-            ),
-          ],
-        ),
+      return AppEmptyState(
+        icon: Icons.payments_outlined,
+        message: 'No hay egresos registrados',
+        actionLabel: 'Registrar egreso',
+        onAction: () => _openForm(context, ref),
       );
     }
     return asyncDisplay.when(

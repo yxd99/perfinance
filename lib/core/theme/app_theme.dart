@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 /// Rutas de assets de la app.
 abstract class AppAssets {
@@ -13,12 +14,20 @@ abstract class AppThemeColors {
   static const Color accentGold = Color(0xFFF1C40F);
   static const Color surfaceDark = Color(0xFF1C1C1E);
   static const Color backgroundDark = Color(0xFF0D0D0D);
+  static const Color primaryGreenDark = Color(0xFF1A9E55);
+  static const Color errorRed = Color(0xFFE53E3E);
+  static const Color errorRedDark = Color(0xFFC53030);
+  static const LinearGradient debtGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFFE53E3E), Color(0xFF9B2335)],
+  );
 
   /// Gradiente principal (verde) para hero cards y acentos.
   static const LinearGradient primaryGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFF2ECC71), Color(0xFF27AE60)],
+    colors: [Color(0xFF2ECC71), Color(0xFF1A9E55)],
   );
 
   /// Gradiente suave para fondos claros.
@@ -62,7 +71,7 @@ class AppTheme {
         brightness: Brightness.light,
         surface: Colors.white,
       ),
-      scaffoldBackgroundColor: const Color(0xFFE8F5EE),
+      scaffoldBackgroundColor: const Color(0xFFF4FBF7),
       appBarTheme: AppBarTheme(
         centerTitle: true,
         elevation: 0,
@@ -122,6 +131,12 @@ class AppTheme {
         ),
       ),
       textTheme: _buildTextTheme(Brightness.light),
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+        },
+      ),
     );
   }
 
@@ -186,16 +201,23 @@ class AppTheme {
         ),
       ),
       textTheme: _buildTextTheme(Brightness.dark),
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+        },
+      ),
     );
   }
 
   static TextTheme _buildTextTheme(Brightness brightness) {
     final base = ThemeData(brightness: brightness).textTheme;
-    return base.copyWith(
-      titleLarge: base.titleLarge?.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.3),
-      titleMedium: base.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-      headlineSmall: base.headlineSmall?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.5),
-      headlineMedium: base.headlineMedium?.copyWith(fontWeight: FontWeight.w800),
+    return GoogleFonts.plusJakartaSansTextTheme(base).copyWith(
+      headlineMedium: GoogleFonts.plusJakartaSans(fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: -0.5),
+      headlineSmall: GoogleFonts.plusJakartaSans(fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: -0.5),
+      titleLarge: GoogleFonts.plusJakartaSans(fontSize: 20, fontWeight: FontWeight.w700, letterSpacing: -0.3),
+      titleMedium: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w600),
+      labelLarge: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, letterSpacing: 0.1),
     );
   }
 }

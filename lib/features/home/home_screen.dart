@@ -28,23 +28,31 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen>
     with SingleTickerProviderStateMixin {
-  late final TabController _tabController;
+  late TabController _tabController;
+
+  static const List<String> _titles = [
+    'Dashboard',
+    'Egresos',
+    'Tarjetas',
+    'Ahorros',
+    'Deudas',
+    'Auto-pagos',
+  ];
+
+  int get _selectedIndex => _tabController.index;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 6, vsync: this);
+    _tabController = TabController(length: _titles.length, vsync: this);
+    _tabController.addListener(() => setState(() {}));
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      startConnectivitySyncListener(() => ref.read(syncServiceProvider).syncNow());
+      startConnectivitySyncListener(
+        () => ref.read(syncServiceProvider).syncNow(),
+      );
       _syncIfOnline();
       _processAutomaticPayments();
     });
-  }
-
-  Future<void> _processAutomaticPayments() async {
-    await ref.read(processAutomaticPaymentsServiceProvider).run();
-    ref.invalidate(expensesListProvider);
-    ref.invalidate(automaticPaymentsListProvider);
   }
 
   @override
@@ -53,10 +61,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     super.dispose();
   }
 
+  Future<void> _processAutomaticPayments() async {
+    await ref.read(processAutomaticPaymentsServiceProvider).run();
+    ref.invalidate(expensesListProvider);
+    ref.invalidate(automaticPaymentsListProvider);
+  }
+
   Future<void> _syncIfOnline() async {
     final list = await Connectivity().checkConnectivity();
     // En Android, lista vacía puede ser falso negativo; intentar sync si está vacía.
-    final offline = list.isNotEmpty && list.every((r) => r == ConnectivityResult.none);
+    final offline =
+        list.isNotEmpty && list.every((r) => r == ConnectivityResult.none);
     if (!offline) {
       await ref.read(syncServiceProvider).syncNow();
     }
@@ -68,29 +83,49 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       appBar: AppBar(
         leading: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Center(child: Image.asset(AppAssets.logo, height: 32, fit: BoxFit.contain)),
+          child: Center(
+            child: Image.asset(AppAssets.logo, height: 32, fit: BoxFit.contain),
+          ),
         ),
         leadingWidth: 120,
-        title: const SizedBox.shrink(),
         centerTitle: false,
+        bottom: TabBar(
+          controller: _tabController,
+          isScrollable: true,
+          tabAlignment: TabAlignment.start,
+          tabs: const [
+            Tab(icon: Icon(Icons.dashboard), text: 'Dashboard'),
+            Tab(icon: Icon(Icons.payments), text: 'Egresos'),
+            Tab(icon: Icon(Icons.credit_card), text: 'Tarjetas'),
+            Tab(icon: Icon(Icons.savings), text: 'Ahorros'),
+            Tab(icon: Icon(Icons.account_balance_wallet), text: 'Deudas'),
+            Tab(icon: Icon(Icons.autorenew), text: 'Auto-pagos'),
+          ],
+        ),
         actions: [
-          ref.watch(hideValuesProvider).when(
+          ref
+              .watch(hideValuesProvider)
+              .when(
                 data: (hideValues) => IconButton(
-                  icon: Icon(hideValues ? Icons.visibility : Icons.visibility_off),
+                  icon: Icon(
+                    hideValues ? Icons.visibility : Icons.visibility_off,
+                  ),
                   tooltip: hideValues ? 'Mostrar valores' : 'Ocultar valores',
-                  onPressed: () => ref.read(hideValuesProvider.notifier).toggle(),
+                  onPressed: () =>
+                      ref.read(hideValuesProvider.notifier).toggle(),
                 ),
                 loading: () => const SizedBox.shrink(),
                 error: (_, __) => const SizedBox.shrink(),
               ),
           IconButton(
             icon: const Icon(Icons.sync),
-            tooltip: 'Sincronizar ahora (se sincroniza automáticamente con conexión)',
+            tooltip:
+                'Sincronizar ahora (se sincroniza automáticamente con conexión)',
             onPressed: () async {
               if (!mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Sincronizando...')),
-              );
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('Sincronizando...')));
               try {
                 await ref.read(syncServiceProvider).syncNow();
                 if (mounted) {
@@ -123,60 +158,45 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       ),
       body: Column(
         children: [
-          ref.watch(connectivityStatusProvider).when(
-            data: (list) {
-              // En Android, connectivity_plus a veces devuelve lista vacía teniendo internet.
-              // Solo mostrar "sin conexión" cuando haya resultado explícito y sea none.
-              final offline = list.isNotEmpty && list.every((r) => r == ConnectivityResult.none);
-              if (!offline) return const SizedBox.shrink();
-              return Material(
-                color: Colors.orange.shade700,
-                child: const SafeArea(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 8),
-                    child: Center(child: Text('Sin conexión. Los datos se sincronizarán al recuperar la red.', style: TextStyle(color: Colors.white))),
-                  ),
-                ),
-              );
-            },
-            loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
-          ),
-          Expanded(
-            child: Container(
-              decoration: Theme.of(context).brightness == Brightness.dark
-                  ? null
-                  : const BoxDecoration(gradient: AppThemeColors.backgroundGradientLight),
-              child: Column(
-                children: [
-                  TabBar(
-                    controller: _tabController,
-                    isScrollable: true,
-                    tabAlignment: TabAlignment.center,
-                    tabs: const [
-                      Tab(icon: Icon(Icons.dashboard), text: 'Dashboard'),
-                      Tab(icon: Icon(Icons.credit_card), text: 'Tarjetas'),
-                      Tab(icon: Icon(Icons.savings), text: 'Ahorros'),
-                      Tab(icon: Icon(Icons.payments), text: 'Egresos'),
-                      Tab(icon: Icon(Icons.account_balance_wallet), text: 'Deudas'),
-                      Tab(icon: Icon(Icons.autorenew), text: 'Pagos auto'),
-                    ],
-                  ),
-                  Expanded(
-                    child: TabBarView(
-                      controller: _tabController,
-                      children: const [
-                        DashboardScreen(),
-                        CreditCardsScreen(),
-                        SavingsScreen(),
-                        ExpensesScreen(),
-                        DebtsScreen(),
-                        AutomaticPaymentsScreen(),
-                      ],
+          ref
+              .watch(connectivityStatusProvider)
+              .when(
+                data: (list) {
+                  // En Android, connectivity_plus a veces devuelve lista vacía teniendo internet.
+                  // Solo mostrar "sin conexión" cuando haya resultado explícito y sea none.
+                  final offline =
+                      list.isNotEmpty &&
+                      list.every((r) => r == ConnectivityResult.none);
+                  if (!offline) return const SizedBox.shrink();
+                  return Material(
+                    color: Colors.orange.shade700,
+                    child: const SafeArea(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8),
+                        child: Center(
+                          child: Text(
+                            'Sin conexión. Los datos se sincronizarán al recuperar la red.',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ],
+                  );
+                },
+                loading: () => const SizedBox.shrink(),
+                error: (_, __) => const SizedBox.shrink(),
               ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: const [
+                DashboardScreen(),
+                ExpensesScreen(),
+                CreditCardsScreen(),
+                SavingsScreen(),
+                DebtsScreen(),
+                AutomaticPaymentsScreen(),
+              ],
             ),
           ),
         ],

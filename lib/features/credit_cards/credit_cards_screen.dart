@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perfinance/core/providers/hide_values_provider.dart';
+import 'package:perfinance/core/theme/app_theme.dart';
+import 'package:perfinance/core/widgets/app_empty_state.dart';
+import 'package:perfinance/core/widgets/app_error_state.dart';
 import 'package:perfinance/core/widgets/currency_input.dart';
 import 'package:perfinance/core/utils/user_friendly_errors.dart';
 import 'package:perfinance/data/models/credit_card.dart';
@@ -18,19 +21,11 @@ class CreditCardsScreen extends ConsumerWidget {
     return asyncCards.when(
       data: (cards) {
         if (cards.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text('No hay tarjetas. Añade una.'),
-                const SizedBox(height: 16),
-                FilledButton.icon(
-                  onPressed: () => _openForm(context, ref),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Añadir tarjeta'),
-                ),
-              ],
-            ),
+          return AppEmptyState(
+            icon: Icons.credit_card_outlined,
+            message: 'No hay tarjetas. Añade una.',
+            actionLabel: 'Añadir tarjeta',
+            onAction: () => _openForm(context, ref),
           );
         }
         return ListView.builder(
@@ -48,40 +43,22 @@ class CreditCardsScreen extends ConsumerWidget {
               );
             }
             final card = cards[i - 1];
-            return Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: ListTile(
-                title: Text(card.alias),
-                subtitle: Text('Corte día ${card.cutOffDay} · Cuota \$${formatCurrencyDisplay(card.managementFee, hideValues)}'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => CreditCardDetailScreen(cardId: card.id),
-                  ),
+            return _CreditCardTile(
+              card: card,
+              hideValues: hideValues,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => CreditCardDetailScreen(cardId: card.id),
                 ),
-                onLongPress: () => _editCard(context, ref, card),
               ),
+              onLongPress: () => _editCard(context, ref, card),
             );
           },
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.credit_card_off, size: 48, color: Theme.of(context).colorScheme.error),
-              const SizedBox(height: 16),
-              Text(
-                UserFriendlyErrors.fromAsyncError(e, UserFriendlyErrors.cardsLoadFailed),
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyLarge,
-              ),
-            ],
-          ),
-        ),
+      error: (e, _) => AppErrorState(
+        message: UserFriendlyErrors.fromAsyncError(e, UserFriendlyErrors.cardsLoadFailed),
       ),
     );
   }
@@ -98,6 +75,71 @@ class CreditCardsScreen extends ConsumerWidget {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => CreditCardFormScreen(editCard: card),
+      ),
+    );
+  }
+}
+
+class _CreditCardTile extends StatelessWidget {
+  const _CreditCardTile({
+    required this.card,
+    required this.hideValues,
+    required this.onTap,
+    required this.onLongPress,
+  });
+
+  final CreditCard card;
+  final bool hideValues;
+  final VoidCallback onTap;
+  final VoidCallback onLongPress;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      onLongPress: onLongPress,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          gradient: AppThemeColors.primaryGradient,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: AppThemeColors.primaryGreen.withValues(alpha: 0.3),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    card.alias,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Corte día ${card.cutOffDay} · Cuota \$${formatCurrencyDisplay(card.managementFee, hideValues)}',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.85),
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: Colors.white),
+          ],
+        ),
       ),
     );
   }

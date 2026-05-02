@@ -4,6 +4,7 @@ import 'package:perfinance/data/repositories/credit_card_repository.dart';
 import 'package:perfinance/data/repositories/debt_payment_repository.dart';
 import 'package:perfinance/data/repositories/debt_repository.dart';
 import 'package:perfinance/data/repositories/expense_repository.dart';
+import 'package:perfinance/services/card_debt_reconciliation_service.dart';
 
 class CardUsage {
   final String cardId;
@@ -20,7 +21,9 @@ class CardComparison {
   final double lastMonth;
   final double thisMonth;
   final bool isIncrease;
-  final double percentChange;
+  // null when lastMonth == 0 (no baseline to compare against).
+  // TODO: dashboard_screen.dart reads percentChange without null-check — add guard there.
+  final double? percentChange;
 
   CardComparison({
     required this.cardId,
@@ -49,14 +52,19 @@ class DashboardService {
         : null;
     double total = 0;
     final cards = await cardRepo.getAll(userId);
+    final allExpenses = await expenseRepo.getAll(userId);
     for (final c in cards) {
-      var expenses = (await expenseRepo.getAll(userId)).where((e) => e.paymentType == 'credit_card' && e.paymentRef == c.id);
-      if (cutoff != null) expenses = expenses.where((e) => e.date.isBefore(cutoff));
-      final spent = expenses.fold<double>(0, (s, e) => s + e.amount);
+      final cardExpenses = cutoff != null
+          ? allExpenses.where((e) => e.date.isBefore(cutoff)).toList()
+          : allExpenses;
       var payments = await paymentRepo.getByCardId(c.id);
       if (cutoff != null) payments = payments.where((p) => p.date.isBefore(cutoff)).toList();
-      final paid = payments.fold<double>(0, (s, p) => s + p.amount);
-      total += (spent - paid);
+      final debt = CardDebtReconciliationService.currentDebtForCard(
+        cardId: c.id,
+        expenses: cardExpenses,
+        payments: payments,
+      );
+      total += debt.clamp(0.0, double.infinity);
     }
     var debts = await debtRepo.getAll(userId);
     if (cutoff != null) debts = debts.where((d) => (d.createdAt != null && DateTime.parse(d.createdAt!).isBefore(cutoff)) || d.createdAt == null).toList();
@@ -139,8 +147,9 @@ class DashboardService {
           .where((e) => e.paymentType == 'credit_card' && e.paymentRef == c.id && !e.date.isBefore(lastMonthStart) && e.date.isBefore(lastMonthEnd))
           .fold<double>(0, (s, e) => s + e.amount);
       final isIncrease = thisMonth > lastMonth;
-      final den = lastMonth > 0 ? lastMonth : 1;
-      final percentChange = ((thisMonth - lastMonth) / den * 100).abs();
+      final double? percentChange = lastMonth == 0
+          ? null
+          : ((thisMonth - lastMonth) / lastMonth * 100).abs();
       return CardComparison(
         cardId: c.id,
         alias: c.alias,

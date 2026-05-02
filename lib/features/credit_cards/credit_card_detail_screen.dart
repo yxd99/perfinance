@@ -355,6 +355,7 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
     if (mounted) {
       setState(() {});
       ref.invalidate(dashboardDebtProvider);
+      ref.invalidate(dashboardMinPaymentSummaryProvider);
       ref.invalidate(creditCardsListProvider);
       ref.invalidate(cardPaymentsByCardProvider(widget.card.id));
     }
