@@ -8,7 +8,16 @@ import 'package:perfinance/features/credit_cards/credit_cards_provider.dart';
 import 'package:perfinance/features/automatic_payments/automatic_payments_provider.dart';
 import 'package:perfinance/features/expenses/expenses_provider.dart';
 import 'package:perfinance/features/savings/savings_provider.dart';
+import 'package:perfinance/services/process_automatic_payments_service.dart';
 import 'package:uuid/uuid.dart';
+
+const _frequencies = <String>['mensual', 'trimestral', 'semestral', 'anual'];
+const _frequencyLabels = <String, String>{
+  'mensual': 'Mensual',
+  'trimestral': 'Trimestral',
+  'semestral': 'Semestral',
+  'anual': 'Anual',
+};
 
 class AutomaticPaymentFormScreen extends ConsumerStatefulWidget {
   final AutomaticPayment? edit;
@@ -23,7 +32,8 @@ class _AutomaticPaymentFormScreenState extends ConsumerState<AutomaticPaymentFor
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
   final _descriptionController = TextEditingController();
-  DateTime _nextRunDate = DateTime.now();
+  final _dayController = TextEditingController();
+  String _frequency = 'mensual';
   bool _isCreditCard = true;
   String? _selectedCardId;
   String? _selectedMethodId;
@@ -33,12 +43,14 @@ class _AutomaticPaymentFormScreenState extends ConsumerState<AutomaticPaymentFor
     super.initState();
     if (widget.edit != null) {
       final p = widget.edit!;
-      _amountController.text = p.amount.toStringAsFixed(0);
+      _amountController.text = formatCurrency(p.amount.round());
       _descriptionController.text = p.description;
-      _nextRunDate = p.nextRunDate;
       _isCreditCard = p.paymentType == 'credit_card';
       _selectedCardId = _isCreditCard ? p.paymentRef : null;
       _selectedMethodId = !_isCreditCard ? p.paymentRef : null;
+      // Precargar día y frecuencia; fallback legacy desde nextRunDate
+      _dayController.text = p.paymentDayOfMonth.toString();
+      _frequency = p.frequency;
     }
   }
 
@@ -46,6 +58,7 @@ class _AutomaticPaymentFormScreenState extends ConsumerState<AutomaticPaymentFor
   void dispose() {
     _amountController.dispose();
     _descriptionController.dispose();
+    _dayController.dispose();
     super.dispose();
   }
 
@@ -84,20 +97,40 @@ class _AutomaticPaymentFormScreenState extends ConsumerState<AutomaticPaymentFor
               ),
             ),
             const SizedBox(height: 16),
-            ListTile(
-              title: const Text('Próxima fecha de pago'),
-              subtitle: Text(
-                '${_nextRunDate.day}/${_nextRunDate.month}/${_nextRunDate.year} (se repetirá cada mes)',
+            TextFormField(
+              controller: _dayController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Día del mes (1–31)',
+                border: OutlineInputBorder(),
+                hintText: 'Ej: 15',
               ),
-              onTap: () async {
-                final picked = await showDatePicker(
-                  context: context,
-                  initialDate: _nextRunDate,
-                  firstDate: DateTime(2020),
-                  lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
-                );
-                if (picked != null) setState(() => _nextRunDate = picked);
+              validator: (v) {
+                if (v == null || v.trim().isEmpty) return 'Ingresa un día entre 1 y 31';
+                final day = int.tryParse(v.trim());
+                if (day == null || day < 1 || day > 31) return 'Ingresa un día entre 1 y 31';
+                return null;
               },
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              value: _frequency,
+              decoration: const InputDecoration(
+                labelText: 'Frecuencia',
+                border: OutlineInputBorder(),
+              ),
+              items: _frequencies
+                  .map(
+                    (f) => DropdownMenuItem(
+                      value: f,
+                      child: Text(_frequencyLabels[f]!),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (v) {
+                if (v != null) setState(() => _frequency = v);
+              },
+              validator: (v) => (v == null || v.isEmpty) ? 'Selecciona una frecuencia' : null,
             ),
             const SizedBox(height: 8),
             SegmentedButton<bool>(
@@ -118,7 +151,8 @@ class _AutomaticPaymentFormScreenState extends ConsumerState<AutomaticPaymentFor
             const SizedBox(height: 16),
             if (_isCreditCard) ...[
               DropdownButtonFormField<String>(
-                value: _selectedCardId,
+                // Guard: solo preseleccionar si el item está en la lista cargada
+                value: cards.any((c) => c.id == _selectedCardId) ? _selectedCardId : null,
                 decoration: const InputDecoration(
                   labelText: 'Tarjeta',
                   border: OutlineInputBorder(),
@@ -133,7 +167,8 @@ class _AutomaticPaymentFormScreenState extends ConsumerState<AutomaticPaymentFor
               ),
             ] else ...[
               DropdownButtonFormField<String>(
-                value: _selectedMethodId,
+                // Guard: solo preseleccionar si el item está en la lista cargada
+                value: methods.any((m) => m.id == _selectedMethodId) ? _selectedMethodId : null,
                 decoration: const InputDecoration(
                   labelText: 'Medio de pago',
                   border: OutlineInputBorder(),
@@ -168,9 +203,17 @@ class _AutomaticPaymentFormScreenState extends ConsumerState<AutomaticPaymentFor
     final amount = parseCurrency(_amountController.text);
     if (amount == null || amount <= 0) return;
     final description = _descriptionController.text.trim();
+    final dayOfMonth = int.parse(_dayController.text.trim());
+
+    // Computar nextRunDate desde el día canónico y la frecuencia
+    final baseDate = widget.edit?.nextRunDate ?? DateTime.now();
+    final nextRun = nextRunDateFor(
+      frequency: _frequency,
+      dayOfMonth: dayOfMonth,
+      from: baseDate,
+    );
 
     final repo = ref.read(automaticPaymentRepositoryProvider);
-    final nextRun = DateTime(_nextRunDate.year, _nextRunDate.month, _nextRunDate.day);
 
     if (widget.edit != null) {
       await repo.update(AutomaticPayment(
@@ -181,6 +224,8 @@ class _AutomaticPaymentFormScreenState extends ConsumerState<AutomaticPaymentFor
         amount: amount,
         description: description,
         nextRunDate: nextRun,
+        paymentDayOfMonth: dayOfMonth,
+        frequency: _frequency,
         syncStatus: widget.edit!.syncStatus,
         updatedAt: widget.edit!.updatedAt,
         createdAt: widget.edit!.createdAt,
@@ -194,6 +239,8 @@ class _AutomaticPaymentFormScreenState extends ConsumerState<AutomaticPaymentFor
         amount: amount,
         description: description,
         nextRunDate: nextRun,
+        paymentDayOfMonth: dayOfMonth,
+        frequency: _frequency,
       ));
     }
     if (mounted) {

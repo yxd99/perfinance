@@ -3,7 +3,7 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
 const String _dbName = 'perfinance.db';
-const int _version = 4;
+const int _version = 5;
 
 const String tableCreditCards = 'credit_cards';
 const String tablePaymentMethods = 'payment_methods';
@@ -80,6 +80,19 @@ Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
           created_at TEXT
         )
       ''');
+    });
+  }
+  if (oldVersion < 5) {
+    await db.transaction((txn) async {
+      await txn.execute(
+        'ALTER TABLE $tableAutomaticPayments ADD COLUMN payment_day_of_month INTEGER',
+      );
+      await txn.execute(
+        "ALTER TABLE $tableAutomaticPayments ADD COLUMN frequency TEXT",
+      );
+      await txn.execute(
+        "UPDATE $tableAutomaticPayments SET payment_day_of_month = CAST(strftime('%d', next_run_date) AS INTEGER), frequency = 'mensual' WHERE payment_day_of_month IS NULL",
+      );
     });
   }
 }
@@ -179,6 +192,8 @@ Future<void> _onCreate(Database db, int version) async {
       amount REAL NOT NULL,
       description TEXT NOT NULL,
       next_run_date TEXT NOT NULL,
+      payment_day_of_month INTEGER,
+      frequency TEXT,
       $columnSyncStatus TEXT NOT NULL DEFAULT 'synced',
       $columnUpdatedAt TEXT,
       created_at TEXT

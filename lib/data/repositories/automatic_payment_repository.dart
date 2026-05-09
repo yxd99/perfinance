@@ -61,6 +61,8 @@ class AutomaticPaymentRepository {
         'amount': p.amount,
         'description': p.description,
         'next_run_date': p.nextRunDate.toIso8601String(),
+        'payment_day_of_month': p.paymentDayOfMonth,
+        'frequency': p.frequency,
         columnSyncStatus: 'pending_insert',
         columnUpdatedAt: now,
         'created_at': now,
@@ -92,6 +94,8 @@ class AutomaticPaymentRepository {
         'amount': p.amount,
         'description': p.description,
         'next_run_date': p.nextRunDate.toIso8601String(),
+        'payment_day_of_month': p.paymentDayOfMonth,
+        'frequency': p.frequency,
         columnSyncStatus: 'pending_update',
         columnUpdatedAt: DateTime.now().toIso8601String(),
       },
@@ -148,6 +152,8 @@ class AutomaticPaymentRepository {
         'amount': p.amount,
         'description': p.description,
         'next_run_date': p.nextRunDate.toIso8601String(),
+        'payment_day_of_month': p.paymentDayOfMonth,
+        'frequency': p.frequency,
         columnSyncStatus: 'synced',
         columnUpdatedAt: now,
         'created_at': now,
@@ -157,17 +163,10 @@ class AutomaticPaymentRepository {
   }
 
   static AutomaticPayment _rowTo(Map<String, dynamic> r) {
-    return AutomaticPayment(
-      id: r['id'] as String,
-      userId: r['user_id'] as String,
-      paymentType: r['payment_type'] as String,
-      paymentRef: r['payment_ref'] as String,
-      amount: (r['amount'] as num).toDouble(),
-      description: r['description'] as String,
-      nextRunDate: DateTime.parse(r['next_run_date'] as String),
-      syncStatus: r[columnSyncStatus] as String? ?? 'synced',
-      updatedAt: r[columnUpdatedAt] as String?,
-      createdAt: r['created_at'] as String?,
-    );
+    return AutomaticPayment.fromMap({
+      ...r,
+      'sync_status': r[columnSyncStatus],
+      'updated_at': r[columnUpdatedAt],
+    });
   }
 }
