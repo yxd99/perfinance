@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perfinance/core/providers/hide_values_provider.dart';
+import 'package:perfinance/core/utils/date_format_utils.dart';
 import 'package:perfinance/core/utils/user_friendly_errors.dart';
 import 'package:perfinance/core/widgets/currency_input.dart';
 import 'package:perfinance/data/models/card_payment.dart';
@@ -231,7 +232,7 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
                                   contentPadding: EdgeInsets.zero,
                                   leading: const Icon(Icons.payments_outlined),
                                   title: Text('\$${formatCurrencyDisplay(p.amount, hideValues)}'),
-                                  subtitle: Text('${d.day}/${d.month}/${d.year}'),
+                                  subtitle: Text(formatDisplayDate(d)),
                                 );
                               },
                             ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:perfinance/core/utils/date_format_utils.dart';
 import 'package:perfinance/data/models/automatic_payment.dart';
 import 'package:perfinance/data/models/credit_card.dart';
 import 'package:perfinance/data/models/payment_method.dart';
@@ -160,11 +161,8 @@ void main() {
         dayOfMonth: 15,
         from: DateTime.now(),
       );
-      final dd = expected.day.toString().padLeft(2, '0');
-      final mm = expected.month.toString().padLeft(2, '0');
-      final yyyy = expected.year.toString();
 
-      expect(find.textContaining('Próximo pago: $dd/$mm/$yyyy'), findsOneWidget);
+      expect(find.textContaining('Próximo pago: ${formatDisplayDate(expected)}'), findsOneWidget);
     });
 
     testWidgets('0.3 label se actualiza al cambiar el día de 15 a 20', (tester) async {
@@ -179,10 +177,7 @@ void main() {
         dayOfMonth: 15,
         from: DateTime.now(),
       );
-      final dd15 = expected15.day.toString().padLeft(2, '0');
-      final mm15 = expected15.month.toString().padLeft(2, '0');
-      final yyyy15 = expected15.year.toString();
-      expect(find.textContaining('Próximo pago: $dd15/$mm15/$yyyy15'), findsOneWidget);
+      expect(find.textContaining('Próximo pago: ${formatDisplayDate(expected15)}'), findsOneWidget);
 
       await tester.enterText(find.byType(TextFormField).at(2), '20');
       await tester.pump();
@@ -192,10 +187,7 @@ void main() {
         dayOfMonth: 20,
         from: DateTime.now(),
       );
-      final dd20 = expected20.day.toString().padLeft(2, '0');
-      final mm20 = expected20.month.toString().padLeft(2, '0');
-      final yyyy20 = expected20.year.toString();
-      expect(find.textContaining('Próximo pago: $dd20/$mm20/$yyyy20'), findsOneWidget);
+      expect(find.textContaining('Próximo pago: ${formatDisplayDate(expected20)}'), findsOneWidget);
     });
 
     testWidgets('0.4 label visible desde primer frame en modo edición con day=10, frequency=mensual',

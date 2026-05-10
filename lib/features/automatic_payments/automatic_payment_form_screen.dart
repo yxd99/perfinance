@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:perfinance/core/utils/date_format_utils.dart';
 import 'package:perfinance/core/widgets/currency_input.dart';
 import 'package:perfinance/data/models/automatic_payment.dart';
 import 'package:perfinance/data/repositories/automatic_payment_repository.dart';
@@ -93,10 +94,7 @@ class _AutomaticPaymentFormScreenState extends ConsumerState<AutomaticPaymentFor
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Text(
-                  'Próximo pago: '
-                  '${_nextDate!.day.toString().padLeft(2, '0')}/'
-                  '${_nextDate!.month.toString().padLeft(2, '0')}/'
-                  '${_nextDate!.year}',
+                  'Próximo pago: ${formatDisplayDate(_nextDate!)}',
                   style: const TextStyle(
                     color: Colors.green,
                     fontWeight: FontWeight.w600,

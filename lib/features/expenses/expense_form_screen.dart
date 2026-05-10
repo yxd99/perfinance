@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:perfinance/core/utils/date_format_utils.dart';
 import 'package:perfinance/core/widgets/currency_input.dart';
 import 'package:perfinance/data/models/expense.dart';
 import 'package:perfinance/data/repositories/expense_repository.dart';
@@ -80,7 +81,7 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
             const SizedBox(height: 16),
             ListTile(
               title: const Text('Fecha'),
-              subtitle: Text('${_date.day}/${_date.month}/${_date.year}'),
+              subtitle: Text(formatDisplayDate(_date)),
               onTap: () async {
                 final picked = await showDatePicker(
                   context: context,

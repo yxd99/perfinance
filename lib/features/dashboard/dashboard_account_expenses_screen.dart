@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perfinance/core/providers/hide_values_provider.dart';
 import 'package:perfinance/core/theme/app_theme.dart';
+import 'package:perfinance/core/utils/date_format_utils.dart';
 import 'package:perfinance/core/widgets/currency_input.dart';
 import 'package:perfinance/features/expenses/expenses_provider.dart';
 import 'package:perfinance/features/expenses/expense_form_screen.dart';
@@ -102,7 +103,7 @@ class DashboardAccountExpensesScreen extends ConsumerWidget {
                             Text(
                               [
                                 if (e.description != null && e.description!.isNotEmpty) e.description!,
-                                '${e.date.toLocal().day}/${e.date.toLocal().month}/${e.date.toLocal().year}',
+                                formatDisplayDate(e.date.toLocal()),
                               ].join(' · '),
                             ),
                             if (isCreditCard)

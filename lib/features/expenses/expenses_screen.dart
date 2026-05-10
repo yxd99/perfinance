@@ -18,6 +18,7 @@ import 'package:perfinance/features/expenses/expense_export_service.dart';
 import 'package:perfinance/features/credit_cards/credit_cards_provider.dart';
 import 'package:perfinance/features/expenses/expense_export_window.dart';
 import 'package:perfinance/features/savings/savings_provider.dart';
+import 'package:perfinance/core/utils/date_format_utils.dart';
 import 'package:perfinance/features/expenses/expense_form_screen.dart';
 
 class ExpensesScreen extends ConsumerWidget {
@@ -106,7 +107,7 @@ class ExpensesScreen extends ConsumerWidget {
                   Text(
                     [
                       if (e.description != null && e.description!.isNotEmpty) e.description!,
-                      '${e.date.toLocal().day}/${e.date.toLocal().month}/${e.date.toLocal().year}',
+                      formatDisplayDate(e.date.toLocal()),
                       alias,
                     ].join(' · '),
                   ),
@@ -144,7 +145,7 @@ class ExpensesScreen extends ConsumerWidget {
             margin: const EdgeInsets.only(bottom: 8),
             child: ListTile(
               title: Text('\$${formatCurrencyDisplay(e.amount, hideValues)}'),
-              subtitle: Text('${e.date.toLocal().day}/${e.date.toLocal().month}/${e.date.toLocal().year}'),
+              subtitle: Text(formatDisplayDate(e.date.toLocal())),
               onTap: () => _openForm(context, ref, edit: e),
               trailing: IconButton(
                 icon: const Icon(Icons.delete_outline),
