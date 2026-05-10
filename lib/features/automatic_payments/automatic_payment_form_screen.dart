@@ -38,6 +38,18 @@ class _AutomaticPaymentFormScreenState extends ConsumerState<AutomaticPaymentFor
   String? _selectedCardId;
   String? _selectedMethodId;
 
+  void _onDayChanged() => setState(() {});
+
+  DateTime? get _nextDate {
+    final day = int.tryParse(_dayController.text.trim());
+    if (day == null || day < 1 || day > 31) return null;
+    return nextRunDateFor(
+      frequency: _frequency,
+      dayOfMonth: day,
+      from: DateTime.now(),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -52,10 +64,12 @@ class _AutomaticPaymentFormScreenState extends ConsumerState<AutomaticPaymentFor
       _dayController.text = p.paymentDayOfMonth.toString();
       _frequency = p.frequency;
     }
+    _dayController.addListener(_onDayChanged);
   }
 
   @override
   void dispose() {
+    _dayController.removeListener(_onDayChanged);
     _amountController.dispose();
     _descriptionController.dispose();
     _dayController.dispose();
@@ -75,6 +89,21 @@ class _AutomaticPaymentFormScreenState extends ConsumerState<AutomaticPaymentFor
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            if (_nextDate != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Text(
+                  'Próximo pago: '
+                  '${_nextDate!.day.toString().padLeft(2, '0')}/'
+                  '${_nextDate!.month.toString().padLeft(2, '0')}/'
+                  '${_nextDate!.year}',
+                  style: const TextStyle(
+                    color: Colors.green,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
             TextFormField(
               controller: _descriptionController,
               textCapitalization: TextCapitalization.sentences,

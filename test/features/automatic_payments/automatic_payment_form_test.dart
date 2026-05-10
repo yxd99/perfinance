@@ -7,6 +7,7 @@ import 'package:perfinance/data/models/payment_method.dart';
 import 'package:perfinance/features/automatic_payments/automatic_payment_form_screen.dart';
 import 'package:perfinance/features/credit_cards/credit_cards_provider.dart';
 import 'package:perfinance/features/savings/savings_provider.dart';
+import 'package:perfinance/services/process_automatic_payments_service.dart';
 
 /// Crea el widget bajo prueba con overrides de los providers de lista.
 Widget buildForm({AutomaticPayment? edit}) {
@@ -136,6 +137,85 @@ void main() {
       expect(find.widgetWithText(TextFormField, '28'), findsOneWidget);
       // El dropdown de frecuencia debe mostrar 'Trimestral'
       expect(find.text('Trimestral'), findsOneWidget);
+    });
+
+    // --- Tests para label "Próximo pago" (TDD RED phase) ---
+
+    testWidgets('0.1 label oculto cuando campo día está vacío', (tester) async {
+      await tester.pumpWidget(buildForm());
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Próximo pago:'), findsNothing);
+    });
+
+    testWidgets('0.2 label visible con texto correcto cuando day=15, frequency=mensual', (tester) async {
+      await tester.pumpWidget(buildForm());
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextFormField).at(2), '15');
+      await tester.pump();
+
+      final expected = nextRunDateFor(
+        frequency: 'mensual',
+        dayOfMonth: 15,
+        from: DateTime.now(),
+      );
+      final dd = expected.day.toString().padLeft(2, '0');
+      final mm = expected.month.toString().padLeft(2, '0');
+      final yyyy = expected.year.toString();
+
+      expect(find.textContaining('Próximo pago: $dd/$mm/$yyyy'), findsOneWidget);
+    });
+
+    testWidgets('0.3 label se actualiza al cambiar el día de 15 a 20', (tester) async {
+      await tester.pumpWidget(buildForm());
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextFormField).at(2), '15');
+      await tester.pump();
+
+      final expected15 = nextRunDateFor(
+        frequency: 'mensual',
+        dayOfMonth: 15,
+        from: DateTime.now(),
+      );
+      final dd15 = expected15.day.toString().padLeft(2, '0');
+      final mm15 = expected15.month.toString().padLeft(2, '0');
+      final yyyy15 = expected15.year.toString();
+      expect(find.textContaining('Próximo pago: $dd15/$mm15/$yyyy15'), findsOneWidget);
+
+      await tester.enterText(find.byType(TextFormField).at(2), '20');
+      await tester.pump();
+
+      final expected20 = nextRunDateFor(
+        frequency: 'mensual',
+        dayOfMonth: 20,
+        from: DateTime.now(),
+      );
+      final dd20 = expected20.day.toString().padLeft(2, '0');
+      final mm20 = expected20.month.toString().padLeft(2, '0');
+      final yyyy20 = expected20.year.toString();
+      expect(find.textContaining('Próximo pago: $dd20/$mm20/$yyyy20'), findsOneWidget);
+    });
+
+    testWidgets('0.4 label visible desde primer frame en modo edición con day=10, frequency=mensual',
+        (tester) async {
+      final payment = AutomaticPayment(
+        id: 'edit-1',
+        userId: 'user-1',
+        paymentType: 'payment_method',
+        paymentRef: 'method-1',
+        amount: 10000,
+        description: 'Spotify',
+        nextRunDate: DateTime(2025, 1, 10),
+        paymentDayOfMonth: 10,
+        frequency: 'mensual',
+      );
+
+      await tester.pumpWidget(buildForm(edit: payment));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Próximo pago:'), findsOneWidget);
     });
   });
 }
