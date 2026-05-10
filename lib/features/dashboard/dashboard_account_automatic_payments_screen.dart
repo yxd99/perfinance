@@ -20,6 +20,9 @@ class DashboardAccountAutomaticPaymentsScreen extends ConsumerWidget {
   final String paymentType;
   final String paymentRef;
 
+  static String _capitalize(String s) =>
+      s.isEmpty ? s : '${s[0].toUpperCase()}${s.substring(1)}';
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final asyncList = ref.watch(automaticPaymentsListProvider);
@@ -85,7 +88,7 @@ class DashboardAccountAutomaticPaymentsScreen extends ConsumerWidget {
                         ),
                         title: Text(p.description, style: const TextStyle(fontWeight: FontWeight.w600)),
                         subtitle: Text(
-                          '\$${formatCurrencyDisplay(p.amount, hideValues)} · Próx: ${p.nextRunDate.toLocal().day}/${p.nextRunDate.toLocal().month}/${p.nextRunDate.toLocal().year}',
+                          '\$${formatCurrencyDisplay(p.amount, hideValues)} · Día ${p.paymentDayOfMonth} · ${_capitalize(p.frequency)}',
                         ),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () {

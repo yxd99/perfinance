@@ -375,6 +375,9 @@ class SyncService {
         amount: (map['amount'] as num).toDouble(),
         description: map['description'] as String,
         nextRunDate: nextDate,
+        // Fallback null-safe: columnas remotas pueden no existir aún en Supabase
+        paymentDayOfMonth: map['payment_day_of_month'] as int? ?? nextDate.day,
+        frequency: map['frequency'] as String? ?? 'mensual',
         syncStatus: 'synced',
         updatedAt: map['updated_at']?.toString(),
         createdAt: map['created_at']?.toString(),
@@ -450,6 +453,7 @@ class SyncService {
     if (map['next_run_date'] is String) {
       map['next_run_date'] = (map['next_run_date'] as String).substring(0, 10);
     }
+    // payment_day_of_month y frequency ya están en toJson() — se incluyen por defecto
     return map;
   }
 }

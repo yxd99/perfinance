@@ -59,7 +59,7 @@ class AutomaticPaymentsScreen extends ConsumerWidget {
                   ),
                   title: Text(p.description, style: const TextStyle(fontWeight: FontWeight.w600)),
                   subtitle: Text(
-                    '\$${formatCurrencyDisplay(p.amount, hideValues)} · $alias · Próx: ${p.nextRunDate.day}/${p.nextRunDate.month}/${p.nextRunDate.year}',
+                    '\$${formatCurrencyDisplay(p.amount, hideValues)} · $alias · Día ${p.paymentDayOfMonth} · ${_capitalize(p.frequency)}',
                   ),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => Navigator.push(
@@ -95,7 +95,7 @@ class AutomaticPaymentsScreen extends ConsumerWidget {
                 margin: const EdgeInsets.only(bottom: 8),
                 child: ListTile(
                   title: Text(p.description),
-                  subtitle: Text('${p.nextRunDate.day}/${p.nextRunDate.month}/${p.nextRunDate.year}'),
+                  subtitle: Text('Día ${p.paymentDayOfMonth} · ${_capitalize(p.frequency)}'),
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -113,6 +113,9 @@ class AutomaticPaymentsScreen extends ConsumerWidget {
       error: (e, _) => AppErrorState(message: 'Error al cargar pagos automáticos.'),
     );
   }
+
+  String _capitalize(String s) =>
+      s.isEmpty ? s : '${s[0].toUpperCase()}${s.substring(1)}';
 
   void _openForm(BuildContext context, WidgetRef ref) {
     Navigator.push(

@@ -5,6 +5,7 @@ import 'package:perfinance/core/theme/app_theme.dart';
 import 'package:perfinance/core/utils/user_friendly_errors.dart';
 import 'package:perfinance/core/widgets/app_empty_state.dart';
 import 'package:perfinance/core/widgets/app_error_state.dart';
+import 'package:perfinance/core/utils/date_format_utils.dart';
 import 'package:perfinance/core/widgets/currency_input.dart';
 import 'package:perfinance/core/widgets/summary_total_bar.dart';
 import 'package:perfinance/data/models/debt.dart';
@@ -269,7 +270,7 @@ class _DebtCard extends StatelessWidget {
                   Text('Pagado: $installmentsPaid/${debt.numberOfInstallments} cuotas · Falta: \$${formatCurrencyDisplay(remaining, hideValues)}'),
                 ],
                 Text(
-                  'Vence: ${debt.dueDate.day}/${debt.dueDate.month}/${debt.dueDate.year}',
+                  'Vence: ${formatDisplayDate(debt.dueDate)}',
                   style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
                 ),
               ],

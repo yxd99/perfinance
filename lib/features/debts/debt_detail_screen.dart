@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perfinance/core/providers/hide_values_provider.dart';
 import 'package:perfinance/core/theme/app_theme.dart';
+import 'package:perfinance/core/utils/date_format_utils.dart';
 import 'package:perfinance/core/widgets/currency_input.dart';
 import 'package:perfinance/data/models/debt.dart';
 import 'package:perfinance/data/models/debt_payment.dart';
@@ -61,7 +62,7 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
                       _RowLabel('Total pagado', '\$${formatCurrencyDisplay(totalPaid, hideValues)}'),
                       _RowLabel('Falta por pagar', '\$${formatCurrencyDisplay(remaining, hideValues)}', isHighlight: remaining > 0),
                       const SizedBox(height: 8),
-                      Text('Fecha máximo de pago: ${widget.debt.dueDate.day}/${widget.debt.dueDate.month}/${widget.debt.dueDate.year}', style: Theme.of(context).textTheme.bodySmall),
+                      Text('Fecha máximo de pago: ${formatDisplayDate(widget.debt.dueDate)}', style: Theme.of(context).textTheme.bodySmall),
                     ],
                   ),
                 ),
@@ -100,7 +101,7 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
                           child: Icon(Icons.check, color: AppThemeColors.primaryGreen, size: 20),
                         ),
                         title: Text('\$${formatCurrencyDisplay(p.amount, hideValues)}'),
-                        subtitle: Text('${p.date.day}/${p.date.month}/${p.date.year}'),
+                        subtitle: Text(formatDisplayDate(p.date)),
                         trailing: IconButton(
                           icon: Icon(Icons.delete_outline, color: Theme.of(context).colorScheme.error),
                           tooltip: 'Eliminar pago',
@@ -189,7 +190,7 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text('Eliminar pago'),
         content: Text(
-          '¿Eliminar el pago de \$${formatCurrencyDisplay(p.amount, ref.read(hideValuesProvider).value ?? false)} del ${p.date.day}/${p.date.month}/${p.date.year}?',
+          '¿Eliminar el pago de \$${formatCurrencyDisplay(p.amount, ref.read(hideValuesProvider).value ?? false)} del ${formatDisplayDate(p.date)}?',
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),

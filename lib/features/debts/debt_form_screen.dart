@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:perfinance/core/utils/date_format_utils.dart';
 import 'package:perfinance/core/widgets/currency_input.dart';
 import 'package:perfinance/data/models/debt.dart';
 import 'package:perfinance/data/repositories/debt_repository.dart';
@@ -84,7 +85,7 @@ class _DebtFormScreenState extends ConsumerState<DebtFormScreen> {
             const SizedBox(height: 16),
             ListTile(
               title: const Text('Fecha máximo de pago'),
-              subtitle: Text('${_dueDate.day}/${_dueDate.month}/${_dueDate.year}'),
+              subtitle: Text(formatDisplayDate(_dueDate)),
               onTap: () async {
                 final picked = await showDatePicker(
                   context: context,

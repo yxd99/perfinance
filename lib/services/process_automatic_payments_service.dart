@@ -10,13 +10,32 @@ final processAutomaticPaymentsServiceProvider = Provider<ProcessAutomaticPayment
   return ProcessAutomaticPaymentsService(ref);
 });
 
+/// Calcula la próxima fecha de ejecución según la frecuencia y el día canónico de pago.
+/// Clampea el día al último día válido del mes destino sin modificar [dayOfMonth].
+DateTime nextRunDateFor({
+  required String frequency,
+  required int dayOfMonth,
+  required DateTime from,
+}) {
+  final months = switch (frequency) {
+    'trimestral' => 3,
+    'semestral' => 6,
+    'anual' => 12,
+    _ => 1, // mensual default
+  };
+  final target = DateTime(from.year, from.month + months, 1);
+  final lastDay = DateTime(target.year, target.month + 1, 0).day;
+  final day = dayOfMonth > lastDay ? lastDay : dayOfMonth;
+  return DateTime(target.year, target.month, day);
+}
+
 class ProcessAutomaticPaymentsService {
   ProcessAutomaticPaymentsService(this._ref);
   final Ref _ref;
 
   static const String _expenseDescriptionPrefix = '[Pago automático]: ';
 
-  /// Procesa los pagos automáticos vencidos: crea el egreso y avanza la fecha al mes siguiente.
+  /// Procesa los pagos automáticos vencidos: crea el egreso y avanza la fecha según la frecuencia.
   Future<void> run() async {
     final user = await _ref.read(authStateProvider.future);
     if (user == null) return;
@@ -31,7 +50,11 @@ class ProcessAutomaticPaymentsService {
       final expenseDate = DateTime(p.nextRunDate.year, p.nextRunDate.month, p.nextRunDate.day);
       // Deterministic UUID: same payment + same date → same id → idempotent on retry
       final expenseId = const Uuid().v5(Uuid.NAMESPACE_OID, '${p.id}:${expenseDate.toIso8601String()}');
-      final nextRun = _nextMonthSameDay(p.nextRunDate);
+      final nextRun = nextRunDateFor(
+        frequency: p.frequency,
+        dayOfMonth: p.paymentDayOfMonth,
+        from: p.nextRunDate,
+      );
       await expenseRepo.insert(Expense(
         id: expenseId,
         userId: user.id,
@@ -43,12 +66,5 @@ class ProcessAutomaticPaymentsService {
       ));
       await autoRepo.updateNextRunDate(p.id, nextRun);
     }
-  }
-
-  static DateTime _nextMonthSameDay(DateTime d) {
-    final nextMonth = d.month == 12 ? DateTime(d.year + 1, 1, 1) : DateTime(d.year, d.month + 1, 1);
-    final lastDayOfNext = DateTime(nextMonth.year, nextMonth.month + 1, 0);
-    final day = d.day <= lastDayOfNext.day ? d.day : lastDayOfNext.day;
-    return DateTime(nextMonth.year, nextMonth.month, day);
   }
 }
