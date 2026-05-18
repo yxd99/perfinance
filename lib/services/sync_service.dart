@@ -23,6 +23,7 @@ import 'package:perfinance/features/dashboard/dashboard_provider.dart';
 import 'package:perfinance/features/debts/debts_provider.dart';
 import 'package:perfinance/features/expenses/expenses_provider.dart';
 import 'package:perfinance/features/savings/savings_provider.dart';
+import 'package:perfinance/core/utils/date_format_utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:io';
@@ -277,7 +278,7 @@ class SyncService {
         id: id,
         userId: map['user_id'] as String,
         amount: (map['amount'] as num).toDouble(),
-        date: DateTime.parse((map['date'] as String).substring(0, 10)),
+        date: parseDateOnly(map['date'] as String),
         paymentType: map['payment_type'] as String,
         paymentRef: map['payment_ref'] as String,
         description: map['description'] as String?,
@@ -299,7 +300,7 @@ class SyncService {
           id: map['id'] as String,
           cardId: map['card_id'] as String,
           amount: (map['amount'] as num).toDouble(),
-          date: DateTime.parse((map['date'] as String).substring(0, 10)),
+          date: parseDateOnly(map['date'] as String),
           syncStatus: 'synced',
           updatedAt: map['updated_at']?.toString(),
           createdAt: map['created_at']?.toString(),
@@ -329,10 +330,7 @@ class SyncService {
     final debtRes = await _supabase.from('debts').select().eq('user_id', userId);
     for (final row in debtRes as List) {
       final map = Map<String, dynamic>.from(row as Map);
-      final dueStr = map['due_date']?.toString() ?? '';
-      final dueDateTime = dueStr.length >= 10
-          ? DateTime.tryParse(dueStr.substring(0, 10)) ?? DateTime.now()
-          : DateTime.now();
+      final dueDateTime = tryParseDateOnly(map['due_date']?.toString());
       final d = Debt(
         id: map['id'] as String,
         userId: map['user_id'] as String,
@@ -356,7 +354,7 @@ class SyncService {
           id: map['id'] as String,
           debtId: map['debt_id'] as String,
           amount: (map['amount'] as num).toDouble(),
-          date: DateTime.parse((map['date'] as String).substring(0, 10)),
+          date: parseDateOnly(map['date'] as String),
           syncStatus: 'synced',
           updatedAt: map['updated_at']?.toString(),
           createdAt: map['created_at']?.toString(),
@@ -368,10 +366,7 @@ class SyncService {
     final autoRes = await _supabase.from('automatic_payments').select().eq('user_id', userId);
     for (final row in autoRes as List) {
       final map = Map<String, dynamic>.from(row as Map);
-      final nextStr = map['next_run_date']?.toString() ?? '';
-      final nextDate = nextStr.length >= 10
-          ? DateTime.tryParse(nextStr.substring(0, 10)) ?? DateTime.now()
-          : DateTime.now();
+      final nextDate = tryParseDateOnly(map['next_run_date']?.toString());
       final a = AutomaticPayment(
         id: map['id'] as String,
         userId: map['user_id'] as String,
@@ -437,7 +432,7 @@ class SyncService {
     map.remove('updated_at');
     map.remove('created_at');
     if (map['due_date'] is String) {
-      map['due_date'] = (map['due_date'] as String).substring(0, 10);
+      map['due_date'] = dateOnlyIso(DateTime.parse(map['due_date'] as String));
     }
     return map;
   }
@@ -456,7 +451,7 @@ class SyncService {
     map.remove('updated_at');
     map.remove('created_at');
     if (map['next_run_date'] is String) {
-      map['next_run_date'] = (map['next_run_date'] as String).substring(0, 10);
+      map['next_run_date'] = dateOnlyIso(DateTime.parse(map['next_run_date'] as String));
     }
     // payment_day_of_month y frequency ya están en toJson() — se incluyen por defecto
     return map;
