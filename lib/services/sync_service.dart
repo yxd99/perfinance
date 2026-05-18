@@ -23,6 +23,7 @@ import 'package:perfinance/features/dashboard/dashboard_provider.dart';
 import 'package:perfinance/features/debts/debts_provider.dart';
 import 'package:perfinance/features/expenses/expenses_provider.dart';
 import 'package:perfinance/features/savings/savings_provider.dart';
+import 'package:perfinance/core/utils/date_format_utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:io';
@@ -116,7 +117,7 @@ class SyncService {
         } else if (c.syncStatus == 'pending_insert') {
           await ccTable.upsert(_toRemoteCard(c), onConflict: 'id');
         } else {
-          await ccTable.update(_toRemoteCard(c)).eq('id', c.id);
+          await ccTable.upsert(_toRemoteCard(c), onConflict: 'id');
         }
         if (c.syncStatus != 'pending_delete') await ccRepo.markSynced(c.id);
       } catch (e) {
@@ -132,7 +133,7 @@ class SyncService {
         } else if (p.syncStatus == 'pending_insert') {
           await pmTable.upsert(_toRemotePaymentMethod(p), onConflict: 'id');
         } else {
-          await pmTable.update(_toRemotePaymentMethod(p)).eq('id', p.id);
+          await pmTable.upsert(_toRemotePaymentMethod(p), onConflict: 'id');
         }
         if (p.syncStatus != 'pending_delete') await pmRepo.markSynced(p.id);
       } catch (e) {
@@ -148,7 +149,7 @@ class SyncService {
         } else if (e.syncStatus == 'pending_insert') {
           await expTable.upsert(_toRemoteExpense(e), onConflict: 'id');
         } else if (e.syncStatus == 'pending_update') {
-          await expTable.update(_toRemoteExpense(e)).eq('id', e.id);
+          await expTable.upsert(_toRemoteExpense(e), onConflict: 'id');
         }
         if (e.syncStatus != 'pending_delete') await expRepo.markSynced(e.id);
       } catch (e) {
@@ -186,7 +187,7 @@ class SyncService {
         } else if (d.syncStatus == 'pending_insert') {
           await debtsTable.upsert(_toRemoteDebt(d), onConflict: 'id');
         } else {
-          await debtsTable.update(_toRemoteDebt(d)).eq('id', d.id);
+          await debtsTable.upsert(_toRemoteDebt(d), onConflict: 'id');
         }
         if (d.syncStatus != 'pending_delete') await debtRepo.markSynced(d.id);
       } catch (e) {
@@ -217,7 +218,7 @@ class SyncService {
           await automaticPaymentsTable.upsert(_toRemoteAutomaticPayment(a), onConflict: 'id');
           await autoPayRepo.markSynced(a.id);
         } else {
-          await automaticPaymentsTable.update(_toRemoteAutomaticPayment(a)).eq('id', a.id);
+          await automaticPaymentsTable.upsert(_toRemoteAutomaticPayment(a), onConflict: 'id');
           await autoPayRepo.markSynced(a.id);
         }
       } catch (e) {
@@ -268,13 +269,16 @@ class SyncService {
     }
 
     final expRes = await _supabase.from('expenses').select().eq('user_id', userId);
+    final remoteExpenseIds = <String>{};
     for (final row in expRes as List) {
       final map = Map<String, dynamic>.from(row as Map);
+      final id = map['id'] as String;
+      remoteExpenseIds.add(id);
       final e = Expense(
-        id: map['id'] as String,
+        id: id,
         userId: map['user_id'] as String,
         amount: (map['amount'] as num).toDouble(),
-        date: DateTime.parse((map['date'] as String).substring(0, 10)),
+        date: parseDateOnly(map['date'] as String),
         paymentType: map['payment_type'] as String,
         paymentRef: map['payment_ref'] as String,
         description: map['description'] as String?,
@@ -284,6 +288,8 @@ class SyncService {
       );
       await expRepo.upsertFromRemote(e);
     }
+    // Re-encolar gastos locales synced que no existen en Supabase (ghost expenses).
+    await expRepo.requeueOrphansAsPendingInsert(remoteExpenseIds, userId);
 
     final cardIds = (await ccRepo.getAll(userId)).map((c) => c.id).toList();
     for (final cardId in cardIds) {
@@ -294,7 +300,7 @@ class SyncService {
           id: map['id'] as String,
           cardId: map['card_id'] as String,
           amount: (map['amount'] as num).toDouble(),
-          date: DateTime.parse((map['date'] as String).substring(0, 10)),
+          date: parseDateOnly(map['date'] as String),
           syncStatus: 'synced',
           updatedAt: map['updated_at']?.toString(),
           createdAt: map['created_at']?.toString(),
@@ -324,10 +330,7 @@ class SyncService {
     final debtRes = await _supabase.from('debts').select().eq('user_id', userId);
     for (final row in debtRes as List) {
       final map = Map<String, dynamic>.from(row as Map);
-      final dueStr = map['due_date']?.toString() ?? '';
-      final dueDateTime = dueStr.length >= 10
-          ? DateTime.tryParse(dueStr.substring(0, 10)) ?? DateTime.now()
-          : DateTime.now();
+      final dueDateTime = tryParseDateOnly(map['due_date']?.toString());
       final d = Debt(
         id: map['id'] as String,
         userId: map['user_id'] as String,
@@ -351,7 +354,7 @@ class SyncService {
           id: map['id'] as String,
           debtId: map['debt_id'] as String,
           amount: (map['amount'] as num).toDouble(),
-          date: DateTime.parse((map['date'] as String).substring(0, 10)),
+          date: parseDateOnly(map['date'] as String),
           syncStatus: 'synced',
           updatedAt: map['updated_at']?.toString(),
           createdAt: map['created_at']?.toString(),
@@ -363,10 +366,7 @@ class SyncService {
     final autoRes = await _supabase.from('automatic_payments').select().eq('user_id', userId);
     for (final row in autoRes as List) {
       final map = Map<String, dynamic>.from(row as Map);
-      final nextStr = map['next_run_date']?.toString() ?? '';
-      final nextDate = nextStr.length >= 10
-          ? DateTime.tryParse(nextStr.substring(0, 10)) ?? DateTime.now()
-          : DateTime.now();
+      final nextDate = tryParseDateOnly(map['next_run_date']?.toString());
       final a = AutomaticPayment(
         id: map['id'] as String,
         userId: map['user_id'] as String,
@@ -432,7 +432,7 @@ class SyncService {
     map.remove('updated_at');
     map.remove('created_at');
     if (map['due_date'] is String) {
-      map['due_date'] = (map['due_date'] as String).substring(0, 10);
+      map['due_date'] = dateOnlyIso(DateTime.parse(map['due_date'] as String));
     }
     return map;
   }
@@ -451,7 +451,7 @@ class SyncService {
     map.remove('updated_at');
     map.remove('created_at');
     if (map['next_run_date'] is String) {
-      map['next_run_date'] = (map['next_run_date'] as String).substring(0, 10);
+      map['next_run_date'] = dateOnlyIso(DateTime.parse(map['next_run_date'] as String));
     }
     // payment_day_of_month y frequency ya están en toJson() — se incluyen por defecto
     return map;

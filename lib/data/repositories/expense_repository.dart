@@ -105,6 +105,30 @@ class ExpenseRepository {
     await db.delete(tableExpenses, where: 'id = ?', whereArgs: [id]);
   }
 
+  /// Re-encola como pending_insert los gastos locales marcados synced cuyo ID
+  /// no está en [remoteIds]. Recupera gastos que nunca llegaron a Supabase.
+  Future<void> requeueOrphansAsPendingInsert(Set<String> remoteIds, String userId) async {
+    final db = await _db;
+    final rows = await db.query(
+      tableExpenses,
+      columns: ['id'],
+      where: 'user_id = ? AND sync_status = ?',
+      whereArgs: [userId, 'synced'],
+    );
+    final now = DateTime.now().toIso8601String();
+    for (final row in rows) {
+      final id = row['id'] as String;
+      if (!remoteIds.contains(id)) {
+        await db.update(
+          tableExpenses,
+          {columnSyncStatus: 'pending_insert', columnUpdatedAt: now},
+          where: 'id = ?',
+          whereArgs: [id],
+        );
+      }
+    }
+  }
+
   Future<void> upsertFromRemote(Expense e) async {
     final db = await _db;
     final existing = await db.query(tableExpenses, where: 'id = ?', whereArgs: [e.id]);
