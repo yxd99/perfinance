@@ -116,7 +116,7 @@ class SyncService {
         } else if (c.syncStatus == 'pending_insert') {
           await ccTable.upsert(_toRemoteCard(c), onConflict: 'id');
         } else {
-          await ccTable.update(_toRemoteCard(c)).eq('id', c.id);
+          await ccTable.upsert(_toRemoteCard(c), onConflict: 'id');
         }
         if (c.syncStatus != 'pending_delete') await ccRepo.markSynced(c.id);
       } catch (e) {
@@ -132,7 +132,7 @@ class SyncService {
         } else if (p.syncStatus == 'pending_insert') {
           await pmTable.upsert(_toRemotePaymentMethod(p), onConflict: 'id');
         } else {
-          await pmTable.update(_toRemotePaymentMethod(p)).eq('id', p.id);
+          await pmTable.upsert(_toRemotePaymentMethod(p), onConflict: 'id');
         }
         if (p.syncStatus != 'pending_delete') await pmRepo.markSynced(p.id);
       } catch (e) {
@@ -148,7 +148,7 @@ class SyncService {
         } else if (e.syncStatus == 'pending_insert') {
           await expTable.upsert(_toRemoteExpense(e), onConflict: 'id');
         } else if (e.syncStatus == 'pending_update') {
-          await expTable.update(_toRemoteExpense(e)).eq('id', e.id);
+          await expTable.upsert(_toRemoteExpense(e), onConflict: 'id');
         }
         if (e.syncStatus != 'pending_delete') await expRepo.markSynced(e.id);
       } catch (e) {
@@ -186,7 +186,7 @@ class SyncService {
         } else if (d.syncStatus == 'pending_insert') {
           await debtsTable.upsert(_toRemoteDebt(d), onConflict: 'id');
         } else {
-          await debtsTable.update(_toRemoteDebt(d)).eq('id', d.id);
+          await debtsTable.upsert(_toRemoteDebt(d), onConflict: 'id');
         }
         if (d.syncStatus != 'pending_delete') await debtRepo.markSynced(d.id);
       } catch (e) {
@@ -217,7 +217,7 @@ class SyncService {
           await automaticPaymentsTable.upsert(_toRemoteAutomaticPayment(a), onConflict: 'id');
           await autoPayRepo.markSynced(a.id);
         } else {
-          await automaticPaymentsTable.update(_toRemoteAutomaticPayment(a)).eq('id', a.id);
+          await automaticPaymentsTable.upsert(_toRemoteAutomaticPayment(a), onConflict: 'id');
           await autoPayRepo.markSynced(a.id);
         }
       } catch (e) {
@@ -268,10 +268,13 @@ class SyncService {
     }
 
     final expRes = await _supabase.from('expenses').select().eq('user_id', userId);
+    final remoteExpenseIds = <String>{};
     for (final row in expRes as List) {
       final map = Map<String, dynamic>.from(row as Map);
+      final id = map['id'] as String;
+      remoteExpenseIds.add(id);
       final e = Expense(
-        id: map['id'] as String,
+        id: id,
         userId: map['user_id'] as String,
         amount: (map['amount'] as num).toDouble(),
         date: DateTime.parse((map['date'] as String).substring(0, 10)),
@@ -284,6 +287,8 @@ class SyncService {
       );
       await expRepo.upsertFromRemote(e);
     }
+    // Re-encolar gastos locales synced que no existen en Supabase (ghost expenses).
+    await expRepo.requeueOrphansAsPendingInsert(remoteExpenseIds, userId);
 
     final cardIds = (await ccRepo.getAll(userId)).map((c) => c.id).toList();
     for (final cardId in cardIds) {

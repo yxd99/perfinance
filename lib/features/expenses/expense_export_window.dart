@@ -17,14 +17,15 @@ class ExpenseExportWindow {
 
   factory ExpenseExportWindow.fromFilter(ExpenseDateFilter filter) {
     final range = filter.rangeOrNow;
-    final rangeStartDay = DateTime(range.start.year, range.start.month, range.start.day);
-    final rangeEndDay = DateTime(range.end.year, range.end.month, range.end.day);
-    final windowEndLocal =
-        DateTime(rangeEndDay.year, rangeEndDay.month, rangeEndDay.day, 23, 59, 59, 999);
+    final s = range.start;
+    final e = range.end;
+    // Expenses are stored in Supabase as UTC midnight (Flutter serializes DateTime without
+    // timezone → Postgres interprets as UTC). Use UTC midnight directly so the query bounds
+    // match the stored values, regardless of the client's local offset.
     return ExpenseExportWindow(
       rangeLabel: filter.label,
-      windowStartIso: rangeStartDay.toUtc().toIso8601String(),
-      windowEndIso: windowEndLocal.toUtc().toIso8601String(),
+      windowStartIso: DateTime.utc(s.year, s.month, s.day).toIso8601String(),
+      windowEndIso: DateTime.utc(e.year, e.month, e.day, 23, 59, 59, 999).toIso8601String(),
       timezoneOffsetMinutes: DateTime.now().timeZoneOffset.inMinutes,
     );
   }
