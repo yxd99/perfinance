@@ -341,6 +341,7 @@ class SyncService {
         syncStatus: 'synced',
         updatedAt: map['updated_at']?.toString(),
         createdAt: map['created_at']?.toString(),
+        status: DebtStatusX.fromWire(map['status'] as String?),
       );
       await debtRepo.upsertFromRemote(d);
     }

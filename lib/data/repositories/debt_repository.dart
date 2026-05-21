@@ -54,6 +54,7 @@ class DebtRepository {
         'total_amount': d.totalAmount,
         'number_of_installments': d.numberOfInstallments,
         'due_date': d.dueDate.toIso8601String(),
+        'status': d.status.wire,
         columnSyncStatus: 'pending_insert',
         columnUpdatedAt: now,
         'created_at': now,
@@ -70,6 +71,7 @@ class DebtRepository {
         'total_amount': d.totalAmount,
         'number_of_installments': d.numberOfInstallments,
         'due_date': d.dueDate.toIso8601String(),
+        'status': d.status.wire,
         columnSyncStatus: 'pending_update',
         columnUpdatedAt: DateTime.now().toIso8601String(),
       },
@@ -105,7 +107,6 @@ class DebtRepository {
     );
   }
 
-  /// Borra el registro local y sus pagos (usar tras sincronizar un pending_delete).
   Future<void> deleteLocal(String id) async {
     final db = await _db;
     await db.delete(tableDebtPayments, where: 'debt_id = ?', whereArgs: [id]);
@@ -128,11 +129,54 @@ class DebtRepository {
         'total_amount': d.totalAmount,
         'number_of_installments': d.numberOfInstallments,
         'due_date': d.dueDate.toIso8601String(),
+        'status': d.status.wire,
         columnSyncStatus: 'synced',
         columnUpdatedAt: now,
         'created_at': now,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<void> payDebt(String id) async {
+    final db = await _db;
+    await db.update(
+      tableDebts,
+      {
+        'status': DebtStatus.paid.wire,
+        columnSyncStatus: 'pending_update',
+        columnUpdatedAt: DateTime.now().toIso8601String(),
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<void> reactivateDebt(String id) async {
+    final db = await _db;
+    await db.update(
+      tableDebts,
+      {
+        'status': DebtStatus.active.wire,
+        columnSyncStatus: 'pending_update',
+        columnUpdatedAt: DateTime.now().toIso8601String(),
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<void> hideDebt(String id) async {
+    final db = await _db;
+    await db.update(
+      tableDebts,
+      {
+        'status': DebtStatus.hidden.wire,
+        columnSyncStatus: 'pending_update',
+        columnUpdatedAt: DateTime.now().toIso8601String(),
+      },
+      where: 'id = ?',
+      whereArgs: [id],
     );
   }
 
@@ -147,6 +191,7 @@ class DebtRepository {
       syncStatus: r[columnSyncStatus] as String? ?? 'synced',
       updatedAt: r[columnUpdatedAt] as String?,
       createdAt: r['created_at'] as String?,
+      status: DebtStatusX.fromWire(r['status'] as String?),
     );
   }
 }

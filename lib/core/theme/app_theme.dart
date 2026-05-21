@@ -15,6 +15,7 @@ abstract class AppThemeColors {
   static const Color surfaceDark = Color(0xFF1C1C1E);
   static const Color backgroundDark = Color(0xFF0D0D0D);
   static const Color primaryGreenDark = Color(0xFF1A9E55);
+  static const Color neutralGrey = Color(0xFF718096);
   static const Color errorRed = Color(0xFFE53E3E);
   static const Color errorRedDark = Color(0xFFC53030);
   static const LinearGradient debtGradient = LinearGradient(

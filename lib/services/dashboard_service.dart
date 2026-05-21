@@ -92,7 +92,9 @@ class DashboardService {
         breakdownItems.add(DebtBreakdownItem(id: c.id, label: c.alias, isCreditCard: true, balance: debt));
       }
     }
-    var debts = await debtRepo.getAll(userId);
+    var debts = (await debtRepo.getAll(userId))
+        .where((d) => d.status == DebtStatus.active)
+        .toList();
     if (cutoff != null) {
       debts = debts.where((d) {
         final parsed = DateTime.tryParse(d.createdAt ?? '');
@@ -131,7 +133,9 @@ class DashboardService {
         : null;
     final cards = await cardRepo.getAll(userId);
     if (cards.isNotEmpty) return true;
-    var debts = await debtRepo.getAll(userId);
+    var debts = (await debtRepo.getAll(userId))
+        .where((d) => d.status == DebtStatus.active)
+        .toList();
     if (cutoff != null) debts = debts.where((d) => (d.createdAt != null && DateTime.parse(d.createdAt!).isBefore(cutoff)) || d.createdAt == null).toList();
     return debts.isNotEmpty;
   }
