@@ -3,7 +3,7 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
 const String _dbName = 'perfinance.db';
-const int _version = 5;
+const int _version = 7;
 
 const String tableCreditCards = 'credit_cards';
 const String tablePaymentMethods = 'payment_methods';
@@ -95,6 +95,30 @@ Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
       );
     });
   }
+  if (oldVersion < 6) {
+    await db.transaction((txn) async {
+      await txn.execute('ALTER TABLE $tableDebts ADD COLUMN manually_closed_at TEXT');
+    });
+  }
+  if (oldVersion < 7) {
+    await db.transaction((txn) async {
+      await txn.execute(
+        "ALTER TABLE $tableDebts ADD COLUMN status TEXT NOT NULL DEFAULT 'active'",
+      );
+      await txn.execute('''
+        UPDATE $tableDebts
+        SET status = 'paid'
+        WHERE id IN (
+          SELECT dp.debt_id
+          FROM $tableDebtPayments dp
+          GROUP BY dp.debt_id
+          HAVING SUM(dp.amount) >= (
+            SELECT d2.total_amount FROM $tableDebts d2 WHERE d2.id = dp.debt_id
+          )
+        )
+      ''');
+    });
+  }
 }
 
 Future<void> _onCreate(Database db, int version) async {
@@ -167,6 +191,7 @@ Future<void> _onCreate(Database db, int version) async {
       total_amount REAL NOT NULL,
       number_of_installments INTEGER NOT NULL,
       due_date TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
       $columnSyncStatus TEXT NOT NULL DEFAULT 'synced',
       $columnUpdatedAt TEXT,
       created_at TEXT

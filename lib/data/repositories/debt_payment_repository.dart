@@ -46,6 +46,13 @@ class DebtPaymentRepository {
 
   Future<void> insert(DebtPayment p) async {
     final db = await _db;
+    final debtRow = await db.query(tableDebts, where: 'id = ?', whereArgs: [p.debtId]);
+    if (debtRow.isNotEmpty) {
+      final s = debtRow.first['status'] as String?;
+      if (s == 'paid' || s == 'hidden') {
+        throw StateError('Cannot insert payment for a $s debt');
+      }
+    }
     final now = DateTime.now().toIso8601String();
     await db.insert(
       tableDebtPayments,

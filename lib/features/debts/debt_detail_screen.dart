@@ -21,72 +21,173 @@ class DebtDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
+  late Debt _debt;
+  late Future<List<DebtPayment>> _paymentsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _debt = widget.debt;
+    _paymentsFuture = ref.read(debtPaymentRepositoryProvider).getByDebtId(_debt.id);
+  }
+
+  void _refreshPayments() {
+    setState(() {
+      _paymentsFuture = ref.read(debtPaymentRepositoryProvider).getByDebtId(_debt.id);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final hideValues = ref.watch(hideValuesProvider).value ?? false;
+    final status = _debt.status;
+    final isActive = status == DebtStatus.active;
+    final isPaid = status == DebtStatus.paid;
+    final isHidden = status == DebtStatus.hidden;
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.debt.name),
+        title: Text(_debt.name),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.delete_outline),
-            onPressed: () => _deleteDebt(context),
-          ),
+          if (!isHidden)
+            IconButton(
+              icon: const Icon(Icons.delete_outline),
+              onPressed: () => _deleteDebt(context),
+            ),
         ],
       ),
       body: FutureBuilder<List<DebtPayment>>(
-        future: ref.read(debtPaymentRepositoryProvider).getByDebtId(widget.debt.id),
+        future: _paymentsFuture,
         builder: (context, snap) {
           final payments = snap.data ?? [];
           final totalPaid = payments.fold<double>(0, (s, p) => s + p.amount);
-          final remaining = widget.debt.totalAmount - totalPaid;
-          final installmentsPaid = widget.debt.amountPerInstallment > 0
-              ? (totalPaid / widget.debt.amountPerInstallment).floor()
+          final remaining = _debt.totalAmount - totalPaid;
+          final installmentsPaid = _debt.amountPerInstallment > 0
+              ? (totalPaid / _debt.amountPerInstallment).floor()
               : 0;
 
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
+              if (isPaid)
+                _InfoBanner(
+                  message: 'Esta deuda está marcada como pagada. Reactivala para registrar nuevos pagos.',
+                  color: AppThemeColors.primaryGreen,
+                ),
+              if (isHidden)
+                _InfoBanner(
+                  message: 'Esta deuda está oculta. Reactivala para volver a operarla.',
+                  color: AppThemeColors.neutralGrey,
+                ),
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(20),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Resumen', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Resumen',
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                          _StatusBadge(status: _debt.status),
+                        ],
+                      ),
                       const SizedBox(height: 16),
-                      _RowLabel('Valor total', '\$${formatCurrencyDisplay(widget.debt.totalAmount, hideValues)}'),
-                      _RowLabel('Cuota', '\$${formatCurrencyDisplay(widget.debt.amountPerInstallment, hideValues)}'),
-                      _RowLabel('Cuotas', '${widget.debt.numberOfInstallments}'),
+                      _RowLabel('Valor total', '\$${formatCurrencyDisplay(_debt.totalAmount, hideValues)}'),
+                      _RowLabel('Cuota', '\$${formatCurrencyDisplay(_debt.amountPerInstallment, hideValues)}'),
+                      _RowLabel('Cuotas', '${_debt.numberOfInstallments}'),
                       _RowLabel('Cuotas pagadas', '$installmentsPaid'),
                       _RowLabel('Total pagado', '\$${formatCurrencyDisplay(totalPaid, hideValues)}'),
                       _RowLabel('Falta por pagar', '\$${formatCurrencyDisplay(remaining, hideValues)}', isHighlight: remaining > 0),
                       const SizedBox(height: 8),
-                      Text('Fecha máximo de pago: ${formatDisplayDate(widget.debt.dueDate)}', style: Theme.of(context).textTheme.bodySmall),
+                      Text('Fecha máximo de pago: ${formatDisplayDate(_debt.dueDate)}', style: Theme.of(context).textTheme.bodySmall),
                     ],
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: remaining <= 0 ? null : () => _payInstallment(context),
-                      icon: const Icon(Icons.payment),
-                      label: const Text('Pagar cuota'),
+              const SizedBox(height: 16),
+              // Action matrix
+              if (isActive) ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: () => _payDebt(context),
+                        icon: const Icon(Icons.check_circle_outline),
+                        label: const Text('Pagar'),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: remaining <= 0 ? null : () => _payCustom(context),
-                      icon: const Icon(Icons.edit),
-                      label: const Text('Monto personalizado'),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _hideDebt(context),
+                        icon: const Icon(Icons.visibility_off_outlined),
+                        label: const Text('Ocultar'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppThemeColors.neutralGrey,
+                          side: const BorderSide(color: AppThemeColors.neutralGrey),
+                        ),
+                      ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
+              ] else if (isPaid) ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: () => _reactivateDebt(context),
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Reactivar'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _hideDebt(context),
+                        icon: const Icon(Icons.visibility_off_outlined),
+                        label: const Text('Ocultar'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppThemeColors.neutralGrey,
+                          side: const BorderSide(color: AppThemeColors.neutralGrey),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ] else if (isHidden) ...[
+                FilledButton.icon(
+                  onPressed: () => _reactivateDebt(context),
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Reactivar'),
+                ),
+              ],
+              if (isActive) ...[
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: remaining <= 0 ? null : () => _payInstallment(context),
+                        icon: const Icon(Icons.payment),
+                        label: const Text('Pagar cuota'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: remaining <= 0 ? null : () => _payCustom(context),
+                        icon: const Icon(Icons.edit),
+                        label: const Text('Monto personalizado'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 20),
               Text('Historial de pagos', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
               const SizedBox(height: 8),
@@ -116,8 +217,66 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
     );
   }
 
+  Future<void> _payDebt(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Marcar como pagada'),
+        content: Text('¿Marcar "${_debt.name}" como pagada?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Pagar')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await ref.read(debtRepositoryProvider).payDebt(_debt.id);
+    if (mounted) {
+      ref.invalidate(debtsListProvider);
+      ref.invalidate(filteredDebtsWithPaidProvider);
+      final fresh = await ref.read(debtRepositoryProvider).getById(_debt.id);
+      if (fresh != null && mounted) setState(() => _debt = fresh);
+    }
+  }
+
+  Future<void> _reactivateDebt(BuildContext context) async {
+    await ref.read(debtRepositoryProvider).reactivateDebt(_debt.id);
+    if (mounted) {
+      ref.invalidate(debtsListProvider);
+      ref.invalidate(filteredDebtsWithPaidProvider);
+      final fresh = await ref.read(debtRepositoryProvider).getById(_debt.id);
+      if (fresh != null && mounted) setState(() => _debt = fresh);
+    }
+  }
+
+  Future<void> _hideDebt(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Ocultar deuda'),
+        content: Text('¿Ocultar "${_debt.name}"? Podés reactivarla desde el filtro Ocultas.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          OutlinedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: OutlinedButton.styleFrom(foregroundColor: AppThemeColors.neutralGrey),
+            child: const Text('Ocultar'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await ref.read(debtRepositoryProvider).hideDebt(_debt.id);
+    if (mounted) {
+      ref.invalidate(debtsListProvider);
+      ref.invalidate(filteredDebtsWithPaidProvider);
+      final fresh = await ref.read(debtRepositoryProvider).getById(_debt.id);
+      if (fresh != null && mounted) setState(() => _debt = fresh);
+    }
+  }
+
   Future<void> _payInstallment(BuildContext context) async {
-    final amount = widget.debt.amountPerInstallment;
+    final amount = _debt.amountPerInstallment;
     if (amount <= 0) return;
     await _recordPayment(context, amount);
   }
@@ -153,12 +312,12 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
     final repo = ref.read(debtPaymentRepositoryProvider);
     await repo.insert(DebtPayment(
       id: const Uuid().v4(),
-      debtId: widget.debt.id,
+      debtId: _debt.id,
       amount: amount,
       date: DateTime.now(),
     ));
     if (mounted) {
-      setState(() {});
+      _refreshPayments();
       ref.invalidate(debtsListProvider);
     }
   }
@@ -168,7 +327,7 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Eliminar deuda'),
-        content: Text('¿Eliminar "${widget.debt.name}"? Se mantendrá el historial de pagos hasta la próxima sincronización.'),
+        content: Text('¿Eliminar "${_debt.name}"? Se mantendrá el historial de pagos hasta la próxima sincronización.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
           FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Eliminar')),
@@ -176,7 +335,7 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
       ),
     );
     if (ok != true) return;
-    await ref.read(debtRepositoryProvider).delete(widget.debt.id);
+    await ref.read(debtRepositoryProvider).delete(_debt.id);
     if (mounted) {
       ref.invalidate(debtsListProvider);
       ref.invalidate(filteredDebtsWithPaidProvider);
@@ -205,10 +364,72 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
     if (ok != true) return;
     await ref.read(debtPaymentRepositoryProvider).delete(p.id);
     if (mounted) {
-      setState(() {});
+      _refreshPayments();
       ref.invalidate(debtsListProvider);
       ref.invalidate(filteredDebtsWithPaidProvider);
     }
+  }
+}
+
+class _StatusBadge extends StatelessWidget {
+  const _StatusBadge({required this.status});
+  final DebtStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    switch (status) {
+      case DebtStatus.active:
+        return const SizedBox.shrink();
+      case DebtStatus.paid:
+        return _Pill(label: 'Pagada', color: AppThemeColors.primaryGreen);
+      case DebtStatus.hidden:
+        return _Pill(label: 'Oculta', color: AppThemeColors.neutralGrey);
+    }
+  }
+}
+
+class _Pill extends StatelessWidget {
+  const _Pill({required this.label, required this.color});
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w700,
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
+}
+
+class _InfoBanner extends StatelessWidget {
+  const _InfoBanner({required this.message, required this.color});
+  final String message;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Text(message, style: TextStyle(color: color, fontWeight: FontWeight.w500)),
+    );
   }
 }
 

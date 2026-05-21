@@ -9,6 +9,7 @@ import 'package:perfinance/core/utils/date_format_utils.dart';
 import 'package:perfinance/core/widgets/currency_input.dart';
 import 'package:perfinance/core/widgets/summary_total_bar.dart';
 import 'package:perfinance/data/models/debt.dart';
+import 'package:perfinance/data/repositories/debt_repository.dart';
 import 'package:perfinance/features/debts/debts_provider.dart';
 import 'package:perfinance/features/debts/debt_detail_screen.dart';
 import 'package:perfinance/features/debts/debt_form_screen.dart';
@@ -36,6 +37,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
     final asyncList = ref.watch(filteredDebtsWithPaidProvider);
     final filter = ref.watch(debtListFilterProvider);
     final hideValues = ref.watch(hideValuesProvider).value ?? false;
+    final asyncTotal = ref.watch(outstandingDebtsTotalProvider);
     return Column(
       children: [
         Padding(
@@ -74,12 +76,6 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
           child: Row(
             children: [
               _FilterChip(
-                label: 'Todas',
-                selected: filter == DebtListFilter.all,
-                onTap: () => ref.read(debtListFilterProvider.notifier).state = DebtListFilter.all,
-              ),
-              const SizedBox(width: 8),
-              _FilterChip(
                 label: 'Activas',
                 selected: filter == DebtListFilter.active,
                 onTap: () => ref.read(debtListFilterProvider.notifier).state = DebtListFilter.active,
@@ -89,6 +85,18 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
                 label: 'Pagadas',
                 selected: filter == DebtListFilter.paid,
                 onTap: () => ref.read(debtListFilterProvider.notifier).state = DebtListFilter.paid,
+              ),
+              const SizedBox(width: 8),
+              _FilterChip(
+                label: 'Todas',
+                selected: filter == DebtListFilter.all,
+                onTap: () => ref.read(debtListFilterProvider.notifier).state = DebtListFilter.all,
+              ),
+              const SizedBox(width: 8),
+              _FilterChip(
+                label: 'Ocultas',
+                selected: filter == DebtListFilter.hidden,
+                onTap: () => ref.read(debtListFilterProvider.notifier).state = DebtListFilter.hidden,
               ),
             ],
           ),
@@ -100,19 +108,24 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
                 return AppEmptyState(
                   icon: Icons.account_balance_wallet_outlined,
                   message: 'No hay deudas que coincidan.',
-                  actionLabel: 'Agregar deuda',
-                  onAction: () => _openForm(context, ref),
+                  actionLabel: filter == DebtListFilter.active ? 'Ver todas' : 'Agregar deuda',
+                  onAction: filter == DebtListFilter.active
+                      ? () => ref.read(debtListFilterProvider.notifier).state = DebtListFilter.all
+                      : () => _openForm(context, ref),
                 );
               }
-              final total = list.fold<double>(0, (s, item) => s + item.debt.totalAmount);
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                    child: SummaryTotalBar(
-                      label: 'Total deudas',
-                      amount: '\$${formatCurrencyDisplay(total, hideValues)}',
+                    child: asyncTotal.when(
+                      data: (total) => SummaryTotalBar(
+                        label: 'Total deudas activas',
+                        amount: '\$${formatCurrencyDisplay(total, hideValues)}',
+                      ),
+                      loading: () => const SizedBox.shrink(),
+                      error: (_, __) => const SizedBox.shrink(),
                     ),
                   ),
                   Expanded(
@@ -131,19 +144,52 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
                           );
                         }
                         final item = list[i - 1];
-                        return _DebtCard(
-                          item: item,
-                          hideValues: hideValues,
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => DebtDetailScreen(debt: item.debt),
+                        return Dismissible(
+                          key: ValueKey('debt-${item.debt.id}'),
+                          direction: item.debt.status == DebtStatus.active
+                              ? DismissDirection.endToStart
+                              : DismissDirection.none,
+                          background: Container(
+                            color: AppThemeColors.primaryGreen,
+                            alignment: Alignment.centerRight,
+                            padding: const EdgeInsets.symmetric(horizontal: 24),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                Icon(Icons.check_circle_outline, color: Colors.white),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Pagar',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ).then((_) {
+                          ),
+                          confirmDismiss: (_) async {
+                            final ok = await _confirmPayDialog(context, item.debt.name);
+                            if (ok != true) return false;
+                            await ref.read(debtRepositoryProvider).payDebt(item.debt.id);
                             ref.invalidate(debtsListProvider);
                             ref.invalidate(filteredDebtsWithPaidProvider);
-                          }),
-                          onLongPress: () => _editDebt(context, ref, item.debt),
+                            return false;
+                          },
+                          child: _DebtCard(
+                            item: item,
+                            hideValues: hideValues,
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => DebtDetailScreen(debt: item.debt),
+                              ),
+                            ).then((_) {
+                              ref.invalidate(debtsListProvider);
+                              ref.invalidate(filteredDebtsWithPaidProvider);
+                            }),
+                            onLongPress: () => _editDebt(context, ref, item.debt),
+                          ),
                         );
                       },
                     ),
@@ -158,6 +204,20 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Future<bool?> _confirmPayDialog(BuildContext context, String name) {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Marcar como pagada'),
+        content: Text('¿Marcar "$name" como pagada?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Pagar')),
+        ],
+      ),
     );
   }
 
@@ -222,40 +282,20 @@ class _DebtCard extends StatelessWidget {
     final installmentsPaid = debt.amountPerInstallment > 0
         ? (paid / debt.amountPerInstallment).floor()
         : 0;
+    final badge = item.badgeKind;
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       clipBehavior: Clip.antiAlias,
       child: Stack(
         children: [
-          if (item.isPaid)
+          if (badge != DebtBadgeKind.none)
             Positioned(
               top: 0,
               right: 0,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: AppThemeColors.primaryGreen,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.2),
-                      blurRadius: 4,
-                      offset: const Offset(0, 1),
-                    ),
-                  ],
-                ),
-                child: const Text(
-                  'Pagada',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ),
+              child: _DebtStatusBadge(kind: badge),
             ),
           ListTile(
-            contentPadding: EdgeInsets.fromLTRB(20, 12, item.isPaid ? 72 : 20, 12),
+            contentPadding: EdgeInsets.fromLTRB(20, 12, badge != DebtBadgeKind.none ? 72 : 20, 12),
             leading: CircleAvatar(
               backgroundColor: AppThemeColors.primaryGreen.withValues(alpha: 0.2),
               child: Icon(Icons.account_balance_wallet_outlined, color: AppThemeColors.primaryGreen),
@@ -280,6 +320,55 @@ class _DebtCard extends StatelessWidget {
             onLongPress: onLongPress,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _DebtStatusBadge extends StatelessWidget {
+  const _DebtStatusBadge({required this.kind});
+  final DebtBadgeKind kind;
+
+  @override
+  Widget build(BuildContext context) {
+    switch (kind) {
+      case DebtBadgeKind.none:
+        return const SizedBox.shrink();
+      case DebtBadgeKind.paid:
+        return _Pill(label: 'Pagada', color: AppThemeColors.primaryGreen);
+      case DebtBadgeKind.hidden:
+        return _Pill(label: 'Oculta', color: AppThemeColors.neutralGrey);
+    }
+  }
+}
+
+class _Pill extends StatelessWidget {
+  const _Pill({required this.label, required this.color});
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.2),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w700,
+          fontSize: 12,
+          letterSpacing: 0.5,
+        ),
       ),
     );
   }
