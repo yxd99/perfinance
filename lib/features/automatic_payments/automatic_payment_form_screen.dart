@@ -232,13 +232,16 @@ class _AutomaticPaymentFormScreenState extends ConsumerState<AutomaticPaymentFor
     final description = _descriptionController.text.trim();
     final dayOfMonth = int.parse(_dayController.text.trim());
 
-    // Computar nextRunDate desde el día canónico y la frecuencia
-    final baseDate = widget.edit?.nextRunDate ?? DateTime.now();
-    final nextRun = nextRunDateFor(
-      frequency: _frequency,
-      dayOfMonth: dayOfMonth,
-      from: baseDate,
-    );
+    // Al editar: conservar el nextRunDate existente para que el proceso automático
+    // lo ejecute y avance la fecha. Llamar a nextRunDateFor aquí saltaría un período
+    // sin crear el egreso correspondiente.
+    final nextRun = widget.edit != null
+        ? widget.edit!.nextRunDate
+        : nextRunDateFor(
+            frequency: _frequency,
+            dayOfMonth: dayOfMonth,
+            from: DateTime.now(),
+          );
 
     final repo = ref.read(automaticPaymentRepositoryProvider);
 
