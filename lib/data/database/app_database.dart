@@ -3,7 +3,7 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
 const String _dbName = 'perfinance.db';
-const int _version = 7;
+const int _version = 9;
 
 const String tableCreditCards = 'credit_cards';
 const String tablePaymentMethods = 'payment_methods';
@@ -13,6 +13,8 @@ const String tableMinPaymentConfigs = 'min_payment_configs';
 const String tableDebts = 'debts';
 const String tableDebtPayments = 'debt_payments';
 const String tableAutomaticPayments = 'automatic_payments';
+const String tableReceivables = 'receivables';
+const String tableReceivablePayments = 'receivable_payments';
 
 /// sync_status: synced | pending_insert | pending_update | pending_delete
 const String columnSyncStatus = 'sync_status';
@@ -119,6 +121,57 @@ Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
       ''');
     });
   }
+  if (oldVersion < 8) {
+    await db.transaction((txn) async {
+      await txn.execute('''
+        CREATE TABLE $tableReceivables (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          debtor_name TEXT NOT NULL,
+          debtor_email TEXT,
+          total_amount REAL NOT NULL,
+          description TEXT,
+          due_date TEXT,
+          status TEXT NOT NULL DEFAULT 'active',
+          $columnSyncStatus TEXT NOT NULL DEFAULT 'synced',
+          $columnUpdatedAt TEXT,
+          created_at TEXT
+        )
+      ''');
+      await txn.execute('''
+        CREATE TABLE $tableReceivablePayments (
+          id TEXT PRIMARY KEY,
+          receivable_id TEXT NOT NULL REFERENCES $tableReceivables(id) ON DELETE CASCADE,
+          amount REAL NOT NULL,
+          date TEXT NOT NULL,
+          note TEXT,
+          $columnSyncStatus TEXT NOT NULL DEFAULT 'synced',
+          $columnUpdatedAt TEXT,
+          created_at TEXT
+        )
+      ''');
+      await txn.execute(
+        'CREATE INDEX idx_receivables_user ON $tableReceivables(user_id)',
+      );
+      await txn.execute(
+        'CREATE INDEX idx_recv_payments_recv ON $tableReceivablePayments(receivable_id)',
+      );
+      await txn.execute(
+        'CREATE INDEX idx_recv_payments_sync ON $tableReceivablePayments($columnSyncStatus)',
+      );
+    });
+  }
+  if (oldVersion < 9) {
+    // Adds note column if missing — users whose v8 was created before the fix.
+    final cols = await db.rawQuery(
+      'PRAGMA table_info($tableReceivablePayments)',
+    ) as List<Map<String, dynamic>>;
+    if (!cols.any((c) => c['name'] == 'note')) {
+      await db.execute(
+        'ALTER TABLE $tableReceivablePayments ADD COLUMN note TEXT',
+      );
+    }
+  }
 }
 
 Future<void> _onCreate(Database db, int version) async {
@@ -224,4 +277,40 @@ Future<void> _onCreate(Database db, int version) async {
       created_at TEXT
     )
   ''');
+  await db.execute('''
+    CREATE TABLE $tableReceivables (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      debtor_name TEXT NOT NULL,
+      debtor_email TEXT,
+      total_amount REAL NOT NULL,
+      description TEXT,
+      due_date TEXT,
+      status TEXT NOT NULL DEFAULT 'active',
+      $columnSyncStatus TEXT NOT NULL DEFAULT 'synced',
+      $columnUpdatedAt TEXT,
+      created_at TEXT
+    )
+  ''');
+  await db.execute('''
+    CREATE TABLE $tableReceivablePayments (
+      id TEXT PRIMARY KEY,
+      receivable_id TEXT NOT NULL REFERENCES $tableReceivables(id) ON DELETE CASCADE,
+      amount REAL NOT NULL,
+      date TEXT NOT NULL,
+      note TEXT,
+      $columnSyncStatus TEXT NOT NULL DEFAULT 'synced',
+      $columnUpdatedAt TEXT,
+      created_at TEXT
+    )
+  ''');
+  await db.execute(
+    'CREATE INDEX idx_receivables_user ON $tableReceivables(user_id)',
+  );
+  await db.execute(
+    'CREATE INDEX idx_recv_payments_recv ON $tableReceivablePayments(receivable_id)',
+  );
+  await db.execute(
+    'CREATE INDEX idx_recv_payments_sync ON $tableReceivablePayments($columnSyncStatus)',
+  );
 }

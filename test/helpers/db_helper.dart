@@ -11,26 +11,28 @@ Future<dynamic> openTestDatabase({int? fromVersion}) async {
     return databaseFactoryFfi.openDatabase(
       inMemoryDatabasePath,
       options: OpenDatabaseOptions(
-        version: 7,
-        onCreate: (db, v) async => _createV7Schema(db),
+        version: 9,
+        onCreate: (db, v) async => _createV8Schema(db),
       ),
     );
   }
 
   // Migration path: open at fromVersion, then upgrade to current.
+  final createFn =
+      fromVersion <= 5 ? _createV5Schema : _createV7Schema;
   final db = await databaseFactoryFfi.openDatabase(
     inMemoryDatabasePath,
     options: OpenDatabaseOptions(
       version: fromVersion,
-      onCreate: (db, v) async => _createV5Schema(db),
+      onCreate: (db, v) async => createFn(db),
     ),
   );
   await db.close();
   return databaseFactoryFfi.openDatabase(
     inMemoryDatabasePath,
     options: OpenDatabaseOptions(
-      version: 7,
-      onCreate: (db, v) async => _createV7Schema(db),
+      version: 9,
+      onCreate: (db, v) async => _createV8Schema(db),
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 7) {
           await db.transaction((txn) async {
@@ -51,6 +53,59 @@ Future<dynamic> openTestDatabase({int? fromVersion}) async {
             ''');
           });
         }
+        if (oldVersion < 8) {
+          await db.transaction((txn) async {
+            await txn.execute('''
+              CREATE TABLE $tableReceivables (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                debtor_name TEXT NOT NULL,
+                debtor_email TEXT,
+                total_amount REAL NOT NULL,
+                description TEXT,
+                due_date TEXT,
+                status TEXT NOT NULL DEFAULT 'active',
+                sync_status TEXT NOT NULL DEFAULT 'synced',
+                updated_at TEXT,
+                created_at TEXT
+              )
+            ''');
+            await txn.execute('''
+              CREATE TABLE $tableReceivablePayments (
+                id TEXT PRIMARY KEY,
+                receivable_id TEXT NOT NULL REFERENCES $tableReceivables(id) ON DELETE CASCADE,
+                amount REAL NOT NULL,
+                date TEXT NOT NULL,
+                note TEXT,
+                sync_status TEXT NOT NULL DEFAULT 'synced',
+                updated_at TEXT,
+                created_at TEXT
+              )
+            ''');
+            await txn.execute(
+              'CREATE INDEX idx_receivables_user ON $tableReceivables(user_id)',
+            );
+            await txn.execute(
+              'CREATE INDEX idx_recv_payments_recv ON $tableReceivablePayments(receivable_id)',
+            );
+            await txn.execute(
+              'CREATE INDEX idx_recv_payments_sync ON $tableReceivablePayments(sync_status)',
+            );
+          });
+        }
+        if (oldVersion < 9) {
+          final cols = await db.rawQuery(
+            'PRAGMA table_info($tableReceivablePayments)',
+          ) as List<Map<String, dynamic>>;
+          if (!cols.any((c) => c['name'] == 'note')) {
+            await db.execute(
+              'ALTER TABLE $tableReceivablePayments ADD COLUMN note TEXT',
+            );
+          }
+        }
+      },
+      onOpen: (db) async {
+        await db.execute('PRAGMA foreign_keys = ON');
       },
     ),
   );
@@ -82,6 +137,46 @@ Future<void> _createV7Schema(dynamic db) async {
       created_at TEXT
     )
   ''');
+}
+
+Future<void> _createV8Schema(dynamic db) async {
+  await _createV7Schema(db);
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS $tableReceivables (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      debtor_name TEXT NOT NULL,
+      debtor_email TEXT,
+      total_amount REAL NOT NULL,
+      description TEXT,
+      due_date TEXT,
+      status TEXT NOT NULL DEFAULT 'active',
+      sync_status TEXT NOT NULL DEFAULT 'synced',
+      updated_at TEXT,
+      created_at TEXT
+    )
+  ''');
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS $tableReceivablePayments (
+      id TEXT PRIMARY KEY,
+      receivable_id TEXT NOT NULL REFERENCES $tableReceivables(id) ON DELETE CASCADE,
+      amount REAL NOT NULL,
+      date TEXT NOT NULL,
+      note TEXT,
+      sync_status TEXT NOT NULL DEFAULT 'synced',
+      updated_at TEXT,
+      created_at TEXT
+    )
+  ''');
+  await db.execute(
+    'CREATE INDEX IF NOT EXISTS idx_receivables_user ON $tableReceivables(user_id)',
+  );
+  await db.execute(
+    'CREATE INDEX IF NOT EXISTS idx_recv_payments_recv ON $tableReceivablePayments(receivable_id)',
+  );
+  await db.execute(
+    'CREATE INDEX IF NOT EXISTS idx_recv_payments_sync ON $tableReceivablePayments(sync_status)',
+  );
 }
 
 Future<void> _createV5Schema(dynamic db) async {

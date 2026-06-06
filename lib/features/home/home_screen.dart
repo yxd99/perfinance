@@ -10,6 +10,7 @@ import 'package:perfinance/features/auth/auth_service.dart';
 import 'package:perfinance/features/credit_cards/credit_cards_screen.dart';
 import 'package:perfinance/features/dashboard/dashboard_screen.dart';
 import 'package:perfinance/features/debts/debts_screen.dart';
+import 'package:perfinance/features/receivables/receivables_screen.dart';
 import 'package:perfinance/features/expenses/expenses_screen.dart';
 import 'package:perfinance/features/expenses/expenses_provider.dart';
 import 'package:perfinance/features/automatic_payments/automatic_payments_screen.dart';
@@ -36,6 +37,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     'Tarjetas',
     'Ahorros',
     'Deudas',
+    'Me deben',
     'Auto-pagos',
   ];
 
@@ -99,6 +101,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             Tab(icon: Icon(Icons.credit_card), text: 'Tarjetas'),
             Tab(icon: Icon(Icons.savings), text: 'Ahorros'),
             Tab(icon: Icon(Icons.account_balance_wallet), text: 'Deudas'),
+            Tab(icon: Icon(Icons.people_alt_outlined), text: 'Me deben'),
             Tab(icon: Icon(Icons.autorenew), text: 'Auto-pagos'),
           ],
         ),
@@ -195,6 +198,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 CreditCardsScreen(),
                 SavingsScreen(),
                 DebtsScreen(),
+                ReceivablesScreen(),
                 AutomaticPaymentsScreen(),
               ],
             ),
