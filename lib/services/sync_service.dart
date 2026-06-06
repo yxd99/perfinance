@@ -16,12 +16,17 @@ import 'package:perfinance/data/repositories/automatic_payment_repository.dart';
 import 'package:perfinance/data/repositories/expense_repository.dart';
 import 'package:perfinance/data/repositories/min_payment_config_repository.dart';
 import 'package:perfinance/data/repositories/payment_method_repository.dart';
+import 'package:perfinance/data/models/receivable.dart';
+import 'package:perfinance/data/models/receivable_payment.dart';
+import 'package:perfinance/data/repositories/receivable_payment_repository.dart';
+import 'package:perfinance/data/repositories/receivable_repository.dart';
 import 'package:perfinance/features/auth/auth_service.dart';
 import 'package:perfinance/features/automatic_payments/automatic_payments_provider.dart';
 import 'package:perfinance/features/credit_cards/credit_cards_provider.dart';
 import 'package:perfinance/features/dashboard/dashboard_provider.dart';
 import 'package:perfinance/features/debts/debts_provider.dart';
 import 'package:perfinance/features/expenses/expenses_provider.dart';
+import 'package:perfinance/features/receivables/receivables_provider.dart';
 import 'package:perfinance/features/savings/savings_provider.dart';
 import 'package:perfinance/core/utils/date_format_utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -83,6 +88,7 @@ class SyncService {
     _ref.invalidate(debtsListProvider);
     _ref.invalidate(paymentMethodsListProvider);
     _ref.invalidate(automaticPaymentsListProvider);
+    _ref.invalidate(receivablesListProvider);
     _ref.invalidate(dashboardDebtProvider);
     _ref.invalidate(dashboardUsageProvider);
     _ref.invalidate(dashboardComparisonProvider);
@@ -99,6 +105,8 @@ class SyncService {
     final debtRepo = _ref.read(debtRepositoryProvider);
     final debtPayRepo = _ref.read(debtPaymentRepositoryProvider);
     final autoPayRepo = _ref.read(automaticPaymentRepositoryProvider);
+    final receivableRepo = _ref.read(receivableRepositoryProvider);
+    final receivablePayRepo = _ref.read(receivablePaymentRepositoryProvider);
 
     final ccTable = _supabase.from('credit_cards');
     final pmTable = _supabase.from('payment_methods');
@@ -108,6 +116,8 @@ class SyncService {
     final debtsTable = _supabase.from('debts');
     final debtPaymentsTable = _supabase.from('debt_payments');
     final automaticPaymentsTable = _supabase.from('automatic_payments');
+    final receivablesTable = _supabase.from('receivables');
+    final receivablePaymentsTable = _supabase.from('receivable_payments');
 
     for (final c in await ccRepo.getPendingForPush(userId)) {
       try {
@@ -225,6 +235,40 @@ class SyncService {
         if (e is AuthException) rethrow;
       }
     }
+
+    for (final r in await receivableRepo.getPendingForPush(userId)) {
+      try {
+        if (r.syncStatus == 'pending_delete') {
+          await receivablesTable.delete().eq('id', r.id);
+          await receivableRepo.deleteLocal(r.id);
+        } else if (r.syncStatus == 'pending_insert') {
+          await receivablesTable.upsert(_toRemoteReceivable(r), onConflict: 'id');
+          await receivableRepo.markSynced(r.id);
+        } else if (r.syncStatus == 'pending_update') {
+          await receivablesTable.upsert(_toRemoteReceivable(r), onConflict: 'id');
+          await receivableRepo.markSynced(r.id);
+        }
+      } catch (e) {
+        if (e is AuthException) rethrow;
+      }
+    }
+
+    for (final p in await receivablePayRepo.getPendingForPush()) {
+      try {
+        if (p.syncStatus == 'pending_delete') {
+          await receivablePaymentsTable.delete().eq('id', p.id);
+          await receivablePayRepo.deleteLocal(p.id);
+        } else if (p.syncStatus == 'pending_insert') {
+          await receivablePaymentsTable.upsert(_toRemoteReceivablePayment(p), onConflict: 'id');
+          await receivablePayRepo.markSynced(p.id);
+        } else if (p.syncStatus == 'pending_update') {
+          await receivablePaymentsTable.upsert(_toRemoteReceivablePayment(p), onConflict: 'id');
+          await receivablePayRepo.markSynced(p.id);
+        }
+      } catch (e) {
+        if (e is AuthException) rethrow;
+      }
+    }
   }
 
   Future<void> _pull(String userId) async {
@@ -236,6 +280,8 @@ class SyncService {
     final debtRepo = _ref.read(debtRepositoryProvider);
     final debtPayRepo = _ref.read(debtPaymentRepositoryProvider);
     final autoPayRepo = _ref.read(automaticPaymentRepositoryProvider);
+    final receivableRepo = _ref.read(receivableRepositoryProvider);
+    final receivablePayRepo = _ref.read(receivablePaymentRepositoryProvider);
 
     final ccRes = await _supabase.from('credit_cards').select().eq('user_id', userId);
     for (final row in ccRes as List) {
@@ -364,6 +410,47 @@ class SyncService {
       }
     }
 
+    final receivableRes = await _supabase.from('receivables').select().eq('user_id', userId);
+    for (final row in receivableRes as List) {
+      final map = Map<String, dynamic>.from(row as Map);
+      final r = Receivable(
+        id: map['id'] as String,
+        userId: map['user_id'] as String,
+        debtorName: map['debtor_name'] as String,
+        debtorEmail: map['debtor_email'] as String?,
+        totalAmount: (map['total_amount'] as num).toDouble(),
+        description: map['description'] as String?,
+        dueDate: map['due_date'] != null ? tryParseDateOnly(map['due_date'].toString()) : null,
+        status: ReceivableStatusX.fromWire(map['status'] as String?),
+        syncStatus: 'synced',
+        updatedAt: map['updated_at']?.toString(),
+        createdAt: map['created_at']?.toString(),
+      );
+      await receivableRepo.upsertFromRemote(r);
+    }
+
+    final receivableIds = (await receivableRepo.getAll(userId)).map((r) => r.id).toList();
+    for (final receivableId in receivableIds) {
+      final payRes = await _supabase
+          .from('receivable_payments')
+          .select()
+          .eq('receivable_id', receivableId);
+      for (final row in payRes as List) {
+        final map = Map<String, dynamic>.from(row as Map);
+        final p = ReceivablePayment(
+          id: map['id'] as String,
+          receivableId: map['receivable_id'] as String,
+          amount: (map['amount'] as num).toDouble(),
+          date: parseDateOnly(map['date'] as String),
+          note: map['note'] as String?,
+          syncStatus: 'synced',
+          updatedAt: map['updated_at']?.toString(),
+          createdAt: map['created_at']?.toString(),
+        );
+        await receivablePayRepo.upsertFromRemote(p);
+      }
+    }
+
     final autoRes = await _supabase.from('automatic_payments').select().eq('user_id', userId);
     for (final row in autoRes as List) {
       final map = Map<String, dynamic>.from(row as Map);
@@ -455,6 +542,28 @@ class SyncService {
       map['next_run_date'] = dateOnlyIso(DateTime.parse(map['next_run_date'] as String));
     }
     // payment_day_of_month y frequency ya están en toJson() — se incluyen por defecto
+    return map;
+  }
+
+  Map<String, dynamic> _toRemoteReceivable(Receivable r) {
+    final map = r.toJson();
+    map.remove('sync_status');
+    map.remove('updated_at');
+    map.remove('created_at');
+    if (map['due_date'] is String) {
+      map['due_date'] = dateOnlyIso(DateTime.parse(map['due_date'] as String));
+    }
+    return map;
+  }
+
+  Map<String, dynamic> _toRemoteReceivablePayment(ReceivablePayment p) {
+    final map = p.toJson();
+    map.remove('sync_status');
+    map.remove('updated_at');
+    map.remove('created_at');
+    if (map['date'] is String) {
+      map['date'] = dateOnlyIso(DateTime.parse(map['date'] as String));
+    }
     return map;
   }
 }
