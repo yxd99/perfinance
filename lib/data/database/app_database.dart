@@ -3,7 +3,7 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
 const String _dbName = 'perfinance.db';
-const int _version = 9;
+const int _version = 10;
 
 const String tableCreditCards = 'credit_cards';
 const String tablePaymentMethods = 'payment_methods';
@@ -15,6 +15,8 @@ const String tableDebtPayments = 'debt_payments';
 const String tableAutomaticPayments = 'automatic_payments';
 const String tableReceivables = 'receivables';
 const String tableReceivablePayments = 'receivable_payments';
+const String tableMirroredDebts = 'mirrored_debts';
+const String tableMirroredDebtPayments = 'mirrored_debt_payments';
 
 /// sync_status: synced | pending_insert | pending_update | pending_delete
 const String columnSyncStatus = 'sync_status';
@@ -172,6 +174,46 @@ Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
       );
     }
   }
+  if (oldVersion < 10) {
+    await db.transaction((txn) async {
+      await txn.execute('''
+        CREATE TABLE $tableMirroredDebts (
+          id TEXT PRIMARY KEY,
+          receivable_id TEXT NOT NULL,
+          debtor_user_id TEXT NOT NULL,
+          creditor_user_id TEXT NOT NULL,
+          creditor_email TEXT NOT NULL,
+          debtor_name TEXT,
+          total_amount REAL NOT NULL,
+          description TEXT,
+          due_date TEXT,
+          status TEXT NOT NULL DEFAULT 'active',
+          revoked_at TEXT,
+          $columnSyncStatus TEXT NOT NULL DEFAULT 'synced',
+          $columnUpdatedAt TEXT,
+          created_at TEXT
+        )
+      ''');
+      await txn.execute('''
+        CREATE TABLE $tableMirroredDebtPayments (
+          id TEXT PRIMARY KEY,
+          mirrored_debt_id TEXT NOT NULL REFERENCES $tableMirroredDebts(id) ON DELETE CASCADE,
+          source_payment_id TEXT NOT NULL,
+          amount REAL NOT NULL,
+          date TEXT NOT NULL,
+          $columnSyncStatus TEXT NOT NULL DEFAULT 'synced',
+          $columnUpdatedAt TEXT,
+          created_at TEXT
+        )
+      ''');
+      await txn.execute(
+        'CREATE INDEX idx_mirrored_debts_debtor ON $tableMirroredDebts(debtor_user_id)',
+      );
+      await txn.execute(
+        'CREATE INDEX idx_mirrored_pay_debt ON $tableMirroredDebtPayments(mirrored_debt_id)',
+      );
+    });
+  }
 }
 
 Future<void> _onCreate(Database db, int version) async {
@@ -312,5 +354,41 @@ Future<void> _onCreate(Database db, int version) async {
   );
   await db.execute(
     'CREATE INDEX idx_recv_payments_sync ON $tableReceivablePayments($columnSyncStatus)',
+  );
+  await db.execute('''
+    CREATE TABLE $tableMirroredDebts (
+      id TEXT PRIMARY KEY,
+      receivable_id TEXT NOT NULL,
+      debtor_user_id TEXT NOT NULL,
+      creditor_user_id TEXT NOT NULL,
+      creditor_email TEXT NOT NULL,
+      debtor_name TEXT,
+      total_amount REAL NOT NULL,
+      description TEXT,
+      due_date TEXT,
+      status TEXT NOT NULL DEFAULT 'active',
+      revoked_at TEXT,
+      $columnSyncStatus TEXT NOT NULL DEFAULT 'synced',
+      $columnUpdatedAt TEXT,
+      created_at TEXT
+    )
+  ''');
+  await db.execute('''
+    CREATE TABLE $tableMirroredDebtPayments (
+      id TEXT PRIMARY KEY,
+      mirrored_debt_id TEXT NOT NULL REFERENCES $tableMirroredDebts(id) ON DELETE CASCADE,
+      source_payment_id TEXT NOT NULL,
+      amount REAL NOT NULL,
+      date TEXT NOT NULL,
+      $columnSyncStatus TEXT NOT NULL DEFAULT 'synced',
+      $columnUpdatedAt TEXT,
+      created_at TEXT
+    )
+  ''');
+  await db.execute(
+    'CREATE INDEX idx_mirrored_debts_debtor ON $tableMirroredDebts(debtor_user_id)',
+  );
+  await db.execute(
+    'CREATE INDEX idx_mirrored_pay_debt ON $tableMirroredDebtPayments(mirrored_debt_id)',
   );
 }

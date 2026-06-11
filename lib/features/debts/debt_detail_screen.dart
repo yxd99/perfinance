@@ -6,8 +6,10 @@ import 'package:perfinance/core/utils/date_format_utils.dart';
 import 'package:perfinance/core/widgets/currency_input.dart';
 import 'package:perfinance/data/models/debt.dart';
 import 'package:perfinance/data/models/debt_payment.dart';
+import 'package:perfinance/data/models/mirrored_debt_payment.dart';
 import 'package:perfinance/data/repositories/debt_payment_repository.dart';
 import 'package:perfinance/data/repositories/debt_repository.dart';
+import 'package:perfinance/data/repositories/mirrored_debt_repository.dart';
 import 'package:perfinance/features/debts/debts_provider.dart';
 import 'package:uuid/uuid.dart';
 
@@ -23,22 +25,40 @@ class DebtDetailScreen extends ConsumerStatefulWidget {
 class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
   late Debt _debt;
   late Future<List<DebtPayment>> _paymentsFuture;
+  late Future<List<MirroredDebtPayment>> _mirroredPaymentsFuture;
 
   @override
   void initState() {
     super.initState();
     _debt = widget.debt;
-    _paymentsFuture = ref.read(debtPaymentRepositoryProvider).getByDebtId(_debt.id);
+    if (_debt.isMirrored) {
+      _mirroredPaymentsFuture =
+          ref.read(mirroredDebtRepositoryProvider).paymentsFor(_debt.mirroredDebtId!);
+      _paymentsFuture = Future.value([]);
+    } else {
+      _paymentsFuture = ref.read(debtPaymentRepositoryProvider).getByDebtId(_debt.id);
+      _mirroredPaymentsFuture = Future.value([]);
+    }
   }
 
   void _refreshPayments() {
     setState(() {
-      _paymentsFuture = ref.read(debtPaymentRepositoryProvider).getByDebtId(_debt.id);
+      if (_debt.isMirrored) {
+        _mirroredPaymentsFuture =
+            ref.read(mirroredDebtRepositoryProvider).paymentsFor(_debt.mirroredDebtId!);
+      } else {
+        _paymentsFuture = ref.read(debtPaymentRepositoryProvider).getByDebtId(_debt.id);
+      }
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    // Mirrored debt — read-only branch
+    if (_debt.isMirrored) {
+      return _buildMirroredDetail(context);
+    }
+
     final hideValues = ref.watch(hideValuesProvider).value ?? false;
     final status = _debt.status;
     final isActive = status == DebtStatus.active;
@@ -215,6 +235,133 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
         },
       ),
     );
+  }
+
+  Widget _buildMirroredDetail(BuildContext context) {
+    final hideValues = ref.watch(hideValuesProvider).value ?? false;
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(_debt.name),
+      ),
+      body: FutureBuilder<List<MirroredDebtPayment>>(
+        future: _mirroredPaymentsFuture,
+        builder: (context, snap) {
+          final payments = snap.data ?? [];
+          final totalPaid = payments.fold<double>(0, (s, p) => s + p.amount);
+          final remaining = _debt.totalAmount - totalPaid;
+
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              // Info: creditor
+              Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blueGrey.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.blueGrey.withValues(alpha: 0.3)),
+                ),
+                child: Text(
+                  'Registrada por ${_debt.creditorEmail}',
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                ),
+              ),
+              // Revoked banner
+              if (_debt.isRevoked)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.grey.withValues(alpha: 0.4)),
+                  ),
+                  child: Text(
+                    'Esta deuda fue cancelada por ${_debt.creditorEmail}',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              // Summary card
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Resumen',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 16),
+                      _RowLabel('Valor total', '\$${formatCurrencyDisplay(_debt.totalAmount, hideValues)}'),
+                      _RowLabel('Total pagado', '\$${formatCurrencyDisplay(totalPaid, hideValues)}'),
+                      _RowLabel('Falta por pagar', '\$${formatCurrencyDisplay(remaining, hideValues)}', isHighlight: remaining > 0),
+                      const SizedBox(height: 8),
+                      Text('Fecha máximo de pago: ${formatDisplayDate(_debt.dueDate)}', style: Theme.of(context).textTheme.bodySmall),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Delete button — only when revoked
+              if (_debt.isRevoked)
+                OutlinedButton.icon(
+                  onPressed: () => _deleteMirroredDebt(context),
+                  icon: Icon(Icons.delete_outline, color: Theme.of(context).colorScheme.error),
+                  label: const Text('Eliminar'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Theme.of(context).colorScheme.error,
+                    side: BorderSide(color: Theme.of(context).colorScheme.error),
+                  ),
+                ),
+              const SizedBox(height: 20),
+              Text('Historial de pagos', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              if (payments.isEmpty)
+                const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('Aún no hay pagos registrados.')))
+              else
+                ...payments.map((p) => Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: Colors.blueGrey.withValues(alpha: 0.15),
+                          child: const Icon(Icons.check, color: Colors.blueGrey, size: 20),
+                        ),
+                        title: Text('\$${formatCurrencyDisplay(p.amount, hideValues)}'),
+                        subtitle: Text(formatDisplayDate(p.date)),
+                        // NO delete button — debtor cannot delete individual payments
+                      ),
+                    )),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _deleteMirroredDebt(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Eliminar deuda recibida'),
+        content: Text('¿Eliminar "${_debt.name}"? Esta deuda fue cancelada por el acreedor.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Eliminar')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await ref.read(mirroredDebtRepositoryProvider).deleteByMirroredId(_debt.mirroredDebtId!);
+    if (mounted) {
+      ref.invalidate(debtsListProvider);
+      ref.invalidate(filteredDebtsWithPaidProvider);
+      Navigator.pop(context);
+    }
   }
 
   Future<void> _payDebt(BuildContext context) async {

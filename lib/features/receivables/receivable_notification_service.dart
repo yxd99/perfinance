@@ -18,6 +18,8 @@ class ReceivableNotificationPayload {
     required this.debtorName,
     required this.totalAmount,
     required this.remainingBalance,
+    this.creditorEmail,
+    this.isRegistered = false,
     this.paymentAmount,
     this.paymentDate,
   });
@@ -27,6 +29,14 @@ class ReceivableNotificationPayload {
   final String debtorName;
   final double totalAmount;
   final double remainingBalance;
+
+  /// The creditor's email — always included in the payload (spec S5).
+  final String? creditorEmail;
+
+  /// Whether the debtor is a registered app user.
+  /// When true the email template mentions the debt is visible in the app.
+  final bool isRegistered;
+
   final double? paymentAmount;
   final DateTime? paymentDate;
 }
@@ -71,6 +81,10 @@ class ReceivableNotificationService {
         'debtorName': payload.debtorName,
         'totalAmount': payload.totalAmount,
         'remainingBalance': payload.remainingBalance,
+        // creditorEmail is always included (spec S5: any notification payload contains it)
+        'creditorEmail': payload.creditorEmail ?? '',
+        // isRegistered drives the email template branch (spec S5)
+        'isRegistered': payload.isRegistered,
         if (payload.paymentAmount != null) 'paymentAmount': payload.paymentAmount,
         if (payload.paymentDate != null)
           'paymentDate': payload.paymentDate!.toIso8601String(),

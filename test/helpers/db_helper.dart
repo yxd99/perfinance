@@ -11,15 +11,23 @@ Future<dynamic> openTestDatabase({int? fromVersion}) async {
     return databaseFactoryFfi.openDatabase(
       inMemoryDatabasePath,
       options: OpenDatabaseOptions(
-        version: 9,
-        onCreate: (db, v) async => _createV8Schema(db),
+        version: 10,
+        onCreate: (db, v) async => _createV10Schema(db),
+        onOpen: (db) async {
+          await db.execute('PRAGMA foreign_keys = ON');
+        },
       ),
     );
   }
 
   // Migration path: open at fromVersion, then upgrade to current.
-  final createFn =
-      fromVersion <= 5 ? _createV5Schema : _createV7Schema;
+  final createFn = fromVersion <= 5
+      ? _createV5Schema
+      : fromVersion <= 7
+          ? _createV7Schema
+          : fromVersion <= 8
+              ? _createV8Schema
+              : _createV9Schema;
   final db = await databaseFactoryFfi.openDatabase(
     inMemoryDatabasePath,
     options: OpenDatabaseOptions(
@@ -31,8 +39,8 @@ Future<dynamic> openTestDatabase({int? fromVersion}) async {
   return databaseFactoryFfi.openDatabase(
     inMemoryDatabasePath,
     options: OpenDatabaseOptions(
-      version: 9,
-      onCreate: (db, v) async => _createV8Schema(db),
+      version: 10,
+      onCreate: (db, v) async => _createV10Schema(db),
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 7) {
           await db.transaction((txn) async {
@@ -102,6 +110,46 @@ Future<dynamic> openTestDatabase({int? fromVersion}) async {
               'ALTER TABLE $tableReceivablePayments ADD COLUMN note TEXT',
             );
           }
+        }
+        if (oldVersion < 10) {
+          await db.transaction((txn) async {
+            await txn.execute('''
+              CREATE TABLE $tableMirroredDebts (
+                id TEXT PRIMARY KEY,
+                receivable_id TEXT NOT NULL,
+                debtor_user_id TEXT NOT NULL,
+                creditor_user_id TEXT NOT NULL,
+                creditor_email TEXT NOT NULL,
+                debtor_name TEXT,
+                total_amount REAL NOT NULL,
+                description TEXT,
+                due_date TEXT,
+                status TEXT NOT NULL DEFAULT 'active',
+                revoked_at TEXT,
+                sync_status TEXT NOT NULL DEFAULT 'synced',
+                updated_at TEXT,
+                created_at TEXT
+              )
+            ''');
+            await txn.execute('''
+              CREATE TABLE $tableMirroredDebtPayments (
+                id TEXT PRIMARY KEY,
+                mirrored_debt_id TEXT NOT NULL REFERENCES $tableMirroredDebts(id) ON DELETE CASCADE,
+                source_payment_id TEXT NOT NULL,
+                amount REAL NOT NULL,
+                date TEXT NOT NULL,
+                sync_status TEXT NOT NULL DEFAULT 'synced',
+                updated_at TEXT,
+                created_at TEXT
+              )
+            ''');
+            await txn.execute(
+              'CREATE INDEX idx_mirrored_debts_debtor ON $tableMirroredDebts(debtor_user_id)',
+            );
+            await txn.execute(
+              'CREATE INDEX idx_mirrored_pay_debt ON $tableMirroredDebtPayments(mirrored_debt_id)',
+            );
+          });
         }
       },
       onOpen: (db) async {
@@ -176,6 +224,51 @@ Future<void> _createV8Schema(dynamic db) async {
   );
   await db.execute(
     'CREATE INDEX IF NOT EXISTS idx_recv_payments_sync ON $tableReceivablePayments(sync_status)',
+  );
+}
+
+Future<void> _createV9Schema(dynamic db) async {
+  await _createV8Schema(db);
+  // v9 just adds note column to receivable_payments (already included in _createV8Schema)
+}
+
+Future<void> _createV10Schema(dynamic db) async {
+  await _createV9Schema(db);
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS $tableMirroredDebts (
+      id TEXT PRIMARY KEY,
+      receivable_id TEXT NOT NULL,
+      debtor_user_id TEXT NOT NULL,
+      creditor_user_id TEXT NOT NULL,
+      creditor_email TEXT NOT NULL,
+      debtor_name TEXT,
+      total_amount REAL NOT NULL,
+      description TEXT,
+      due_date TEXT,
+      status TEXT NOT NULL DEFAULT 'active',
+      revoked_at TEXT,
+      sync_status TEXT NOT NULL DEFAULT 'synced',
+      updated_at TEXT,
+      created_at TEXT
+    )
+  ''');
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS $tableMirroredDebtPayments (
+      id TEXT PRIMARY KEY,
+      mirrored_debt_id TEXT NOT NULL REFERENCES $tableMirroredDebts(id) ON DELETE CASCADE,
+      source_payment_id TEXT NOT NULL,
+      amount REAL NOT NULL,
+      date TEXT NOT NULL,
+      sync_status TEXT NOT NULL DEFAULT 'synced',
+      updated_at TEXT,
+      created_at TEXT
+    )
+  ''');
+  await db.execute(
+    'CREATE INDEX IF NOT EXISTS idx_mirrored_debts_debtor ON $tableMirroredDebts(debtor_user_id)',
+  );
+  await db.execute(
+    'CREATE INDEX IF NOT EXISTS idx_mirrored_pay_debt ON $tableMirroredDebtPayments(mirrored_debt_id)',
   );
 }
 

@@ -20,6 +20,7 @@ import 'package:perfinance/data/models/receivable.dart';
 import 'package:perfinance/data/models/receivable_payment.dart';
 import 'package:perfinance/data/repositories/receivable_payment_repository.dart';
 import 'package:perfinance/data/repositories/receivable_repository.dart';
+import 'package:perfinance/data/repositories/mirrored_debt_repository.dart';
 import 'package:perfinance/features/auth/auth_service.dart';
 import 'package:perfinance/features/automatic_payments/automatic_payments_provider.dart';
 import 'package:perfinance/features/credit_cards/credit_cards_provider.dart';
@@ -471,6 +472,29 @@ class SyncService {
         createdAt: map['created_at']?.toString(),
       );
       await autoPayRepo.upsertFromRemote(a);
+    }
+
+    await _pullMirroredDebts(userId);
+  }
+
+  Future<void> _pullMirroredDebts(String userId) async {
+    final repo = _ref.read(mirroredDebtRepositoryProvider);
+    final res = await _supabase.from('mirrored_debts').select().eq('debtor_user_id', userId);
+    final remoteIds = <String>{};
+    for (final row in res as List) {
+      final m = Map<String, dynamic>.from(row as Map);
+      remoteIds.add(m['id'] as String);
+      await repo.upsertFromRemote(m);
+    }
+    await repo.pruneAbsent(userId, remoteIds);
+    for (final id in remoteIds) {
+      final pays = await _supabase
+          .from('mirrored_debt_payments')
+          .select()
+          .eq('mirrored_debt_id', id);
+      for (final prow in pays as List) {
+        await repo.upsertPaymentFromRemote(Map<String, dynamic>.from(prow as Map));
+      }
     }
   }
 
