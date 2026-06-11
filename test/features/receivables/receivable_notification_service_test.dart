@@ -73,17 +73,21 @@ void main() {
   ReceivableNotificationPayload _payload({
     ReceivableNotificationEvent event = ReceivableNotificationEvent.created,
     String recipientEmail = 'debtor@example.com',
+    String creditorEmail = 'creditor@example.com',
     double? paymentAmount,
     DateTime? paymentDate,
+    bool isRegistered = false,
   }) =>
       ReceivableNotificationPayload(
         event: event,
         recipientEmail: recipientEmail,
+        creditorEmail: creditorEmail,
         debtorName: 'Juan Pérez',
         totalAmount: 400000,
         remainingBalance: 300000,
         paymentAmount: paymentAmount,
         paymentDate: paymentDate,
+        isRegistered: isRegistered,
       );
 
   setUp(() {
@@ -183,6 +187,43 @@ void main() {
         () => service.notify(_payload()),
         throwsException,
       );
+    });
+  });
+
+  group('creditorEmail in payload (spec S5)', () {
+    test('registered debtor notification contains creditorEmail in payload', () async {
+      await service.notify(_payload(
+        isRegistered: true,
+        creditorEmail: 'acreedor@example.com',
+      ));
+      final body = _body();
+      expect(body['creditorEmail'], 'acreedor@example.com');
+    });
+
+    test('registered debtor email body states debt visible in app', () async {
+      await service.notify(_payload(
+        isRegistered: true,
+        creditorEmail: 'acreedor@example.com',
+      ));
+      final body = _body();
+      expect(body['isRegistered'], isTrue);
+    });
+
+    test('unregistered debtor notification follows existing template without app-visibility claim', () async {
+      await service.notify(_payload(
+        isRegistered: false,
+        creditorEmail: 'acreedor@example.com',
+      ));
+      final body = _body();
+      // creditorEmail still present
+      expect(body['creditorEmail'], 'acreedor@example.com');
+      // but isRegistered is false or absent
+      expect(body['isRegistered'], isFalse);
+    });
+
+    test('any notification payload always contains creditorEmail field', () async {
+      await service.notify(_payload(creditorEmail: 'cualquier@acreedor.com'));
+      expect(_body().containsKey('creditorEmail'), isTrue);
     });
   });
 }

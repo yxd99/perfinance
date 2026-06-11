@@ -6,6 +6,7 @@ import 'package:perfinance/data/models/receivable.dart';
 import 'package:perfinance/data/models/receivable_payment.dart';
 import 'package:perfinance/data/repositories/receivable_payment_repository.dart';
 import 'package:perfinance/features/receivables/receivable_notification_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:perfinance/features/receivables/receivables_provider.dart';
 import 'package:perfinance/services/sync_service.dart';
 import 'package:uuid/uuid.dart';
@@ -177,6 +178,7 @@ class _RegisterPaymentSheetState extends ConsumerState<_RegisterPaymentSheet> {
               remainingBalance: newRemaining,
               paymentAmount: amount,
               paymentDate: _date,
+              creditorEmail: Supabase.instance.client.auth.currentUser?.email,
             ));
           } catch (_) {}
         }
@@ -201,6 +203,7 @@ class _RegisterPaymentSheetState extends ConsumerState<_RegisterPaymentSheet> {
               remainingBalance: newRemaining,
               paymentAmount: amount,
               paymentDate: _date,
+              creditorEmail: Supabase.instance.client.auth.currentUser?.email,
             ));
           } catch (_) {}
         }

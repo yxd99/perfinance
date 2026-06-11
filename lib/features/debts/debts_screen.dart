@@ -10,6 +10,7 @@ import 'package:perfinance/core/widgets/currency_input.dart';
 import 'package:perfinance/core/widgets/summary_total_bar.dart';
 import 'package:perfinance/data/models/debt.dart';
 import 'package:perfinance/data/repositories/debt_repository.dart';
+import 'package:perfinance/data/repositories/mirrored_debt_repository.dart';
 import 'package:perfinance/features/debts/debts_provider.dart';
 import 'package:perfinance/features/debts/debt_detail_screen.dart';
 import 'package:perfinance/features/debts/debt_form_screen.dart';
@@ -144,6 +145,33 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
                           );
                         }
                         final item = list[i - 1];
+
+                        // Mirrored debts: read-only branch, no Dismissible
+                        if (item.debt.isMirrored) {
+                          return MirroredDebtCard(
+                            item: item,
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => DebtDetailScreen(debt: item.debt),
+                              ),
+                            ).then((_) {
+                              ref.invalidate(debtsListProvider);
+                              ref.invalidate(filteredDebtsWithPaidProvider);
+                            }),
+                            onDelete: item.debt.isRevoked
+                                ? () async {
+                                    await ref
+                                        .read(mirroredDebtRepositoryProvider)
+                                        .deleteByMirroredId(item.debt.mirroredDebtId!);
+                                    ref.invalidate(debtsListProvider);
+                                    ref.invalidate(filteredDebtsWithPaidProvider);
+                                  }
+                                : null,
+                          );
+                        }
+
+                        // Normal debts: existing Dismissible swipe-to-pay path
                         return Dismissible(
                           key: ValueKey('debt-${item.debt.id}'),
                           direction: item.debt.status == DebtStatus.active
@@ -242,6 +270,102 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
   }
 }
 
+/// Public card widget for mirrored debts — read-only, no swipe-to-pay.
+/// Exported so tests can render it directly.
+class MirroredDebtCard extends StatelessWidget {
+  const MirroredDebtCard({
+    super.key,
+    required this.item,
+    this.onTap,
+    this.onDelete,
+  });
+
+  final DebtWithPaid item;
+  final VoidCallback? onTap;
+  final VoidCallback? onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final debt = item.debt;
+    return Opacity(
+      opacity: debt.isRevoked ? 0.75 : 1.0,
+      child: Card(
+        margin: const EdgeInsets.only(bottom: 12),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Stack(
+              children: [
+                // "Recibida" badge — always shown for mirrored
+                Positioned(
+                  top: 0,
+                  right: 0,
+                  child: _Pill(label: 'Recibida', color: Colors.blueGrey),
+                ),
+                ListTile(
+                  contentPadding: const EdgeInsets.fromLTRB(20, 12, 72, 12),
+                  leading: CircleAvatar(
+                    backgroundColor: Colors.blueGrey.withValues(alpha: 0.15),
+                    child: const Icon(Icons.account_balance_wallet_outlined, color: Colors.blueGrey),
+                  ),
+                  title: Text(debt.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: Text(
+                    'Registrada por ${debt.creditorEmail}',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: onTap,
+                  // NO onLongPress — edit not allowed for mirrored
+                ),
+              ],
+            ),
+            if (debt.isRevoked) ...[
+              _RevokedBanner(creditorEmail: debt.creditorEmail!),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: OutlinedButton(
+                  onPressed: onDelete,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Theme.of(context).colorScheme.error,
+                    side: BorderSide(color: Theme.of(context).colorScheme.error),
+                  ),
+                  child: const Text('Eliminar'),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RevokedBanner extends StatelessWidget {
+  const _RevokedBanner({required this.creditorEmail});
+  final String creditorEmail;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.grey.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.withValues(alpha: 0.4)),
+      ),
+      child: Text(
+        'Esta deuda fue cancelada por $creditorEmail',
+        style: TextStyle(
+          fontSize: 13,
+          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+        ),
+      ),
+    );
+  }
+}
+
 class _FilterChip extends StatelessWidget {
   const _FilterChip({required this.label, required this.selected, required this.onTap});
 
@@ -288,7 +412,7 @@ class _DebtCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: Stack(
         children: [
-          if (badge != DebtBadgeKind.none)
+          if (badge != DebtBadgeKind.none && badge != DebtBadgeKind.mirrored && badge != DebtBadgeKind.revokedMirrored)
             Positioned(
               top: 0,
               right: 0,
@@ -333,6 +457,8 @@ class _DebtStatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     switch (kind) {
       case DebtBadgeKind.none:
+      case DebtBadgeKind.mirrored:
+      case DebtBadgeKind.revokedMirrored:
         return const SizedBox.shrink();
       case DebtBadgeKind.paid:
         return _Pill(label: 'Pagada', color: AppThemeColors.primaryGreen);

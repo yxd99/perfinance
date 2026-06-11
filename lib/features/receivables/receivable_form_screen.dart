@@ -144,6 +144,7 @@ class _ReceivableFormScreenState extends ConsumerState<ReceivableFormScreen> {
                   debtorName: name,
                   totalAmount: total,
                   remainingBalance: total,
+                  creditorEmail: user.email,
                 ),
               );
         } catch (_) {}

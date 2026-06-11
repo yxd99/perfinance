@@ -12,6 +12,7 @@ import 'package:perfinance/data/repositories/receivable_repository.dart';
 import 'package:perfinance/features/receivables/receivable_detail_screen.dart';
 import 'package:perfinance/features/receivables/receivable_form_screen.dart';
 import 'package:perfinance/features/receivables/receivable_notification_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:perfinance/features/receivables/receivables_provider.dart';
 import 'package:uuid/uuid.dart';
 
@@ -165,6 +166,7 @@ class ReceivablesScreen extends ConsumerWidget {
                   remainingBalance: 0,
                   paymentAmount: remaining,
                   paymentDate: DateTime.now(),
+                  creditorEmail: Supabase.instance.client.auth.currentUser?.email,
                 ),
               );
         } catch (_) {}

@@ -18,6 +18,12 @@ class Debt {
   final String? createdAt;
   final DebtStatus status;
 
+  // Mirror-only fields — never serialized to the debts wire (toJson/fromJson)
+  final bool isMirrored;
+  final String? creditorEmail;
+  final String? mirroredDebtId;
+  final String? mirroredStatus; // 'active' | 'revoked' (only meaningful when isMirrored)
+
   Debt({
     required this.id,
     required this.userId,
@@ -29,11 +35,45 @@ class Debt {
     this.updatedAt,
     this.createdAt,
     this.status = DebtStatus.active,
+    this.isMirrored = false,
+    this.creditorEmail,
+    this.mirroredDebtId,
+    this.mirroredStatus,
   });
+
+  factory Debt.mirrored({
+    required String mirroredDebtId,
+    required String userId,
+    required String creditorEmail,
+    required String name,
+    required double totalAmount,
+    required DateTime dueDate,
+    required String status,
+    String? createdAt,
+  }) =>
+      Debt(
+        id: mirroredDebtId,
+        userId: userId,
+        name: name,
+        totalAmount: totalAmount,
+        numberOfInstallments: 1, // mirrored debts have no installment concept
+        dueDate: dueDate,
+        status: DebtStatus.active, // mirrored lifecycle uses mirroredStatus
+        isMirrored: true,
+        creditorEmail: creditorEmail,
+        mirroredDebtId: mirroredDebtId,
+        mirroredStatus: status,
+        createdAt: createdAt,
+      );
+
+  bool get isRevoked => isMirrored && mirroredStatus == 'revoked';
 
   double get amountPerInstallment =>
       numberOfInstallments > 0 ? totalAmount / numberOfInstallments : 0;
 
+  /// toJson serializes the normal debt wire format ONLY.
+  /// Mirror-only fields (isMirrored, creditorEmail, mirroredDebtId, mirroredStatus)
+  /// are deliberately excluded — they are never pushed to the debts table.
   Map<String, dynamic> toJson() => {
         'id': id,
         'user_id': userId,

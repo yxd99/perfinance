@@ -13,6 +13,11 @@ type Body = {
   debtorName: string;
   totalAmount: number;
   remainingBalance: number;
+  /** The creditor's email — always included (spec S5). */
+  creditorEmail?: string;
+  /** True when the debtor is a registered app user.
+   * Drives the email template to mention app visibility. */
+  isRegistered?: boolean;
   paymentAmount?: number;
   paymentDate?: string;
 };
@@ -67,40 +72,62 @@ function authorizationHeader(req: Request): string | null {
 
 type EventMeta = { subject: string; title: string; intro: string };
 
-function eventMeta(event: NotificationEvent, debtorName: string): EventMeta {
+function eventMeta(
+  event: NotificationEvent,
+  debtorName: string,
+  creditorEmail?: string,
+  isRegistered?: boolean,
+): EventMeta {
   const name = escapeHtml(debtorName);
+  const creditorInfo = creditorEmail
+    ? ` (registrada por <strong>${escapeHtml(creditorEmail)}</strong>)`
+    : "";
+  const appVisibility =
+    isRegistered && event === "created"
+      ? ` Podés verla en tu app PerFinance.`
+      : "";
+
   switch (event) {
     case "created":
       return {
         subject: `Nueva deuda registrada — PerFinance`,
         title: "Nueva deuda registrada",
-        intro: `Hola <strong>${name}</strong>, se ha registrado una deuda a tu nombre.`,
+        intro: `Hola <strong>${name}</strong>, se ha registrado una deuda a tu nombre${creditorInfo}.${appVisibility}`,
       };
     case "payment_recorded":
       return {
         subject: `Cobro registrado — PerFinance`,
         title: "Cobro registrado",
-        intro: `Hola <strong>${name}</strong>, se ha registrado un cobro en tu cuenta.`,
+        intro: `Hola <strong>${name}</strong>, se ha registrado un cobro en tu cuenta${creditorInfo}.`,
       };
     case "payment_edited":
       return {
         subject: `Cobro modificado — PerFinance`,
         title: "Cobro modificado",
-        intro: `Hola <strong>${name}</strong>, se ha modificado un cobro en tu cuenta.`,
+        intro: `Hola <strong>${name}</strong>, se ha modificado un cobro en tu cuenta${creditorInfo}.`,
       };
     case "payment_deleted":
       return {
         subject: `Cobro eliminado — PerFinance`,
         title: "Cobro eliminado",
-        intro: `Hola <strong>${name}</strong>, se ha eliminado un cobro de tu cuenta.`,
+        intro: `Hola <strong>${name}</strong>, se ha eliminado un cobro de tu cuenta${creditorInfo}.`,
       };
   }
 }
 
 function buildEmailHtml(body: Body): string {
-  const { event, debtorName, totalAmount, remainingBalance, paymentAmount, paymentDate } = body;
+  const {
+    event,
+    debtorName,
+    totalAmount,
+    remainingBalance,
+    paymentAmount,
+    paymentDate,
+    creditorEmail,
+    isRegistered,
+  } = body;
   const primaryGreen = "#2ECC71";
-  const meta = eventMeta(event, debtorName);
+  const meta = eventMeta(event, debtorName, creditorEmail, isRegistered);
   const isFullyPaid = remainingBalance <= 0;
 
   const paymentRow = paymentAmount != null
@@ -255,7 +282,7 @@ Deno.serve(async (req: Request) => {
     );
   }
 
-  const meta = eventMeta(event, debtorName);
+  const meta = eventMeta(event, debtorName, body.creditorEmail, body.isRegistered);
   const html = buildEmailHtml(body);
 
   const resendRes = await fetch("https://api.resend.com/emails", {
