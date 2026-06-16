@@ -5,7 +5,7 @@ import 'package:perfinance/data/repositories/credit_card_repository.dart';
 import 'package:perfinance/data/repositories/payment_method_repository.dart';
 import 'package:perfinance/features/auth/auth_provider.dart';
 
-final automaticPaymentsListProvider = FutureProvider.autoDispose<List<AutomaticPayment>>((ref) async {
+final automaticPaymentsListProvider = FutureProvider<List<AutomaticPayment>>((ref) async {
   final user = await ref.watch(authStateProvider.future);
   if (user == null) return [];
   return ref.read(automaticPaymentRepositoryProvider).getAll(user.id);
@@ -33,7 +33,7 @@ class AutomaticPaymentByAccount {
   final String paymentType; // 'credit_card' | 'payment_method'
 }
 
-final dashboardAutomaticPaymentsSummaryProvider = FutureProvider.autoDispose<AutomaticPaymentsSummary>((ref) async {
+final dashboardAutomaticPaymentsSummaryProvider = FutureProvider<AutomaticPaymentsSummary>((ref) async {
   final user = await ref.watch(authStateProvider.future);
   if (user == null) return const AutomaticPaymentsSummary(totalPerMonth: 0, byAccount: []);
   final list = await ref.watch(automaticPaymentsListProvider.future);

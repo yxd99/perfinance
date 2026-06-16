@@ -43,6 +43,7 @@ final syncServiceProvider = Provider<SyncService>((ref) {
 class SyncService {
   SyncService(this._ref);
   final Ref _ref;
+  bool _isSyncing = false;
 
   Future<String?> get _userId async => _ref.read(authServiceProvider).userId;
   SupabaseClient get _supabase => Supabase.instance.client;
@@ -77,6 +78,16 @@ class SyncService {
   }
 
   Future<void> syncNow() async {
+    if (_isSyncing) return;
+    _isSyncing = true;
+    try {
+      await _syncInternal();
+    } finally {
+      _isSyncing = false;
+    }
+  }
+
+  Future<void> _syncInternal() async {
     final userId = await _userId;
     if (userId == null) return;
 
@@ -170,7 +181,10 @@ class SyncService {
 
     for (final p in await payRepo.getPendingForPush()) {
       try {
-        if (p.syncStatus == 'pending_insert') {
+        if (p.syncStatus == 'pending_delete') {
+          await payTable.delete().eq('id', p.id);
+          await payRepo.deleteLocal(p.id);
+        } else if (p.syncStatus == 'pending_insert' || p.syncStatus == 'pending_update') {
           await payTable.upsert(_toRemoteCardPayment(p), onConflict: 'id');
           await payRepo.markSynced(p.id);
         }

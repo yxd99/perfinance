@@ -18,8 +18,8 @@ class CardPaymentRepository {
     final db = await _db;
     final rows = await db.query(
       tableCardPayments,
-      where: 'card_id = ?',
-      whereArgs: [cardId],
+      where: 'card_id = ? AND sync_status != ?',
+      whereArgs: [cardId, 'pending_delete'],
       orderBy: 'date DESC',
     );
     return rows.map(_rowToPayment).toList();
@@ -41,8 +41,8 @@ class CardPaymentRepository {
     final end = DateTime(year, month + 1, 1).toIso8601String();
     final rows = await db.query(
       tableCardPayments,
-      where: 'card_id = ? AND date >= ? AND date < ?',
-      whereArgs: [cardId, start, end],
+      where: 'card_id = ? AND date >= ? AND date < ? AND sync_status != ?',
+      whereArgs: [cardId, start, end, 'pending_delete'],
     );
     return rows.map(_rowToPayment).toList();
   }
@@ -61,6 +61,36 @@ class CardPaymentRepository {
         columnUpdatedAt: now,
         'created_at': now,
       },
+    );
+  }
+
+  Future<void> update(CardPayment p) async {
+    final db = await _db;
+    await db.update(
+      tableCardPayments,
+      {
+        'amount': p.amount,
+        'date': p.date.toIso8601String(),
+        columnSyncStatus: 'pending_update',
+        columnUpdatedAt: DateTime.now().toIso8601String(),
+      },
+      where: 'id = ?',
+      whereArgs: [p.id],
+    );
+  }
+
+  Future<void> deleteLocal(String id) async {
+    final db = await _db;
+    await db.delete(tableCardPayments, where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> markPendingDelete(String id) async {
+    final db = await _db;
+    await db.update(
+      tableCardPayments,
+      {columnSyncStatus: 'pending_delete', columnUpdatedAt: DateTime.now().toIso8601String()},
+      where: 'id = ?',
+      whereArgs: [id],
     );
   }
 

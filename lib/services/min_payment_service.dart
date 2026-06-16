@@ -2,9 +2,13 @@ import 'package:perfinance/data/repositories/card_payment_repository.dart';
 import 'package:perfinance/data/repositories/min_payment_config_repository.dart';
 
 class MinPaymentStatus {
+  final double configured;
+  final double paid;
   final double pending;
 
-  MinPaymentStatus(this.pending);
+  MinPaymentStatus({required this.configured, required this.paid, required this.pending});
+
+  bool get isUpToDate => pending <= 0;
 }
 
 class MinPaymentService {
@@ -19,6 +23,6 @@ class MinPaymentService {
     final payments = await paymentRepo.getByCardIdInMonth(cardId, now.year, now.month);
     final paid = payments.fold<double>(0, (s, p) => s + p.amount);
     final pending = (config.amount - paid).clamp(0.0, double.infinity);
-    return MinPaymentStatus(pending);
+    return MinPaymentStatus(configured: config.amount, paid: paid, pending: pending);
   }
 }
