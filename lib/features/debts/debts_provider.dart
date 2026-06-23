@@ -31,7 +31,7 @@ class DebtWithPaid {
 }
 
 /// Merges normal debts + mirrored debts into a single list.
-final debtsListProvider = FutureProvider.autoDispose<List<Debt>>((ref) async {
+final debtsListProvider = FutureProvider<List<Debt>>((ref) async {
   final user = await ref.watch(authStateProvider.future);
   if (user == null) return [];
   final normal = await ref.read(debtRepositoryProvider).getAll(user.id);
@@ -40,7 +40,7 @@ final debtsListProvider = FutureProvider.autoDispose<List<Debt>>((ref) async {
 });
 
 /// Lista de deudas con monto pagado, filtrada y con búsqueda.
-final filteredDebtsWithPaidProvider = FutureProvider.autoDispose<List<DebtWithPaid>>((ref) async {
+final filteredDebtsWithPaidProvider = FutureProvider<List<DebtWithPaid>>((ref) async {
   final list = await ref.watch(debtsListProvider.future);
   final filter = ref.watch(debtListFilterProvider);
   final query = ref.watch(debtSearchQueryProvider).trim().toLowerCase();
@@ -87,7 +87,7 @@ final filteredDebtsWithPaidProvider = FutureProvider.autoDispose<List<DebtWithPa
 });
 
 /// Suma el saldo pendiente para deudas activas (normales + mirrored activos, excluye revocados).
-final outstandingDebtsTotalProvider = FutureProvider.autoDispose<double>((ref) async {
+final outstandingDebtsTotalProvider = FutureProvider<double>((ref) async {
   final debts = await ref.watch(debtsListProvider.future);
   final payRepo = ref.read(debtPaymentRepositoryProvider);
   final mirroredRepo = ref.read(mirroredDebtRepositoryProvider);

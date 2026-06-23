@@ -20,7 +20,7 @@ class ExpensePaymentDisplay {
   }
 }
 
-final expensePaymentDisplayProvider = FutureProvider.autoDispose<ExpensePaymentDisplay>((ref) async {
+final expensePaymentDisplayProvider = FutureProvider<ExpensePaymentDisplay>((ref) async {
   final user = await ref.watch(authStateProvider.future);
   if (user == null) return const ExpensePaymentDisplay(cardAliases: {}, methodNames: {});
   final cards = await ref.read(creditCardRepositoryProvider).getAll(user.id);
@@ -31,7 +31,7 @@ final expensePaymentDisplayProvider = FutureProvider.autoDispose<ExpensePaymentD
   );
 });
 
-final expensesListProvider = FutureProvider.autoDispose<List<Expense>>((ref) async {
+final expensesListProvider = FutureProvider<List<Expense>>((ref) async {
   final user = await ref.watch(authStateProvider.future);
   if (user == null) return [];
   return ref.read(expenseRepositoryProvider).getAll(user.id);
@@ -42,7 +42,7 @@ final selectedExpenseDateFilterProvider = StateProvider<ExpenseDateFilter>((ref)
 /// IDs de tarjeta o cuenta de ahorro (`payment_ref`). Vacío = no filtrar por medio.
 final selectedExpensePaymentIdsFilterProvider = StateProvider<Set<String>>((ref) => {});
 
-final filteredExpensesListProvider = FutureProvider.autoDispose<List<Expense>>((ref) async {
+final filteredExpensesListProvider = FutureProvider<List<Expense>>((ref) async {
   final list = await ref.watch(expensesListProvider.future);
   final filter = ref.watch(selectedExpenseDateFilterProvider);
   final range = filter.rangeOrNow;

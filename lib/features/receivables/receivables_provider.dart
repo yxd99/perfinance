@@ -18,14 +18,14 @@ class ReceivableView {
   bool get isFullyPaid => remainingBalance <= 0;
 }
 
-final receivablesListProvider = FutureProvider.autoDispose<List<Receivable>>((ref) async {
+final receivablesListProvider = FutureProvider<List<Receivable>>((ref) async {
   final user = await ref.watch(authStateProvider.future);
   if (user == null) return [];
   return ref.read(receivableRepositoryProvider).getAll(user.id);
 });
 
 final filteredReceivablesProvider =
-    FutureProvider.autoDispose.family<List<ReceivableView>, ReceivableListFilter>(
+    FutureProvider.family<List<ReceivableView>, ReceivableListFilter>(
   (ref, filter) async {
     // Watching receivablesListProvider so invalidating it cascades here.
     final all = await ref.watch(receivablesListProvider.future);
@@ -55,13 +55,13 @@ final filteredReceivablesProvider =
 );
 
 final receivablePaymentsProvider =
-    FutureProvider.autoDispose.family<List<ReceivablePayment>, String>(
+    FutureProvider.family<List<ReceivablePayment>, String>(
   (ref, receivableId) async {
     return ref.read(receivablePaymentRepositoryProvider).getByReceivableId(receivableId);
   },
 );
 
-final receivablesTotalOutstandingProvider = FutureProvider.autoDispose<double>((ref) async {
+final receivablesTotalOutstandingProvider = FutureProvider<double>((ref) async {
   // Watching receivablesListProvider so invalidating it cascades here.
   final all = await ref.watch(receivablesListProvider.future);
   final payRepo = ref.read(receivablePaymentRepositoryProvider);

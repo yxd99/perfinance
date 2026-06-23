@@ -20,6 +20,7 @@ import 'package:perfinance/features/dashboard/dashboard_provider.dart';
 import 'package:perfinance/features/expenses/expenses_provider.dart';
 import 'package:perfinance/services/card_debt_reconciliation_service.dart';
 import 'package:perfinance/services/min_payment_service.dart';
+import 'package:perfinance/services/sync_service.dart';
 import 'package:uuid/uuid.dart';
 
 class CreditCardDetailScreen extends ConsumerStatefulWidget {
@@ -80,10 +81,24 @@ class _DetailContent extends ConsumerStatefulWidget {
 }
 
 class _DetailContentState extends ConsumerState<_DetailContent> {
-  Future<MinPaymentStatus?> _getMinStatus() async {
+  late Future<MinPaymentStatus?> _minStatusFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _minStatusFuture = _fetchMinStatus();
+  }
+
+  Future<MinPaymentStatus?> _fetchMinStatus() async {
     final repo = ref.read(minPaymentConfigRepositoryProvider);
     final payRepo = ref.read(cardPaymentRepositoryProvider);
     return MinPaymentService.getStatus(repo, payRepo, widget.card.id);
+  }
+
+  void _refreshMinStatus() {
+    setState(() {
+      _minStatusFuture = _fetchMinStatus();
+    });
   }
 
   Future<double> _getCurrentDebt() async {
@@ -147,9 +162,10 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
           ),
           const SizedBox(height: 16),
           FutureBuilder<MinPaymentStatus?>(
-            future: _getMinStatus(),
+            future: _minStatusFuture,
             builder: (context, snap) {
               final status = snap.data;
+              final isLoading = snap.connectionState == ConnectionState.waiting;
               return Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16),
@@ -158,9 +174,11 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
                     children: [
                       Text('Pago mínimo', style: Theme.of(context).textTheme.titleMedium),
                       const SizedBox(height: 8),
-                      if (status == null)
+                      if (isLoading)
+                        const SizedBox(height: 16, child: LinearProgressIndicator())
+                      else if (status == null)
                         const Text('Sin configurar')
-                      else if (status.pending <= 0)
+                      else if (status.isUpToDate)
                         const Text('Estás al día', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold))
                       else
                         Text('Pendiente: \$${formatCurrencyDisplay(status.pending, hideValues)}'),
@@ -233,6 +251,34 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
                                   leading: const Icon(Icons.payments_outlined),
                                   title: Text('\$${formatCurrencyDisplay(p.amount, hideValues)}'),
                                   subtitle: Text(formatDisplayDate(d)),
+                                  trailing: PopupMenuButton<_PaymentAction>(
+                                    icon: const Icon(Icons.more_vert),
+                                    onSelected: (action) {
+                                      if (action == _PaymentAction.edit) {
+                                        _editPayment(context, p);
+                                      } else {
+                                        _deletePayment(context, p);
+                                      }
+                                    },
+                                    itemBuilder: (_) => const [
+                                      PopupMenuItem(
+                                        value: _PaymentAction.edit,
+                                        child: ListTile(
+                                          leading: Icon(Icons.edit_outlined),
+                                          title: Text('Editar'),
+                                          contentPadding: EdgeInsets.zero,
+                                        ),
+                                      ),
+                                      PopupMenuItem(
+                                        value: _PaymentAction.delete,
+                                        child: ListTile(
+                                          leading: Icon(Icons.delete_outline),
+                                          title: Text('Eliminar'),
+                                          contentPadding: EdgeInsets.zero,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 );
                               },
                             ),
@@ -317,8 +363,8 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
       await repo.insert(config);
     }
     if (mounted) {
-      setState(() {});
-      ref.invalidate(creditCardsListProvider);
+      _refreshMinStatus();
+      ref.invalidate(dashboardMinPaymentSummaryProvider);
     }
   }
 
@@ -354,11 +400,11 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
       date: DateTime.now(),
     ));
     if (mounted) {
-      setState(() {});
+      _refreshMinStatus();
       ref.invalidate(dashboardDebtProvider);
       ref.invalidate(dashboardMinPaymentSummaryProvider);
-      ref.invalidate(creditCardsListProvider);
       ref.invalidate(cardPaymentsByCardProvider(widget.card.id));
+      ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
     }
   }
 
@@ -413,6 +459,7 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
     ref.invalidate(dashboardDebtProvider);
     ref.invalidate(creditCardsListProvider);
     ref.invalidate(cardPaymentsByCardProvider(widget.card.id));
+    ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
     final message = switch (decision.reconciliation.action) {
       CardDebtAdjustmentAction.missingExpense =>
         'Se agregó un egreso por faltante de deuda.',
@@ -422,7 +469,101 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
     };
     ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(content: Text(message)));
   }
+
+  Future<void> _editPayment(BuildContext context, CardPayment payment) async {
+    final amountC = TextEditingController(text: formatCurrency(payment.amount));
+    DateTime selectedDate = payment.date.toLocal();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Editar pago'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CurrencyTextField(
+                controller: amountC,
+                decoration: const InputDecoration(labelText: 'Monto', border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.calendar_today_outlined, size: 18),
+                label: Text(formatDisplayDate(selectedDate)),
+                onPressed: () async {
+                  final picked = await showDatePicker(
+                    context: ctx,
+                    initialDate: selectedDate,
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime.now(),
+                  );
+                  if (picked != null) setDialogState(() => selectedDate = picked);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+            FilledButton(
+              onPressed: () {
+                if (amountC.text.trim().isNotEmpty) Navigator.pop(ctx, true);
+              },
+              child: const Text('Guardar'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (ok != true || amountC.text.trim().isEmpty) return;
+    final amount = parseCurrency(amountC.text);
+    if (amount == null || amount <= 0) return;
+    final payRepo = ref.read(cardPaymentRepositoryProvider);
+    await payRepo.update(CardPayment(
+      id: payment.id,
+      cardId: payment.cardId,
+      amount: amount,
+      date: selectedDate,
+    ));
+    if (!mounted) return;
+    _refreshMinStatus();
+    ref.invalidate(dashboardDebtProvider);
+    ref.invalidate(dashboardMinPaymentSummaryProvider);
+    ref.invalidate(cardPaymentsByCardProvider(widget.card.id));
+    ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
+  }
+
+  Future<void> _deletePayment(BuildContext context, CardPayment payment) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Eliminar pago'),
+        content: Text(
+          '¿Eliminar el pago de \$${formatCurrency(payment.amount)} del ${formatDisplayDate(payment.date.toLocal())}?',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final payRepo = ref.read(cardPaymentRepositoryProvider);
+    await payRepo.markPendingDelete(payment.id);
+    if (!mounted) return;
+    _refreshMinStatus();
+    ref.invalidate(dashboardDebtProvider);
+    ref.invalidate(dashboardMinPaymentSummaryProvider);
+    ref.invalidate(cardPaymentsByCardProvider(widget.card.id));
+    ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
+  }
 }
+
+enum _PaymentAction { edit, delete }
 
 class _PaymentFilterBar extends StatelessWidget {
   const _PaymentFilterBar({

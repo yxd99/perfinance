@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perfinance/core/widgets/currency_input.dart';
+import 'package:perfinance/services/sync_service.dart';
 import 'package:perfinance/data/models/credit_card.dart';
 import 'package:perfinance/features/auth/auth_provider.dart';
 import 'package:perfinance/data/repositories/credit_card_repository.dart';
@@ -132,6 +133,7 @@ class _CreditCardFormScreenState extends ConsumerState<CreditCardFormScreen> {
     ref.invalidate(dashboardDebtProvider);
     ref.invalidate(expensesListProvider);
     ref.invalidate(automaticPaymentsListProvider);
+    ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
     Navigator.of(context).pop();
   }
 
@@ -159,12 +161,14 @@ class _CreditCardFormScreenState extends ConsumerState<CreditCardFormScreen> {
       await repo.insert(card);
       if (mounted) {
         ref.invalidate(creditCardsListProvider);
+        ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
         Navigator.of(context).pop(card.id);
         return;
       }
     }
     if (mounted) {
       ref.invalidate(creditCardsListProvider);
+      ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
       Navigator.of(context).pop();
     }
   }

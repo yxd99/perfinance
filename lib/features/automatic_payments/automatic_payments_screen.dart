@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perfinance/core/providers/hide_values_provider.dart';
+import 'package:perfinance/services/sync_service.dart';
 import 'package:perfinance/core/theme/app_theme.dart';
 import 'package:perfinance/core/widgets/app_empty_state.dart';
 import 'package:perfinance/core/widgets/app_error_state.dart';
@@ -142,5 +143,6 @@ class AutomaticPaymentsScreen extends ConsumerWidget {
     if (ok != true) return;
     await ref.read(automaticPaymentRepositoryProvider).delete(p.id);
     ref.invalidate(automaticPaymentsListProvider);
+    ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
   }
 }

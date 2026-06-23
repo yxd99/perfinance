@@ -11,6 +11,7 @@ import 'package:perfinance/data/repositories/debt_payment_repository.dart';
 import 'package:perfinance/data/repositories/debt_repository.dart';
 import 'package:perfinance/data/repositories/mirrored_debt_repository.dart';
 import 'package:perfinance/features/debts/debts_provider.dart';
+import 'package:perfinance/services/sync_service.dart';
 import 'package:uuid/uuid.dart';
 
 class DebtDetailScreen extends ConsumerStatefulWidget {
@@ -466,6 +467,7 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
     if (mounted) {
       _refreshPayments();
       ref.invalidate(debtsListProvider);
+      ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
     }
   }
 
@@ -486,6 +488,7 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
     if (mounted) {
       ref.invalidate(debtsListProvider);
       ref.invalidate(filteredDebtsWithPaidProvider);
+      ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
       Navigator.pop(context);
     }
   }
@@ -514,6 +517,7 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
       _refreshPayments();
       ref.invalidate(debtsListProvider);
       ref.invalidate(filteredDebtsWithPaidProvider);
+      ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
     }
   }
 }

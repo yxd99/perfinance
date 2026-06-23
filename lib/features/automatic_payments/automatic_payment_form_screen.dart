@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perfinance/core/utils/date_format_utils.dart';
+import 'package:perfinance/services/sync_service.dart';
 import 'package:perfinance/core/widgets/currency_input.dart';
 import 'package:perfinance/data/models/automatic_payment.dart';
 import 'package:perfinance/data/repositories/automatic_payment_repository.dart';
@@ -276,6 +277,7 @@ class _AutomaticPaymentFormScreenState extends ConsumerState<AutomaticPaymentFor
     if (mounted) {
       ref.invalidate(automaticPaymentsListProvider);
       ref.invalidate(expensesListProvider);
+      ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
       Navigator.pop(context);
     }
   }

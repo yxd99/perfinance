@@ -7,12 +7,12 @@ final selectedCardPaymentDateFilterProvider = StateProvider.family<CardPaymentDa
   (ref, cardId) => CardPaymentDateFilter.currentMonth,
 );
 
-final cardPaymentsByCardProvider = FutureProvider.autoDispose.family<List<CardPayment>, String>((ref, cardId) async {
+final cardPaymentsByCardProvider = FutureProvider.family<List<CardPayment>, String>((ref, cardId) async {
   return ref.read(cardPaymentRepositoryProvider).getByCardId(cardId);
 });
 
 final filteredCardPaymentsByCardProvider =
-    FutureProvider.autoDispose.family<List<CardPayment>, String>((ref, cardId) async {
+    FutureProvider.family<List<CardPayment>, String>((ref, cardId) async {
   final list = await ref.watch(cardPaymentsByCardProvider(cardId).future);
   final filter = ref.watch(selectedCardPaymentDateFilterProvider(cardId));
   final range = filter.rangeOrNow;

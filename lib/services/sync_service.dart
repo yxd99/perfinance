@@ -1,3 +1,4 @@
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perfinance/data/database/database_provider.dart';
 import 'package:perfinance/data/models/card_payment.dart';
@@ -36,6 +37,8 @@ import 'dart:io';
 
 const String _keyLastSync = 'perfinance_last_sync';
 
+final isSyncingProvider = StateProvider<bool>((ref) => false);
+
 final syncServiceProvider = Provider<SyncService>((ref) {
   return SyncService(ref);
 });
@@ -43,6 +46,7 @@ final syncServiceProvider = Provider<SyncService>((ref) {
 class SyncService {
   SyncService(this._ref);
   final Ref _ref;
+  bool _isSyncing = false;
 
   Future<String?> get _userId async => _ref.read(authServiceProvider).userId;
   SupabaseClient get _supabase => Supabase.instance.client;
@@ -77,6 +81,37 @@ class SyncService {
   }
 
   Future<void> syncNow() async {
+    if (_isSyncing) return;
+    _isSyncing = true;
+    _ref.read(isSyncingProvider.notifier).state = true;
+    try {
+      await _syncInternal();
+    } finally {
+      _isSyncing = false;
+      _ref.read(isSyncingProvider.notifier).state = false;
+    }
+  }
+
+  /// Push pending local records to Supabase without pulling remote changes.
+  /// Call this after any local write when online.
+  Future<void> pushPendingIfOnline() async {
+    if (_isSyncing) return;
+    final list = await Connectivity().checkConnectivity();
+    final offline = list.isNotEmpty && list.every((r) => r == ConnectivityResult.none);
+    if (offline) return;
+    final userId = await _userId;
+    if (userId == null) return;
+    _isSyncing = true;
+    _ref.read(isSyncingProvider.notifier).state = true;
+    try {
+      await _push(userId);
+    } finally {
+      _isSyncing = false;
+      _ref.read(isSyncingProvider.notifier).state = false;
+    }
+  }
+
+  Future<void> _syncInternal() async {
     final userId = await _userId;
     if (userId == null) return;
 
@@ -170,7 +205,10 @@ class SyncService {
 
     for (final p in await payRepo.getPendingForPush()) {
       try {
-        if (p.syncStatus == 'pending_insert') {
+        if (p.syncStatus == 'pending_delete') {
+          await payTable.delete().eq('id', p.id);
+          await payRepo.deleteLocal(p.id);
+        } else if (p.syncStatus == 'pending_insert' || p.syncStatus == 'pending_update') {
           await payTable.upsert(_toRemoteCardPayment(p), onConflict: 'id');
           await payRepo.markSynced(p.id);
         }
