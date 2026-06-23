@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perfinance/core/theme/app_theme.dart';
+import 'package:perfinance/services/sync_service.dart';
 import 'package:perfinance/core/widgets/app_empty_state.dart';
 import 'package:perfinance/core/widgets/app_error_state.dart';
 import 'package:perfinance/core/widgets/currency_input.dart';
@@ -176,6 +177,7 @@ class ReceivablesScreen extends ConsumerWidget {
     }
     ref.invalidate(receivablesListProvider);
     ref.invalidate(receivablePaymentsProvider(view.receivable.id));
+    ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
   }
 }
 

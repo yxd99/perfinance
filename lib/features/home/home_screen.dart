@@ -19,6 +19,7 @@ import 'package:perfinance/features/savings/savings_screen.dart';
 import 'package:perfinance/services/connectivity_sync.dart';
 import 'package:perfinance/services/process_automatic_payments_service.dart';
 import 'package:perfinance/services/sync_service.dart';
+import 'dart:math' show pi;
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -41,8 +42,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     'Auto-pagos',
   ];
 
-  int get _selectedIndex => _tabController.index;
-
   @override
   void initState() {
     super.initState();
@@ -52,7 +51,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       startConnectivitySyncListener(
         () => ref.read(syncServiceProvider).syncNow(),
       );
-      _syncIfOnline();
+      _syncIfStale();
       _processAutomaticPayments();
     });
   }
@@ -69,18 +68,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     ref.invalidate(automaticPaymentsListProvider);
   }
 
-  Future<void> _syncIfOnline() async {
+  Future<void> _syncIfStale() async {
     final list = await Connectivity().checkConnectivity();
-    // En Android, lista vacía puede ser falso negativo; intentar sync si está vacía.
-    final offline =
-        list.isNotEmpty && list.every((r) => r == ConnectivityResult.none);
-    if (!offline) {
-      await ref.read(syncServiceProvider).syncNow();
-    }
+    final offline = list.isNotEmpty && list.every((r) => r == ConnectivityResult.none);
+    if (offline) return;
+    final syncService = ref.read(syncServiceProvider);
+    final lastSync = await syncService.getLastSync();
+    final isStale = lastSync == null ||
+        DateTime.now().difference(lastSync) > const Duration(minutes: 5);
+    if (isStale) await syncService.syncNow();
   }
 
   @override
   Widget build(BuildContext context) {
+    final isSyncing = ref.watch(isSyncingProvider);
     return Scaffold(
       appBar: AppBar(
         leading: Padding(
@@ -120,34 +121,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 loading: () => const SizedBox.shrink(),
                 error: (_, __) => const SizedBox.shrink(),
               ),
-          IconButton(
-            icon: const Icon(Icons.sync),
-            tooltip:
-                'Sincronizar ahora (se sincroniza automáticamente con conexión)',
-            onPressed: () async {
-              if (!mounted) return;
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(const SnackBar(content: Text('Sincronizando...')));
-              try {
-                await ref.read(syncServiceProvider).syncNow();
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Sincronización completada')),
-                  );
-                }
-              } catch (_) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(UserFriendlyErrors.syncFailed),
-                      backgroundColor: Theme.of(context).colorScheme.error,
-                    ),
-                  );
-                }
-              }
-            },
-          ),
+          _SyncIconButton(isSyncing: isSyncing),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
@@ -161,6 +135,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       ),
       body: Column(
         children: [
+          if (isSyncing)
+            Material(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              child: const SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 6),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: 12,
+                        height: 12,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      SizedBox(width: 8),
+                      Text('Sincronizando datos...', style: TextStyle(fontSize: 12)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ref
               .watch(connectivityStatusProvider)
               .when(
@@ -204,6 +200,78 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SyncIconButton extends ConsumerStatefulWidget {
+  const _SyncIconButton({required this.isSyncing});
+  final bool isSyncing;
+
+  @override
+  ConsumerState<_SyncIconButton> createState() => _SyncIconButtonState();
+}
+
+class _SyncIconButtonState extends ConsumerState<_SyncIconButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 1),
+    );
+    if (widget.isSyncing) _controller.repeat();
+  }
+
+  @override
+  void didUpdateWidget(_SyncIconButton old) {
+    super.didUpdateWidget(old);
+    if (widget.isSyncing && !_controller.isAnimating) {
+      _controller.repeat();
+    } else if (!widget.isSyncing && _controller.isAnimating) {
+      _controller.stop();
+      _controller.reset();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (_, child) => Transform.rotate(
+        angle: _controller.value * 2 * pi,
+        child: child,
+      ),
+      child: IconButton(
+        icon: const Icon(Icons.sync),
+        tooltip: 'Sincronizar ahora (se sincroniza automáticamente con conexión)',
+        onPressed: widget.isSyncing
+            ? null
+            : () async {
+                if (!context.mounted) return;
+                try {
+                  await ref.read(syncServiceProvider).syncNow();
+                } catch (_) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(UserFriendlyErrors.syncFailed),
+                        backgroundColor: Theme.of(context).colorScheme.error,
+                      ),
+                    );
+                  }
+                }
+              },
       ),
     );
   }

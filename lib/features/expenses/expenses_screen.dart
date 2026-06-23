@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perfinance/core/config/supabase_config.dart';
+import 'package:perfinance/services/sync_service.dart';
 import 'package:perfinance/core/providers/hide_values_provider.dart';
 import 'package:perfinance/core/theme/app_theme.dart';
 import 'package:perfinance/core/utils/user_friendly_errors.dart';
@@ -442,6 +443,7 @@ class ExpensesScreen extends ConsumerWidget {
     if (ok != true) return;
     await ref.read(expenseRepositoryProvider).delete(e.id);
     ref.invalidate(expensesListProvider);
+    ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
   }
 }
 

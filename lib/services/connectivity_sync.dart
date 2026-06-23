@@ -1,10 +1,14 @@
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+/// Llama [onSync] únicamente cuando la app recupera conexión (offline→online).
+/// Evita disparar sync en cada cambio de red (ej: WiFi→datos, datos→WiFi).
 void startConnectivitySyncListener(void Function() onSync) {
+  bool? wasOffline;
   Connectivity().onConnectivityChanged.listen((list) {
-    // En Android, lista vacía puede ser falso negativo; considerar online.
     final offline = list.isNotEmpty && list.every((r) => r == ConnectivityResult.none);
-    if (!offline) onSync();
+    if (wasOffline == true && !offline) onSync();
+    wasOffline = offline;
   });
 }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perfinance/core/widgets/currency_input.dart';
+import 'package:perfinance/services/sync_service.dart';
 import 'package:perfinance/data/models/receivable.dart';
 import 'package:perfinance/data/repositories/receivable_repository.dart';
 import 'package:perfinance/features/auth/auth_provider.dart';
@@ -153,6 +154,7 @@ class _ReceivableFormScreenState extends ConsumerState<ReceivableFormScreen> {
 
     if (mounted) {
       ref.invalidate(receivablesListProvider);
+      ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
       Navigator.pop(context);
     }
   }

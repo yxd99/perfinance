@@ -1,3 +1,4 @@
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perfinance/data/database/database_provider.dart';
 import 'package:perfinance/data/models/card_payment.dart';
@@ -35,6 +36,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:io';
 
 const String _keyLastSync = 'perfinance_last_sync';
+
+final isSyncingProvider = StateProvider<bool>((ref) => false);
 
 final syncServiceProvider = Provider<SyncService>((ref) {
   return SyncService(ref);
@@ -80,10 +83,31 @@ class SyncService {
   Future<void> syncNow() async {
     if (_isSyncing) return;
     _isSyncing = true;
+    _ref.read(isSyncingProvider.notifier).state = true;
     try {
       await _syncInternal();
     } finally {
       _isSyncing = false;
+      _ref.read(isSyncingProvider.notifier).state = false;
+    }
+  }
+
+  /// Push pending local records to Supabase without pulling remote changes.
+  /// Call this after any local write when online.
+  Future<void> pushPendingIfOnline() async {
+    if (_isSyncing) return;
+    final list = await Connectivity().checkConnectivity();
+    final offline = list.isNotEmpty && list.every((r) => r == ConnectivityResult.none);
+    if (offline) return;
+    final userId = await _userId;
+    if (userId == null) return;
+    _isSyncing = true;
+    _ref.read(isSyncingProvider.notifier).state = true;
+    try {
+      await _push(userId);
+    } finally {
+      _isSyncing = false;
+      _ref.read(isSyncingProvider.notifier).state = false;
     }
   }
 

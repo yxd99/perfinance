@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perfinance/data/models/payment_method.dart';
+import 'package:perfinance/services/sync_service.dart';
 import 'package:perfinance/features/auth/auth_provider.dart';
 import 'package:perfinance/data/repositories/payment_method_repository.dart';
 import 'package:perfinance/features/savings/savings_provider.dart';
@@ -87,12 +88,14 @@ class _PaymentMethodFormScreenState extends ConsumerState<PaymentMethodFormScree
       await repo.insert(pm);
       if (mounted) {
         ref.invalidate(paymentMethodsListProvider);
+        ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
         Navigator.pop(context, pm.id);
         return;
       }
     }
     if (mounted) {
       ref.invalidate(paymentMethodsListProvider);
+      ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
       Navigator.pop(context);
     }
   }

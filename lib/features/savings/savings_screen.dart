@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perfinance/core/utils/user_friendly_errors.dart';
+import 'package:perfinance/services/sync_service.dart';
 import 'package:perfinance/core/widgets/app_empty_state.dart';
 import 'package:perfinance/core/widgets/app_error_state.dart';
 import 'package:perfinance/core/widgets/summary_total_bar.dart';
@@ -103,5 +104,6 @@ class SavingsScreen extends ConsumerWidget {
     if (ok != true) return;
     await ref.read(paymentMethodRepositoryProvider).delete(pm.id);
     ref.invalidate(paymentMethodsListProvider);
+    ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
   }
 }

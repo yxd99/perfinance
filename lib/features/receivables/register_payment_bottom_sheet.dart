@@ -221,8 +221,7 @@ class _RegisterPaymentSheetState extends ConsumerState<_RegisterPaymentSheet> {
 
         messenger.showSnackBar(SnackBar(content: Text(successMsg)));
 
-        // Sync automático en background — no bloquea UI.
-        ref.read(syncServiceProvider).syncNow().catchError((_) {});
+        ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
       }
     } on StateError catch (e) {
       if (mounted) {

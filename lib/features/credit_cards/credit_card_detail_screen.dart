@@ -20,6 +20,7 @@ import 'package:perfinance/features/dashboard/dashboard_provider.dart';
 import 'package:perfinance/features/expenses/expenses_provider.dart';
 import 'package:perfinance/services/card_debt_reconciliation_service.dart';
 import 'package:perfinance/services/min_payment_service.dart';
+import 'package:perfinance/services/sync_service.dart';
 import 'package:uuid/uuid.dart';
 
 class CreditCardDetailScreen extends ConsumerStatefulWidget {
@@ -403,6 +404,7 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
       ref.invalidate(dashboardDebtProvider);
       ref.invalidate(dashboardMinPaymentSummaryProvider);
       ref.invalidate(cardPaymentsByCardProvider(widget.card.id));
+      ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
     }
   }
 
@@ -457,6 +459,7 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
     ref.invalidate(dashboardDebtProvider);
     ref.invalidate(creditCardsListProvider);
     ref.invalidate(cardPaymentsByCardProvider(widget.card.id));
+    ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
     final message = switch (decision.reconciliation.action) {
       CardDebtAdjustmentAction.missingExpense =>
         'Se agregó un egreso por faltante de deuda.',
@@ -525,6 +528,7 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
     ref.invalidate(dashboardDebtProvider);
     ref.invalidate(dashboardMinPaymentSummaryProvider);
     ref.invalidate(cardPaymentsByCardProvider(widget.card.id));
+    ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
   }
 
   Future<void> _deletePayment(BuildContext context, CardPayment payment) async {
@@ -555,6 +559,7 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
     ref.invalidate(dashboardDebtProvider);
     ref.invalidate(dashboardMinPaymentSummaryProvider);
     ref.invalidate(cardPaymentsByCardProvider(widget.card.id));
+    ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
   }
 }
 
