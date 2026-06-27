@@ -11,8 +11,8 @@ Future<dynamic> openTestDatabase({int? fromVersion}) async {
     return databaseFactoryFfi.openDatabase(
       inMemoryDatabasePath,
       options: OpenDatabaseOptions(
-        version: 10,
-        onCreate: (db, v) async => _createV10Schema(db),
+        version: 11,
+        onCreate: (db, v) async => _createV11Schema(db),
         onOpen: (db) async {
           await db.execute('PRAGMA foreign_keys = ON');
         },
@@ -27,7 +27,9 @@ Future<dynamic> openTestDatabase({int? fromVersion}) async {
           ? _createV7Schema
           : fromVersion <= 8
               ? _createV8Schema
-              : _createV9Schema;
+              : fromVersion <= 9
+                  ? _createV9Schema
+                  : _createV10Schema;
   final db = await databaseFactoryFfi.openDatabase(
     inMemoryDatabasePath,
     options: OpenDatabaseOptions(
@@ -39,8 +41,8 @@ Future<dynamic> openTestDatabase({int? fromVersion}) async {
   return databaseFactoryFfi.openDatabase(
     inMemoryDatabasePath,
     options: OpenDatabaseOptions(
-      version: 10,
-      onCreate: (db, v) async => _createV10Schema(db),
+      version: 11,
+      onCreate: (db, v) async => _createV11Schema(db),
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 7) {
           await db.transaction((txn) async {
@@ -151,6 +153,11 @@ Future<dynamic> openTestDatabase({int? fromVersion}) async {
             );
           });
         }
+        if (oldVersion < 11) {
+          await db.execute(
+            'ALTER TABLE $tableMinPaymentConfigs ADD COLUMN effective_day INTEGER NOT NULL DEFAULT 1',
+          );
+        }
       },
       onOpen: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
@@ -234,6 +241,21 @@ Future<void> _createV9Schema(dynamic db) async {
 
 Future<void> _createV10Schema(dynamic db) async {
   await _createV9Schema(db);
+  // min_payment_configs was present since v1 but not included in earlier helper fns.
+  // Added here so migration-from-v10 tests have a realistic starting schema.
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS $tableMinPaymentConfigs (
+      id TEXT PRIMARY KEY,
+      card_id TEXT NOT NULL,
+      amount REAL NOT NULL,
+      year INTEGER NOT NULL,
+      month INTEGER NOT NULL,
+      sync_status TEXT NOT NULL DEFAULT 'synced',
+      updated_at TEXT,
+      created_at TEXT,
+      UNIQUE(card_id, year, month)
+    )
+  ''');
   await db.execute('''
     CREATE TABLE IF NOT EXISTS $tableMirroredDebts (
       id TEXT PRIMARY KEY,
@@ -269,6 +291,16 @@ Future<void> _createV10Schema(dynamic db) async {
   );
   await db.execute(
     'CREATE INDEX IF NOT EXISTS idx_mirrored_pay_debt ON $tableMirroredDebtPayments(mirrored_debt_id)',
+  );
+}
+
+Future<void> _createV11Schema(dynamic db) async {
+  await _createV10Schema(db);
+  // v11 adds effective_day to min_payment_configs — already included in _createV10Schema above
+  // but without the column. We need to alter the table for the "build on top" approach.
+  // Since _createV10Schema creates min_payment_configs without effective_day, we add it here.
+  await db.execute(
+    'ALTER TABLE $tableMinPaymentConfigs ADD COLUMN effective_day INTEGER NOT NULL DEFAULT 1',
   );
 }
 

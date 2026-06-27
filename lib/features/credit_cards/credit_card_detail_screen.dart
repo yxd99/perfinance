@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perfinance/core/providers/hide_values_provider.dart';
 import 'package:perfinance/core/utils/date_format_utils.dart';
+import 'package:perfinance/core/utils/date_utils.dart';
 import 'package:perfinance/core/utils/user_friendly_errors.dart';
 import 'package:perfinance/core/widgets/currency_input.dart';
 import 'package:perfinance/data/models/card_payment.dart';
@@ -176,12 +177,24 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
                       const SizedBox(height: 8),
                       if (isLoading)
                         const SizedBox(height: 16, child: LinearProgressIndicator())
-                      else if (status == null)
-                        const Text('Sin configurar')
-                      else if (status.isUpToDate)
-                        const Text('Estás al día', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold))
-                      else
-                        Text('Pendiente: \$${formatCurrencyDisplay(status.pending, hideValues)}'),
+                      else ...[
+                        // Task 5.4: dual display
+                        if (status != null) ...[
+                          Text(
+                            'Total pagado este mes: \$${formatCurrencyDisplay(status.totalPaidMonth, hideValues)}',
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Abonado al pago mínimo: \$${formatCurrencyDisplay(status.paid, hideValues)} / \$${formatCurrencyDisplay(status.configured, hideValues)}',
+                          ),
+                          const SizedBox(height: 8),
+                          if (status.isUpToDate)
+                            const Text('Estás al día', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold))
+                          else
+                            Text('Pendiente: \$${formatCurrencyDisplay(status.pending, hideValues)}'),
+                        ] else
+                          const Text('Sin configurar'),
+                      ],
                       const SizedBox(height: 12),
                       Row(
                         children: [
@@ -324,44 +337,131 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
     final repo = ref.read(minPaymentConfigRepositoryProvider);
     final existing = await repo.getForCardAndMonth(widget.card.id, now.year, now.month);
     if (!context.mounted) return;
+
+    final isCreateMode = existing == null;
     final c = TextEditingController();
     if (existing != null) {
       c.text = formatCurrency(existing.amount);
     }
+
+    // effectiveDay picker state — defaults to today's day in create mode
+    int selectedDay = existing?.effectiveDay ?? now.day.clamp(1, lastDayOfMonth(now.year, now.month));
+
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(existing != null ? 'Editar pago mínimo' : 'Pago mínimo'),
-        content: CurrencyTextField(
-          controller: c,
-          decoration: const InputDecoration(labelText: 'Monto', border: OutlineInputBorder()),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-          FilledButton(
-            onPressed: () {
-              if (c.text.trim().isNotEmpty) Navigator.pop(ctx, true);
-            },
-            child: const Text('Guardar'),
-          ),
-        ],
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          final showWarning = isCreateMode && selectedDay > 25;
+          return AlertDialog(
+            title: Text(isCreateMode ? 'Pago mínimo' : 'Editar pago mínimo'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CurrencyTextField(
+                    controller: c,
+                    decoration: const InputDecoration(labelText: 'Monto', border: OutlineInputBorder()),
+                  ),
+                  const SizedBox(height: 12),
+                  // Task 5.1: effectiveDay field — editable in create, disabled in edit
+                  Text(
+                    'Día de referencia del mes',
+                    style: Theme.of(ctx).textTheme.labelMedium,
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<int>(
+                          value: selectedDay,
+                          decoration: InputDecoration(
+                            border: const OutlineInputBorder(),
+                            enabled: isCreateMode,
+                          ),
+                          onChanged: isCreateMode
+                              ? (v) {
+                                  if (v != null) {
+                                    setDialogState(() => selectedDay = v);
+                                  }
+                                }
+                              : null,
+                          items: List.generate(
+                            lastDayOfMonth(now.year, now.month),
+                            (i) => DropdownMenuItem(value: i + 1, child: Text('${i + 1}')),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  // Task 5.1: edit mode caption
+                  if (!isCreateMode)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Text(
+                        'Solo podés modificar el monto este mes. La fecha de referencia queda fija en el día ${existing!.effectiveDay}.',
+                        style: Theme.of(ctx).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+                      ),
+                    ),
+                  // Task 5.2: late-date warning
+                  if (showWarning)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        'Configuraste una fecha de referencia tardía — la mayoría de tus pagos de este mes no contarán hacia el mínimo.',
+                        style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                          color: Colors.orange[800],
+                        ),
+                      ),
+                    ),
+                  // Task 5.3: disclaimer
+                  const SizedBox(height: 12),
+                  Text(
+                    'Esta fecha solo afecta cómo la app registra tus pagos. Tu banco cuenta todos los pagos del ciclo.',
+                    style: Theme.of(ctx).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+              FilledButton(
+                onPressed: () {
+                  if (c.text.trim().isNotEmpty) Navigator.pop(ctx, true);
+                },
+                child: const Text('Guardar'),
+              ),
+            ],
+          );
+        },
       ),
     );
     if (ok != true || c.text.trim().isEmpty) return;
     final amount = parseCurrency(c.text);
     if (amount == null || amount < 0) return;
-    final config = MinPaymentConfig(
-      id: existing?.id ?? const Uuid().v4(),
-      cardId: widget.card.id,
-      amount: amount,
-      year: now.year,
-      month: now.month,
-    );
+
     if (existing != null) {
-      await repo.update(config);
+      // Edit mode: update amount only
+      await repo.update(MinPaymentConfig(
+        id: existing.id,
+        cardId: widget.card.id,
+        amount: amount,
+        year: now.year,
+        month: now.month,
+        effectiveDay: existing.effectiveDay,
+      ));
     } else {
-      await repo.insert(config);
+      // Create mode: insert with effectiveDay
+      await repo.insert(MinPaymentConfig(
+        id: const Uuid().v4(),
+        cardId: widget.card.id,
+        amount: amount,
+        year: now.year,
+        month: now.month,
+        effectiveDay: selectedDay,
+      ));
     }
+
     if (mounted) {
       _refreshMinStatus();
       ref.invalidate(dashboardMinPaymentSummaryProvider);
@@ -516,6 +616,27 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
     if (ok != true || amountC.text.trim().isEmpty) return;
     final amount = parseCurrency(amountC.text);
     if (amount == null || amount <= 0) return;
+
+    // Task 5.5: detect boundary cross before saving
+    final now = DateTime.now();
+    final configRepo = ref.read(minPaymentConfigRepositoryProvider);
+    final config = await configRepo.getForCardAndMonth(widget.card.id, now.year, now.month);
+    if (config != null) {
+      final clampedDay = clampEffectiveDay(config.effectiveDay, now.year, now.month);
+      final cutoff = DateTime(now.year, now.month, clampedDay);
+      final oldBeforeCutoff = payment.date.toLocal().isBefore(cutoff);
+      final newBeforeCutoff = selectedDate.isBefore(cutoff);
+      if (oldBeforeCutoff != newBeforeCutoff && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Cambiaste la fecha de este pago — esto afecta el progreso del pago mínimo.',
+            ),
+          ),
+        );
+      }
+    }
+
     final payRepo = ref.read(cardPaymentRepositoryProvider);
     await payRepo.update(CardPayment(
       id: payment.id,

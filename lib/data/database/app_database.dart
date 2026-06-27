@@ -3,7 +3,7 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
 const String _dbName = 'perfinance.db';
-const int _version = 10;
+const int _version = 11;
 
 const String tableCreditCards = 'credit_cards';
 const String tablePaymentMethods = 'payment_methods';
@@ -214,6 +214,11 @@ Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
       );
     });
   }
+  if (oldVersion < 11) {
+    await db.execute(
+      'ALTER TABLE $tableMinPaymentConfigs ADD COLUMN effective_day INTEGER NOT NULL DEFAULT 1',
+    );
+  }
 }
 
 Future<void> _onCreate(Database db, int version) async {
@@ -272,6 +277,7 @@ Future<void> _onCreate(Database db, int version) async {
       amount REAL NOT NULL,
       year INTEGER NOT NULL,
       month INTEGER NOT NULL,
+      effective_day INTEGER NOT NULL DEFAULT 1,
       $columnSyncStatus TEXT NOT NULL DEFAULT 'synced',
       $columnUpdatedAt TEXT,
       created_at TEXT,

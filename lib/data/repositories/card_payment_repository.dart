@@ -9,10 +9,15 @@ final cardPaymentRepositoryProvider = Provider<CardPaymentRepository>((ref) {
 });
 
 class CardPaymentRepository {
-  CardPaymentRepository(this._ref);
-  final Ref _ref;
+  CardPaymentRepository(this._ref, {dynamic dbOverride})
+      : _dbOverride = dbOverride;
+  final Ref? _ref;
+  final dynamic _dbOverride;
 
-  Future<Database> get _db => _ref.read(databaseProvider.future);
+  Future<dynamic> get _db async {
+    if (_dbOverride != null) return _dbOverride;
+    return _ref!.read(databaseProvider.future);
+  }
 
   Future<List<CardPayment>> getByCardId(String cardId) async {
     final db = await _db;
@@ -21,7 +26,7 @@ class CardPaymentRepository {
       where: 'card_id = ? AND sync_status != ?',
       whereArgs: [cardId, 'pending_delete'],
       orderBy: 'date DESC',
-    );
+    ) as List<Map<String, dynamic>>;
     return rows.map(_rowToPayment).toList();
   }
 
@@ -31,7 +36,7 @@ class CardPaymentRepository {
       tableCardPayments,
       where: 'sync_status != ?',
       whereArgs: ['synced'],
-    );
+    ) as List<Map<String, dynamic>>;
     return rows.map(_rowToPayment).toList();
   }
 
@@ -43,7 +48,7 @@ class CardPaymentRepository {
       tableCardPayments,
       where: 'card_id = ? AND date >= ? AND date < ? AND sync_status != ?',
       whereArgs: [cardId, start, end, 'pending_delete'],
-    );
+    ) as List<Map<String, dynamic>>;
     return rows.map(_rowToPayment).toList();
   }
 
@@ -106,7 +111,11 @@ class CardPaymentRepository {
 
   Future<void> upsertFromRemote(CardPayment p) async {
     final db = await _db;
-    final existing = await db.query(tableCardPayments, where: 'id = ?', whereArgs: [p.id]);
+    final existing = await db.query(
+      tableCardPayments,
+      where: 'id = ?',
+      whereArgs: [p.id],
+    ) as List<Map<String, dynamic>>;
     if (existing.isNotEmpty && (existing.first[columnSyncStatus] as String?) != 'synced') {
       return;
     }

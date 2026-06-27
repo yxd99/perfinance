@@ -9,10 +9,15 @@ final minPaymentConfigRepositoryProvider = Provider<MinPaymentConfigRepository>(
 });
 
 class MinPaymentConfigRepository {
-  MinPaymentConfigRepository(this._ref);
-  final Ref _ref;
+  MinPaymentConfigRepository(this._ref, {dynamic dbOverride})
+      : _dbOverride = dbOverride;
+  final Ref? _ref;
+  final dynamic _dbOverride;
 
-  Future<Database> get _db => _ref.read(databaseProvider.future);
+  Future<dynamic> get _db async {
+    if (_dbOverride != null) return _dbOverride;
+    return _ref!.read(databaseProvider.future);
+  }
 
   Future<MinPaymentConfig?> getForCardAndMonth(String cardId, int year, int month) async {
     final db = await _db;
@@ -20,7 +25,7 @@ class MinPaymentConfigRepository {
       tableMinPaymentConfigs,
       where: 'card_id = ? AND year = ? AND month = ?',
       whereArgs: [cardId, year, month],
-    );
+    ) as List<Map<String, dynamic>>;
     if (rows.isEmpty) return null;
     return _rowToConfig(rows.first);
   }
@@ -31,7 +36,7 @@ class MinPaymentConfigRepository {
       tableMinPaymentConfigs,
       where: 'sync_status != ?',
       whereArgs: ['synced'],
-    );
+    ) as List<Map<String, dynamic>>;
     return rows.map(_rowToConfig).toList();
   }
 
@@ -46,11 +51,12 @@ class MinPaymentConfigRepository {
         'amount': c.amount,
         'year': c.year,
         'month': c.month,
+        'effective_day': c.effectiveDay,
         columnSyncStatus: 'pending_insert',
         columnUpdatedAt: now,
         'created_at': now,
       },
-      conflictAlgorithm: ConflictAlgorithm.replace,
+      conflictAlgorithm: ConflictAlgorithm.ignore,
     );
   }
 
@@ -81,7 +87,11 @@ class MinPaymentConfigRepository {
 
   Future<void> upsertFromRemote(MinPaymentConfig c) async {
     final db = await _db;
-    final existing = await db.query(tableMinPaymentConfigs, where: 'id = ?', whereArgs: [c.id]);
+    final existing = await db.query(
+      tableMinPaymentConfigs,
+      where: 'id = ?',
+      whereArgs: [c.id],
+    ) as List<Map<String, dynamic>>;
     if (existing.isNotEmpty && (existing.first[columnSyncStatus] as String?) != 'synced') {
       return;
     }
@@ -94,6 +104,7 @@ class MinPaymentConfigRepository {
         'amount': c.amount,
         'year': c.year,
         'month': c.month,
+        'effective_day': c.effectiveDay,
         columnSyncStatus: 'synced',
         columnUpdatedAt: now,
         'created_at': now,
@@ -109,6 +120,7 @@ class MinPaymentConfigRepository {
       amount: (r['amount'] as num).toDouble(),
       year: r['year'] as int,
       month: r['month'] as int,
+      effectiveDay: r['effective_day'] as int? ?? 1,
       syncStatus: r[columnSyncStatus] as String? ?? 'synced',
       updatedAt: r[columnUpdatedAt] as String?,
       createdAt: r['created_at'] as String?,

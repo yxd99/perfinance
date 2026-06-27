@@ -4,6 +4,7 @@ class MinPaymentConfig {
   final double amount;
   final int year;
   final int month;
+  final int effectiveDay;
   final String syncStatus;
   final String? updatedAt;
   final String? createdAt;
@@ -14,6 +15,7 @@ class MinPaymentConfig {
     required this.amount,
     required this.year,
     required this.month,
+    this.effectiveDay = 1,
     this.syncStatus = 'synced',
     this.updatedAt,
     this.createdAt,
@@ -25,6 +27,7 @@ class MinPaymentConfig {
         'amount': amount,
         'year': year,
         'month': month,
+        'effective_day': effectiveDay,
         'sync_status': syncStatus,
         'updated_at': updatedAt,
         'created_at': createdAt,
@@ -37,6 +40,7 @@ class MinPaymentConfig {
       amount: (json['amount'] as num).toDouble(),
       year: json['year'] as int,
       month: json['month'] as int,
+      effectiveDay: json['effective_day'] as int? ?? 1,
       syncStatus: json['sync_status'] as String? ?? 'synced',
       updatedAt: json['updated_at'] as String?,
       createdAt: json['created_at'] as String?,
