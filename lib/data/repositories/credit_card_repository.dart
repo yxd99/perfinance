@@ -9,16 +9,23 @@ final creditCardRepositoryProvider = Provider<CreditCardRepository>((ref) {
 });
 
 class CreditCardRepository {
-  CreditCardRepository(this._ref);
-  final Ref _ref;
+  CreditCardRepository(this._ref, {dynamic dbOverride}) : _dbOverride = dbOverride;
+  final Ref? _ref;
+  final dynamic _dbOverride;
 
-  Future<Database> get _db => _ref.read(databaseProvider.future);
+  Future<Database> get _db async {
+    if (_dbOverride != null) return _dbOverride as Database;
+    return _ref!.read(databaseProvider.future);
+  }
 
-  Future<List<CreditCard>> getAll(String userId) async {
+  Future<List<CreditCard>> getAll(String userId, {bool includeInactive = false}) async {
     final db = await _db;
+    final where = includeInactive
+        ? 'user_id = ? AND sync_status != ?'
+        : 'user_id = ? AND sync_status != ? AND is_active = 1';
     final rows = await db.query(
       tableCreditCards,
-      where: 'user_id = ? AND sync_status != ?',
+      where: where,
       whereArgs: [userId, 'pending_delete'],
     );
     return rows.map((r) => _rowToCard(r)).toList();
@@ -52,6 +59,7 @@ class CreditCardRepository {
         'alias': card.alias,
         'cut_off_day': card.cutOffDay,
         'management_fee': card.managementFee,
+        'is_active': card.isActive ? 1 : 0,
         columnSyncStatus: 'pending_insert',
         columnUpdatedAt: now,
         'created_at': now,
@@ -73,6 +81,21 @@ class CreditCardRepository {
       },
       where: 'id = ?',
       whereArgs: [card.id],
+    );
+  }
+
+  /// Cambia el estado activo/inactivo de la tarjeta. Único punto de escritura para is_active.
+  Future<void> setActive(String cardId, bool isActive) async {
+    final db = await _db;
+    await db.update(
+      tableCreditCards,
+      {
+        'is_active': isActive ? 1 : 0,
+        columnSyncStatus: 'pending_update',
+        columnUpdatedAt: DateTime.now().toIso8601String(),
+      },
+      where: 'id = ?',
+      whereArgs: [cardId],
     );
   }
 
@@ -125,6 +148,7 @@ class CreditCardRepository {
         'alias': card.alias,
         'cut_off_day': card.cutOffDay,
         'management_fee': card.managementFee,
+        'is_active': card.isActive ? 1 : 0,
         columnSyncStatus: 'synced',
         columnUpdatedAt: now,
         'created_at': now,
@@ -140,6 +164,7 @@ class CreditCardRepository {
       alias: r['alias'] as String,
       cutOffDay: r['cut_off_day'] as int,
       managementFee: (r['management_fee'] as num).toDouble(),
+      isActive: (r['is_active'] as int? ?? 1) == 1,
       syncStatus: r[columnSyncStatus] as String? ?? 'synced',
       updatedAt: r[columnUpdatedAt] as String?,
       createdAt: r['created_at'] as String?,

@@ -28,9 +28,11 @@ class CreditCardsScreen extends ConsumerWidget {
             onAction: () => _openForm(context, ref),
           );
         }
+        final sortedCards = [...cards]
+          ..sort((a, b) => (a.isActive == b.isActive) ? 0 : (a.isActive ? -1 : 1));
         return ListView.builder(
           padding: const EdgeInsets.all(16),
-          itemCount: cards.length + 1,
+          itemCount: sortedCards.length + 1,
           itemBuilder: (context, i) {
             if (i == 0) {
               return Padding(
@@ -42,7 +44,7 @@ class CreditCardsScreen extends ConsumerWidget {
                 ),
               );
             }
-            final card = cards[i - 1];
+            final card = sortedCards[i - 1];
             return _CreditCardTile(
               card: card,
               hideValues: hideValues,
@@ -98,48 +100,78 @@ class _CreditCardTile extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       onLongPress: onLongPress,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        decoration: BoxDecoration(
-          gradient: AppThemeColors.primaryGradient,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: AppThemeColors.primaryGreen.withValues(alpha: 0.3),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    card.alias,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 16,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Corte día ${card.cutOffDay} · Cuota \$${formatCurrencyDisplay(card.managementFee, hideValues)}',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.85),
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
+      child: Opacity(
+        opacity: card.isActive ? 1.0 : 0.6,
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(
+            gradient: AppThemeColors.primaryGradient,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: AppThemeColors.primaryGreen.withValues(alpha: 0.3),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
               ),
-            ),
-            const Icon(Icons.chevron_right, color: Colors.white),
-          ],
+            ],
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          card.alias,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 16,
+                          ),
+                        ),
+                        if (!card.isActive) ...[
+                          const SizedBox(width: 8),
+                          const _InactiveBadge(),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Corte día ${card.cutOffDay} · Cuota \$${formatCurrencyDisplay(card.managementFee, hideValues)}',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.85),
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: Colors.white),
+            ],
+          ),
         ),
+      ),
+    );
+  }
+}
+
+class _InactiveBadge extends StatelessWidget {
+  const _InactiveBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.25),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: const Text(
+        'Inactiva',
+        style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
       ),
     );
   }

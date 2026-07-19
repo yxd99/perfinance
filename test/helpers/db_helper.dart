@@ -11,8 +11,8 @@ Future<dynamic> openTestDatabase({int? fromVersion}) async {
     return databaseFactoryFfi.openDatabase(
       inMemoryDatabasePath,
       options: OpenDatabaseOptions(
-        version: 11,
-        onCreate: (db, v) async => _createV11Schema(db),
+        version: 12,
+        onCreate: (db, v) async => _createV12Schema(db),
         onOpen: (db) async {
           await db.execute('PRAGMA foreign_keys = ON');
         },
@@ -29,7 +29,9 @@ Future<dynamic> openTestDatabase({int? fromVersion}) async {
               ? _createV8Schema
               : fromVersion <= 9
                   ? _createV9Schema
-                  : _createV10Schema;
+                  : fromVersion <= 10
+                      ? _createV10Schema
+                      : _createV11Schema;
   final db = await databaseFactoryFfi.openDatabase(
     inMemoryDatabasePath,
     options: OpenDatabaseOptions(
@@ -41,8 +43,8 @@ Future<dynamic> openTestDatabase({int? fromVersion}) async {
   return databaseFactoryFfi.openDatabase(
     inMemoryDatabasePath,
     options: OpenDatabaseOptions(
-      version: 11,
-      onCreate: (db, v) async => _createV11Schema(db),
+      version: 12,
+      onCreate: (db, v) async => _createV12Schema(db),
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 7) {
           await db.transaction((txn) async {
@@ -158,6 +160,14 @@ Future<dynamic> openTestDatabase({int? fromVersion}) async {
             'ALTER TABLE $tableMinPaymentConfigs ADD COLUMN effective_day INTEGER NOT NULL DEFAULT 1',
           );
         }
+        if (oldVersion < 12) {
+          await db.execute(
+            'ALTER TABLE $tableCreditCards ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1',
+          );
+          await db.execute(
+            "ALTER TABLE $tableAutomaticPayments ADD COLUMN status TEXT NOT NULL DEFAULT 'active'",
+          );
+        }
       },
       onOpen: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
@@ -187,6 +197,48 @@ Future<void> _createV7Schema(dynamic db) async {
       debt_id TEXT NOT NULL REFERENCES $tableDebts(id) ON DELETE CASCADE,
       amount REAL NOT NULL,
       date TEXT NOT NULL,
+      sync_status TEXT NOT NULL DEFAULT 'synced',
+      updated_at TEXT,
+      created_at TEXT
+    )
+  ''');
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS $tableCreditCards (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      alias TEXT NOT NULL,
+      cut_off_day INTEGER NOT NULL,
+      management_fee REAL NOT NULL DEFAULT 0,
+      sync_status TEXT NOT NULL DEFAULT 'synced',
+      updated_at TEXT,
+      created_at TEXT
+    )
+  ''');
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS $tableAutomaticPayments (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      payment_type TEXT NOT NULL,
+      payment_ref TEXT NOT NULL,
+      amount REAL NOT NULL,
+      description TEXT NOT NULL,
+      next_run_date TEXT NOT NULL,
+      payment_day_of_month INTEGER,
+      frequency TEXT,
+      sync_status TEXT NOT NULL DEFAULT 'synced',
+      updated_at TEXT,
+      created_at TEXT
+    )
+  ''');
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS $tableExpenses (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      amount REAL NOT NULL,
+      date TEXT NOT NULL,
+      payment_type TEXT NOT NULL,
+      payment_ref TEXT NOT NULL,
+      description TEXT,
       sync_status TEXT NOT NULL DEFAULT 'synced',
       updated_at TEXT,
       created_at TEXT
@@ -301,6 +353,17 @@ Future<void> _createV11Schema(dynamic db) async {
   // Since _createV10Schema creates min_payment_configs without effective_day, we add it here.
   await db.execute(
     'ALTER TABLE $tableMinPaymentConfigs ADD COLUMN effective_day INTEGER NOT NULL DEFAULT 1',
+  );
+}
+
+Future<void> _createV12Schema(dynamic db) async {
+  await _createV11Schema(db);
+  // v12 adds is_active to credit_cards and status to automatic_payments.
+  await db.execute(
+    'ALTER TABLE $tableCreditCards ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1',
+  );
+  await db.execute(
+    "ALTER TABLE $tableAutomaticPayments ADD COLUMN status TEXT NOT NULL DEFAULT 'active'",
   );
 }
 

@@ -9,10 +9,14 @@ final automaticPaymentRepositoryProvider = Provider<AutomaticPaymentRepository>(
 });
 
 class AutomaticPaymentRepository {
-  AutomaticPaymentRepository(this._ref);
-  final Ref _ref;
+  AutomaticPaymentRepository(this._ref, {dynamic dbOverride}) : _dbOverride = dbOverride;
+  final Ref? _ref;
+  final dynamic _dbOverride;
 
-  Future<Database> get _db => _ref.read(databaseProvider.future);
+  Future<Database> get _db async {
+    if (_dbOverride != null) return _dbOverride as Database;
+    return _ref!.read(databaseProvider.future);
+  }
 
   Future<List<AutomaticPayment>> getAll(String userId) async {
     final db = await _db;
@@ -63,6 +67,7 @@ class AutomaticPaymentRepository {
         'next_run_date': p.nextRunDate.toIso8601String(),
         'payment_day_of_month': p.paymentDayOfMonth,
         'frequency': p.frequency,
+        'status': p.status,
         columnSyncStatus: 'pending_insert',
         columnUpdatedAt: now,
         'created_at': now,
@@ -96,6 +101,7 @@ class AutomaticPaymentRepository {
         'next_run_date': p.nextRunDate.toIso8601String(),
         'payment_day_of_month': p.paymentDayOfMonth,
         'frequency': p.frequency,
+        'status': p.status,
         columnSyncStatus: 'pending_update',
         columnUpdatedAt: DateTime.now().toIso8601String(),
       },
@@ -154,11 +160,28 @@ class AutomaticPaymentRepository {
         'next_run_date': p.nextRunDate.toIso8601String(),
         'payment_day_of_month': p.paymentDayOfMonth,
         'frequency': p.frequency,
+        'status': p.status,
         columnSyncStatus: 'synced',
         columnUpdatedAt: now,
         'created_at': now,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  /// Pausa (status='paused') todos los pagos automáticos activos ligados a la tarjeta [cardId].
+  /// Idempotente: solo afecta filas con status='active'; no reactiva pausados existentes.
+  Future<void> pauseAllForCard(String cardId) async {
+    final db = await _db;
+    await db.update(
+      tableAutomaticPayments,
+      {
+        'status': 'paused',
+        columnSyncStatus: 'pending_update',
+        columnUpdatedAt: DateTime.now().toIso8601String(),
+      },
+      where: 'payment_type = ? AND payment_ref = ? AND status = ?',
+      whereArgs: ['credit_card', cardId, 'active'],
     );
   }
 

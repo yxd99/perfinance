@@ -75,7 +75,7 @@ final dashboardMinPaymentSummaryProvider = FutureProvider.autoDispose<DashboardM
   final cardRepo = ref.read(creditCardRepositoryProvider);
   final configRepo = ref.read(minPaymentConfigRepositoryProvider);
   final paymentRepo = ref.read(cardPaymentRepositoryProvider);
-  final cards = await cardRepo.getAll(user.id);
+  final cards = await cardRepo.getAll(user.id, includeInactive: true);
   double totalPending = 0;
   final pendingByCard = <String, double>{};
   for (final c in cards) {

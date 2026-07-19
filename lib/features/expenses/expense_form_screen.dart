@@ -55,7 +55,7 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final cards = ref.watch(creditCardsListProvider).valueOrNull ?? [];
+    final cards = ref.watch(activeCreditCardsListProvider).valueOrNull ?? [];
     final methods = ref.watch(paymentMethodsListProvider).valueOrNull ?? [];
     return Scaffold(
       appBar: AppBar(title: Text(widget.edit != null ? 'Editar egreso' : 'Nuevo egreso')),
@@ -124,6 +124,7 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
                   );
                   if (id != null && mounted) {
                     ref.invalidate(creditCardsListProvider);
+                    ref.invalidate(activeCreditCardsListProvider);
                     setState(() => _selectedCardId = id);
                   }
                 },

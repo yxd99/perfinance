@@ -51,7 +51,7 @@ final dashboardAutomaticPaymentsSummaryProvider = FutureProvider<AutomaticPaymen
 
   final cardRepo = ref.read(creditCardRepositoryProvider);
   final methodRepo = ref.read(paymentMethodRepositoryProvider);
-  final cards = await cardRepo.getAll(user.id);
+  final cards = await cardRepo.getAll(user.id, includeInactive: true);
   final methods = await methodRepo.getAll(user.id);
 
   final cardAlias = {for (final c in cards) c.id: c.alias};
