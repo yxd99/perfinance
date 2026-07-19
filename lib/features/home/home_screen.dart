@@ -49,7 +49,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     _tabController.addListener(() => setState(() {}));
     WidgetsBinding.instance.addPostFrameCallback((_) {
       startConnectivitySyncListener(
-        () => ref.read(syncServiceProvider).syncNow(),
+        () => ref.read(syncServiceProvider).pushPendingIfOnline(),
       );
       _syncIfStale();
       _processAutomaticPayments();
