@@ -5,7 +5,8 @@ type NotificationEvent =
   | "created"
   | "payment_recorded"
   | "payment_edited"
-  | "payment_deleted";
+  | "payment_deleted"
+  | "reminder";
 
 type Body = {
   event: NotificationEvent;
@@ -20,6 +21,8 @@ type Body = {
   isRegistered?: boolean;
   paymentAmount?: number;
   paymentDate?: string;
+  /** Optional receivable ID — used for ownership verification on reminder events. */
+  receivableId?: string;
 };
 
 const MONTH_NAMES_ES = [
@@ -111,6 +114,12 @@ function eventMeta(
         subject: `Cobro eliminado — PerFinance`,
         title: "Cobro eliminado",
         intro: `Hola <strong>${name}</strong>, se ha eliminado un cobro de tu cuenta${creditorInfo}.`,
+      };
+    case "reminder":
+      return {
+        subject: `Actualización de saldo — PerFinance`,
+        title: "Actualización de saldo",
+        intro: `Hola <strong>${name}</strong>, este es un mensaje automático generado por PerFinance. Se ha enviado porque no se ha registrado ningún movimiento en el último mes.`,
       };
   }
 }
@@ -266,6 +275,23 @@ Deno.serve(async (req: Request) => {
       JSON.stringify({ error: "Invalid or expired session", detail: userError.message }),
       { status: 401, headers: { "Content-Type": "application/json" } },
     );
+  }
+
+  // Ownership verification for reminder events — ensure the authenticated user owns the receivable
+  if (event === "reminder" && body.receivableId) {
+    const { data: ownership, error: ownershipError } = await supabase
+      .from("receivables")
+      .select("id")
+      .eq("id", body.receivableId)
+      .eq("user_id", user?.id ?? "")
+      .single();
+
+    if (ownershipError || !ownership) {
+      return new Response(
+        JSON.stringify({ error: "Not authorized to send reminder for this receivable" }),
+        { status: 403, headers: { "Content-Type": "application/json" } },
+      );
+    }
   }
 
   const resendKey = Deno.env.get("RESEND_API_KEY")?.trim();
