@@ -10,6 +10,7 @@ import 'package:perfinance/data/repositories/receivable_payment_repository.dart'
 import 'package:perfinance/data/repositories/receivable_repository.dart';
 import 'package:perfinance/features/receivables/receivable_form_screen.dart';
 import 'package:perfinance/features/receivables/receivable_notification_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:perfinance/features/receivables/receivables_provider.dart';
 import 'package:perfinance/features/receivables/register_payment_bottom_sheet.dart';
@@ -26,6 +27,7 @@ class ReceivableDetailScreen extends ConsumerStatefulWidget {
 class _ReceivableDetailScreenState extends ConsumerState<ReceivableDetailScreen> {
   late Receivable _receivable;
   late Future<List<ReceivablePayment>> _paymentsFuture;
+  bool _sendingReminder = false;
 
   @override
   void initState() {
@@ -180,6 +182,23 @@ class _ReceivableDetailScreenState extends ConsumerState<ReceivableDetailScreen>
                       onPressed: () => _cancelReceivable(context),
                       child: const Text('Cancelar deuda'),
                     ),
+                    if (_receivable.debtorEmail != null && _receivable.debtorEmail!.trim().isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      FilledButton.tonalIcon(
+                        onPressed: _sendingReminder ? null : _sendReminder,
+                        icon: _sendingReminder
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppThemeColors.neutralGrey,
+                                ),
+                              )
+                            : const Icon(Icons.send_outlined, size: 18),
+                        label: Text(_sendingReminder ? 'Enviando...' : 'Enviar recordatorio'),
+                      ),
+                    ],
                   ],
                 ),
               if (isActive && remaining <= 0)
@@ -250,6 +269,87 @@ class _ReceivableDetailScreenState extends ConsumerState<ReceivableDetailScreen>
     await ref.read(receivableRepositoryProvider).reactivate(_receivable.id);
     await _reload();
     ref.invalidate(receivablesListProvider);
+  }
+
+  Future<void> _sendReminder() async {
+    final email = _receivable.debtorEmail;
+    if (email == null || email.trim().isEmpty) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final lastSentKey = 'reminder_last_${_receivable.id}';
+    final lastSent = prefs.getString(lastSentKey);
+    if (lastSent != null) {
+      final lastSentDate = DateTime.tryParse(lastSent);
+      if (lastSentDate != null && DateTime.now().difference(lastSentDate).inHours < 24) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Podés enviar otro recordatorio en 24 horas.'),
+            backgroundColor: AppThemeColors.neutralGrey,
+          ),
+        );
+        return;
+      }
+    }
+
+    final payRepo = ref.read(receivablePaymentRepositoryProvider);
+    final payments = await payRepo.getByReceivableId(_receivable.id);
+    final remaining = _receivable.totalAmount - payments.fold<double>(0, (s, p) => s + p.amount);
+
+    if (!mounted) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Enviar recordatorio'),
+        content: Text(
+          'Se enviará un email automático a "$email" '
+          'informando el saldo pendiente de \$${formatCurrency(remaining)}.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Enviar'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    setState(() => _sendingReminder = true);
+    try {
+      await ref.read(receivableNotificationServiceProvider).notify(
+            ReceivableNotificationPayload(
+              event: ReceivableNotificationEvent.reminder,
+              recipientEmail: email,
+              debtorName: _receivable.debtorName,
+              totalAmount: _receivable.totalAmount,
+              remainingBalance: remaining,
+              creditorEmail: Supabase.instance.client.auth.currentUser?.email,
+              receivableId: _receivable.id,
+            ),
+          );
+
+      await prefs.setString(lastSentKey, DateTime.now().toIso8601String());
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Recordatorio enviado'),
+          backgroundColor: AppThemeColors.primaryGreen,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al enviar: $e'),
+          backgroundColor: AppThemeColors.errorRed,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _sendingReminder = false);
+    }
   }
 
   Future<void> _cancelReceivable(BuildContext context) async {
