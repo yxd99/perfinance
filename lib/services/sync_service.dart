@@ -94,6 +94,7 @@ class SyncService {
 
   /// Push pending local records to Supabase without pulling remote changes.
   /// Call this after any local write when online.
+  /// Does NOT set isSyncingProvider — background pushes should not show the banner.
   Future<void> pushPendingIfOnline() async {
     if (_isSyncing) return;
     final list = await Connectivity().checkConnectivity();
@@ -102,12 +103,10 @@ class SyncService {
     final userId = await _userId;
     if (userId == null) return;
     _isSyncing = true;
-    _ref.read(isSyncingProvider.notifier).state = true;
     try {
       await _push(userId);
     } finally {
       _isSyncing = false;
-      _ref.read(isSyncingProvider.notifier).state = false;
     }
   }
 
