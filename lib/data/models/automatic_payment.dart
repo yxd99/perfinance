@@ -10,6 +10,7 @@ class AutomaticPayment {
   final DateTime nextRunDate;
   final int paymentDayOfMonth; // 1..31, fuente de verdad del día de pago
   final String frequency; // 'mensual'|'trimestral'|'semestral'|'anual'
+  final String status; // 'active'|'paused'
   final String syncStatus;
   final String? updatedAt;
   final String? createdAt;
@@ -24,6 +25,7 @@ class AutomaticPayment {
     required this.nextRunDate,
     this.paymentDayOfMonth = 1,
     this.frequency = 'mensual',
+    this.status = 'active',
     this.syncStatus = 'synced',
     this.updatedAt,
     this.createdAt,
@@ -42,6 +44,7 @@ class AutomaticPayment {
     DateTime? nextRunDate,
     int? paymentDayOfMonth,
     String? frequency,
+    String? status,
     String? syncStatus,
     String? updatedAt,
     String? createdAt,
@@ -56,6 +59,7 @@ class AutomaticPayment {
       nextRunDate: nextRunDate ?? this.nextRunDate,
       paymentDayOfMonth: paymentDayOfMonth ?? this.paymentDayOfMonth,
       frequency: frequency ?? this.frequency,
+      status: status ?? this.status,
       syncStatus: syncStatus ?? this.syncStatus,
       updatedAt: updatedAt ?? this.updatedAt,
       createdAt: createdAt ?? this.createdAt,
@@ -72,6 +76,7 @@ class AutomaticPayment {
         'next_run_date': nextRunDate.toIso8601String(),
         'payment_day_of_month': paymentDayOfMonth,
         'frequency': frequency,
+        'status': status,
         'sync_status': syncStatus,
         'updated_at': updatedAt,
         'created_at': createdAt,
@@ -89,6 +94,7 @@ class AutomaticPayment {
       nextRunDate: nextRunDate,
       paymentDayOfMonth: json['payment_day_of_month'] as int? ?? nextRunDate.day,
       frequency: json['frequency'] as String? ?? 'mensual',
+      status: json['status'] as String? ?? 'active',
       syncStatus: json['sync_status'] as String? ?? 'synced',
       updatedAt: json['updated_at'] as String?,
       createdAt: json['created_at'] as String?,
@@ -108,6 +114,7 @@ class AutomaticPayment {
       nextRunDate: nextRunDate,
       paymentDayOfMonth: map['payment_day_of_month'] as int? ?? nextRunDate.day,
       frequency: _validFrequencies.contains(rawFreq) ? rawFreq : 'mensual',
+      status: map['status'] as String? ?? 'active',
       syncStatus: map['sync_status'] as String? ?? 'synced',
       updatedAt: map['updated_at'] as String?,
       createdAt: map['created_at'] as String?,

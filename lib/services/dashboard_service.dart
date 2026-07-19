@@ -74,7 +74,7 @@ class DashboardService {
         : null;
     double total = 0;
     final breakdownItems = <DebtBreakdownItem>[];
-    final cards = await cardRepo.getAll(userId);
+    final cards = await cardRepo.getAll(userId, includeInactive: true);
     final allExpenses = await expenseRepo.getAll(userId);
     final filteredExpenses = cutoff != null
         ? allExpenses.where((e) => e.date.isBefore(cutoff)).toList()
@@ -131,7 +131,7 @@ class DashboardService {
             ? DateTime(asOfEndOfMonth.year + 1, 1, 1)
             : DateTime(asOfEndOfMonth.year, asOfEndOfMonth.month + 1, 1))
         : null;
-    final cards = await cardRepo.getAll(userId);
+    final cards = await cardRepo.getAll(userId, includeInactive: true);
     if (cards.isNotEmpty) return true;
     var debts = (await debtRepo.getAll(userId))
         .where((d) => d.status == DebtStatus.active)
@@ -146,7 +146,7 @@ class DashboardService {
     String userId, {
     DateTime? forMonth,
   }) async {
-    final cards = await cardRepo.getAll(userId);
+    final cards = await cardRepo.getAll(userId, includeInactive: true);
     var expenses = await expenseRepo.getAll(userId);
     if (forMonth != null) {
       final start = DateTime(forMonth.year, forMonth.month, 1);
@@ -158,7 +158,10 @@ class DashboardService {
       if (e.paymentType != 'credit_card') continue;
       byCard.putIfAbsent(e.paymentRef, () => []).add(e);
     }
-    return cards.map((c) {
+    return cards.where((c) {
+      final list = byCard[c.id] ?? [];
+      return c.isActive || list.isNotEmpty;
+    }).map((c) {
       final list = byCard[c.id] ?? [];
       return CardUsage(
         cardId: c.id,
@@ -175,7 +178,7 @@ class DashboardService {
     String userId, {
     DateTime? forMonth,
   }) async {
-    final cards = await cardRepo.getAll(userId);
+    final cards = await cardRepo.getAll(userId, includeInactive: true);
     final expenses = await expenseRepo.getAll(userId);
     final ref = forMonth ?? DateTime.now();
     final thisMonthStart = DateTime(ref.year, ref.month, 1);
@@ -201,6 +204,9 @@ class DashboardService {
         isIncrease: isIncrease,
         percentChange: percentChange,
       );
+    }).where((c) {
+      final card = cards.firstWhere((x) => x.id == c.cardId);
+      return card.isActive || c.thisMonth > 0 || c.lastMonth > 0;
     }).toList();
   }
 }

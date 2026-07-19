@@ -9,10 +9,14 @@ final expenseRepositoryProvider = Provider<ExpenseRepository>((ref) {
 });
 
 class ExpenseRepository {
-  ExpenseRepository(this._ref);
-  final Ref _ref;
+  ExpenseRepository(this._ref, {dynamic dbOverride}) : _dbOverride = dbOverride;
+  final Ref? _ref;
+  final dynamic _dbOverride;
 
-  Future<Database> get _db => _ref.read(databaseProvider.future);
+  Future<Database> get _db async {
+    if (_dbOverride != null) return _dbOverride as Database;
+    return _ref!.read(databaseProvider.future);
+  }
 
   Future<List<Expense>> getAll(String userId) async {
     final db = await _db;

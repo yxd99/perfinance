@@ -331,6 +331,7 @@ class SyncService {
         alias: map['alias'] as String,
         cutOffDay: map['cut_off_day'] as int,
         managementFee: (map['management_fee'] as num).toDouble(),
+        isActive: (map['is_active'] as bool?) ?? true,
         syncStatus: 'synced',
         updatedAt: map['updated_at']?.toString(),
         createdAt: map['created_at']?.toString(),
@@ -376,7 +377,7 @@ class SyncService {
     // Re-encolar gastos locales synced que no existen en Supabase (ghost expenses).
     await expRepo.requeueOrphansAsPendingInsert(remoteExpenseIds, userId);
 
-    final cardIds = (await ccRepo.getAll(userId)).map((c) => c.id).toList();
+    final cardIds = (await ccRepo.getAll(userId, includeInactive: true)).map((c) => c.id).toList();
     for (final cardId in cardIds) {
       final payRes = await _supabase.from('card_payments').select().eq('card_id', cardId);
       for (final row in payRes as List) {
@@ -505,6 +506,7 @@ class SyncService {
         // Fallback null-safe: columnas remotas pueden no existir aún en Supabase
         paymentDayOfMonth: map['payment_day_of_month'] as int? ?? nextDate.day,
         frequency: map['frequency'] as String? ?? 'mensual',
+        status: map['status'] as String? ?? 'active',
         syncStatus: 'synced',
         updatedAt: map['updated_at']?.toString(),
         createdAt: map['created_at']?.toString(),

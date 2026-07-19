@@ -4,6 +4,7 @@ class CreditCard {
   final String alias;
   final int cutOffDay;
   final double managementFee;
+  final bool isActive;
   final String syncStatus;
   final String? updatedAt;
   final String? createdAt;
@@ -14,6 +15,7 @@ class CreditCard {
     required this.alias,
     required this.cutOffDay,
     required this.managementFee,
+    this.isActive = true,
     this.syncStatus = 'synced',
     this.updatedAt,
     this.createdAt,
@@ -25,6 +27,7 @@ class CreditCard {
         'alias': alias,
         'cut_off_day': cutOffDay,
         'management_fee': managementFee,
+        'is_active': isActive,
         'sync_status': syncStatus,
         'updated_at': updatedAt,
         'created_at': createdAt,
@@ -37,10 +40,18 @@ class CreditCard {
       alias: json['alias'] as String,
       cutOffDay: json['cut_off_day'] as int,
       managementFee: (json['management_fee'] as num).toDouble(),
+      isActive: _parseIsActive(json['is_active']),
       syncStatus: json['sync_status'] as String? ?? 'synced',
       updatedAt: json['updated_at'] as String?,
       createdAt: json['created_at'] as String?,
     );
+  }
+
+  static bool _parseIsActive(dynamic raw) {
+    if (raw == null) return true;
+    if (raw is bool) return raw;
+    if (raw is int) return raw == 1;
+    return true;
   }
 
   CreditCard copyWith({
@@ -49,6 +60,7 @@ class CreditCard {
     String? alias,
     int? cutOffDay,
     double? managementFee,
+    bool? isActive,
     String? syncStatus,
     String? updatedAt,
     String? createdAt,
@@ -59,6 +71,7 @@ class CreditCard {
       alias: alias ?? this.alias,
       cutOffDay: cutOffDay ?? this.cutOffDay,
       managementFee: managementFee ?? this.managementFee,
+      isActive: isActive ?? this.isActive,
       syncStatus: syncStatus ?? this.syncStatus,
       updatedAt: updatedAt ?? this.updatedAt,
       createdAt: createdAt ?? this.createdAt,

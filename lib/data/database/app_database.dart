@@ -3,7 +3,7 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
 const String _dbName = 'perfinance.db';
-const int _version = 11;
+const int _version = 12;
 
 const String tableCreditCards = 'credit_cards';
 const String tablePaymentMethods = 'payment_methods';
@@ -219,6 +219,14 @@ Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
       'ALTER TABLE $tableMinPaymentConfigs ADD COLUMN effective_day INTEGER NOT NULL DEFAULT 1',
     );
   }
+  if (oldVersion < 12) {
+    await db.execute(
+      'ALTER TABLE $tableCreditCards ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1',
+    );
+    await db.execute(
+      "ALTER TABLE $tableAutomaticPayments ADD COLUMN status TEXT NOT NULL DEFAULT 'active'",
+    );
+  }
 }
 
 Future<void> _onCreate(Database db, int version) async {
@@ -229,6 +237,7 @@ Future<void> _onCreate(Database db, int version) async {
       alias TEXT NOT NULL,
       cut_off_day INTEGER NOT NULL,
       management_fee REAL NOT NULL DEFAULT 0,
+      is_active INTEGER NOT NULL DEFAULT 1,
       $columnSyncStatus TEXT NOT NULL DEFAULT 'synced',
       $columnUpdatedAt TEXT,
       created_at TEXT
@@ -320,6 +329,7 @@ Future<void> _onCreate(Database db, int version) async {
       next_run_date TEXT NOT NULL,
       payment_day_of_month INTEGER,
       frequency TEXT,
+      status TEXT NOT NULL DEFAULT 'active',
       $columnSyncStatus TEXT NOT NULL DEFAULT 'synced',
       $columnUpdatedAt TEXT,
       created_at TEXT

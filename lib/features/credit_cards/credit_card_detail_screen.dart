@@ -9,7 +9,9 @@ import 'package:perfinance/data/models/card_payment.dart';
 import 'package:perfinance/data/models/credit_card.dart';
 import 'package:perfinance/data/models/expense.dart';
 import 'package:perfinance/data/models/min_payment_config.dart';
+import 'package:perfinance/data/repositories/automatic_payment_repository.dart';
 import 'package:perfinance/data/repositories/card_payment_repository.dart';
+import 'package:perfinance/data/repositories/credit_card_repository.dart';
 import 'package:perfinance/data/repositories/expense_repository.dart';
 import 'package:perfinance/data/repositories/min_payment_config_repository.dart';
 import 'package:perfinance/features/auth/auth_provider.dart';
@@ -20,6 +22,7 @@ import 'package:perfinance/features/credit_cards/credit_card_payments_provider.d
 import 'package:perfinance/features/dashboard/dashboard_provider.dart';
 import 'package:perfinance/features/expenses/expenses_provider.dart';
 import 'package:perfinance/services/card_debt_reconciliation_service.dart';
+import 'package:perfinance/services/credit_card_lifecycle_service.dart';
 import 'package:perfinance/services/min_payment_service.dart';
 import 'package:perfinance/services/sync_service.dart';
 import 'package:uuid/uuid.dart';
@@ -116,13 +119,63 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
     );
   }
 
+  Future<void> _toggleActive(BuildContext context, bool newValue) async {
+    final isDeactivating = !newValue;
+    if (isDeactivating) {
+      final debt = await _getCurrentDebt();
+      if (!context.mounted) return;
+      if (debt > 0) {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Desactivar tarjeta'),
+            content: Text(
+              'Esta tarjeta tiene una deuda de \$${formatCurrency(debt)}. '
+              'Podés seguir viéndola y pagándola, pero no podrás usarla para nuevos egresos. ¿Confirmás?',
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Confirmar')),
+            ],
+          ),
+        );
+        if (confirmed != true) return;
+      }
+    }
+    final cardRepo = ref.read(creditCardRepositoryProvider);
+    final autoPayRepo = ref.read(automaticPaymentRepositoryProvider);
+    await CreditCardLifecycleService.setActive(cardRepo, autoPayRepo, widget.card.id, newValue);
+    if (!mounted) return;
+    ref.invalidate(creditCardsListProvider);
+    ref.invalidate(activeCreditCardsListProvider);
+    ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
+    if (newValue) {
+      ScaffoldMessenger.of(this.context).showSnackBar(
+        const SnackBar(content: Text('Tarjeta reactivada')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final hideValues = ref.watch(hideValuesProvider).value ?? false;
     final asyncPayments = ref.watch(filteredCardPaymentsByCardProvider(widget.card.id));
     final selectedPaymentFilter = ref.watch(selectedCardPaymentDateFilterProvider(widget.card.id));
     return Scaffold(
-      appBar: AppBar(title: Text(widget.card.alias)),
+      appBar: AppBar(
+        title: Text(widget.card.alias),
+        actions: [
+          Row(
+            children: [
+              Text(widget.card.isActive ? 'Activa' : 'Inactiva'),
+              Switch(
+                value: widget.card.isActive,
+                onChanged: (v) => _toggleActive(context, v),
+              ),
+            ],
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [

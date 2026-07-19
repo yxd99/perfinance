@@ -23,7 +23,7 @@ class ExpensePaymentDisplay {
 final expensePaymentDisplayProvider = FutureProvider<ExpensePaymentDisplay>((ref) async {
   final user = await ref.watch(authStateProvider.future);
   if (user == null) return const ExpensePaymentDisplay(cardAliases: {}, methodNames: {});
-  final cards = await ref.read(creditCardRepositoryProvider).getAll(user.id);
+  final cards = await ref.read(creditCardRepositoryProvider).getAll(user.id, includeInactive: true);
   final methods = await ref.read(paymentMethodRepositoryProvider).getAll(user.id);
   return ExpensePaymentDisplay(
     cardAliases: {for (final c in cards) c.id: c.alias},
