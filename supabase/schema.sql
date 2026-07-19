@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS min_payment_configs (
   amount NUMERIC(15,2) NOT NULL,
   year INTEGER NOT NULL,
   month INTEGER NOT NULL CHECK (month >= 1 AND month <= 12),
+  effective_day INTEGER NOT NULL DEFAULT 1,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now(),
   UNIQUE(card_id, year, month)

@@ -6,6 +6,7 @@ import 'package:perfinance/data/repositories/debt_repository.dart';
 import 'package:perfinance/data/repositories/expense_repository.dart';
 import 'package:perfinance/data/repositories/min_payment_config_repository.dart';
 import 'package:perfinance/features/auth/auth_provider.dart';
+import 'package:perfinance/core/utils/date_utils.dart';
 import 'package:perfinance/services/dashboard_service.dart';
 
 /// Mes seleccionado para consultar en el dashboard (solo año y mes se usan).
@@ -82,7 +83,11 @@ final dashboardMinPaymentSummaryProvider = FutureProvider.autoDispose<DashboardM
     final config = await configRepo.getForCardAndMonth(c.id, month.year, month.month);
     if (config == null) continue;
     final payments = await paymentRepo.getByCardIdInMonth(c.id, month.year, month.month);
-    final paid = payments.fold<double>(0, (s, p) => s + p.amount);
+    final clampedDay = clampEffectiveDay(config.effectiveDay, month.year, month.month);
+    final cutoff = DateTime(month.year, month.month, clampedDay);
+    final paid = payments
+        .where((p) => !p.date.isBefore(cutoff))
+        .fold<double>(0, (s, p) => s + p.amount);
     final pending = (config.amount - paid).clamp(0.0, double.infinity);
     if (pending > 0) {
       totalPending += pending;

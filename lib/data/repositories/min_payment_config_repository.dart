@@ -56,7 +56,7 @@ class MinPaymentConfigRepository {
         columnUpdatedAt: now,
         'created_at': now,
       },
-      conflictAlgorithm: ConflictAlgorithm.ignore,
+      conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
 
@@ -67,6 +67,7 @@ class MinPaymentConfigRepository {
       tableMinPaymentConfigs,
       {
         'amount': c.amount,
+        'effective_day': c.effectiveDay,
         columnSyncStatus: 'pending_update',
         columnUpdatedAt: now,
       },
