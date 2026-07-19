@@ -405,6 +405,7 @@ class SyncService {
           amount: (map['amount'] as num).toDouble(),
           year: map['year'] as int,
           month: map['month'] as int,
+          effectiveDay: map['effective_day'] as int? ?? 1,
           syncStatus: 'synced',
           updatedAt: map['updated_at']?.toString(),
           createdAt: map['created_at']?.toString(),
