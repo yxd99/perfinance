@@ -11,8 +11,12 @@ App móvil (iOS y Android) de finanzas personales con modelo **offline-first** y
 
 1. **Crear proyecto en Supabase** y obtener URL y anon key en Settings > API.
 
-2. **Ejecutar el esquema SQL** en el SQL Editor del dashboard de Supabase:
-   - Contenido de `supabase/schema.sql` (tablas, triggers, RLS).
+2. **Aplicar las migraciones** de `supabase/migrations/` con el CLI de Supabase:
+   ```bash
+   supabase link --project-ref <tu-project-ref>
+   supabase db push
+   ```
+   Todo cambio de esquema va como un archivo nuevo `NNN_descripcion.sql` en esa carpeta y se aplica con `supabase db push`, nunca a mano desde el dashboard. El test `test/data/schema_contract_test.dart` falla si un modelo envía una columna que ninguna migración crea.
 
 3. **Auth sin correo de verificación (recomendado para esta app):**
    - En el dashboard de Supabase: **Authentication → Providers → Email**.
@@ -55,4 +59,4 @@ Para Android: `flutter run -d android`
 - `lib/data/` — modelos, SQLite y repositorios (con `sync_status`).
 - `lib/features/` — auth, tarjetas, ahorros, egresos, dashboard.
 - `lib/services/` — SyncService, MinPaymentService, DashboardService, conectividad.
-- `supabase/schema.sql` — esquema y RLS para ejecutar en Supabase.
+- `supabase/migrations/` — esquema, triggers y RLS de Supabase, en orden.
