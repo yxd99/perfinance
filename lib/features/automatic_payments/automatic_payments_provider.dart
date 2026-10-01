@@ -4,6 +4,7 @@ import 'package:perfinance/data/repositories/automatic_payment_repository.dart';
 import 'package:perfinance/data/repositories/credit_card_repository.dart';
 import 'package:perfinance/data/repositories/payment_method_repository.dart';
 import 'package:perfinance/features/auth/auth_provider.dart';
+import 'package:perfinance/services/process_automatic_payments_service.dart';
 
 final automaticPaymentsListProvider = FutureProvider<List<AutomaticPayment>>((ref) async {
   final user = await ref.watch(authStateProvider.future);
@@ -33,17 +34,51 @@ class AutomaticPaymentByAccount {
   final String paymentType; // 'credit_card' | 'payment_method'
 }
 
+/// Pagos activos cuya next_run_date ya pasó y el cron todavía no los procesó
+/// (fallo de sync/proceso). No se mezclan con el resumen del mes: son un
+/// dato desactualizado que hay que alertar aparte, no ocultar.
+final overdueAutomaticPaymentsProvider = FutureProvider<List<AutomaticPayment>>((ref) async {
+  final list = await ref.watch(automaticPaymentsListProvider.future);
+  final today = DateTime.now();
+  final startOfToday = DateTime(today.year, today.month, today.day);
+  return list
+      .where((p) => p.status != 'paused')
+      .where((p) => p.nextRunDate.isBefore(startOfToday))
+      .toList();
+});
+
+/// Un pago pertenece al mes de [month] si su próxima ejecución cae en ese mes
+/// (aún no cobrado) o si la ejecución anterior cayó en ese mes (ya cobrado y
+/// next_run_date ya avanzó al siguiente ciclo).
+bool _belongsToMonth(AutomaticPayment p, DateTime month) {
+  bool sameMonth(DateTime d) => d.year == month.year && d.month == month.month;
+  if (sameMonth(p.nextRunDate)) return true;
+  final previousRun = previousRunDateFor(
+    frequency: p.frequency,
+    dayOfMonth: p.paymentDayOfMonth,
+    nextRunDate: p.nextRunDate,
+  );
+  return sameMonth(previousRun);
+}
+
 final dashboardAutomaticPaymentsSummaryProvider = FutureProvider<AutomaticPaymentsSummary>((ref) async {
   final user = await ref.watch(authStateProvider.future);
   if (user == null) return const AutomaticPaymentsSummary(totalPerMonth: 0, byAccount: []);
   final list = await ref.watch(automaticPaymentsListProvider.future);
   if (list.isEmpty) return const AutomaticPaymentsSummary(totalPerMonth: 0, byAccount: []);
 
-  final totalPerMonth = list.fold<double>(0, (s, p) => s + p.amount);
+  final now = DateTime.now();
+  final dueThisMonth = list
+      .where((p) => p.status != 'paused')
+      .where((p) => _belongsToMonth(p, now))
+      .toList();
+  if (dueThisMonth.isEmpty) return const AutomaticPaymentsSummary(totalPerMonth: 0, byAccount: []);
+
+  final totalPerMonth = dueThisMonth.fold<double>(0, (s, p) => s + p.amount);
 
   final byRef = <String, double>{};
   final typeByRef = <String, String>{};
-  for (final p in list) {
+  for (final p in dueThisMonth) {
     final key = p.paymentRef;
     byRef[key] = (byRef[key] ?? 0) + p.amount;
     typeByRef[key] = p.paymentType;

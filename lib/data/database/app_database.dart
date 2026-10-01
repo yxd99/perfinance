@@ -3,7 +3,7 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
 const String _dbName = 'perfinance.db';
-const int _version = 12;
+const int _version = 13;
 
 const String tableCreditCards = 'credit_cards';
 const String tablePaymentMethods = 'payment_methods';
@@ -227,6 +227,11 @@ Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
       "ALTER TABLE $tableAutomaticPayments ADD COLUMN status TEXT NOT NULL DEFAULT 'active'",
     );
   }
+  if (oldVersion < 13) {
+    await db.execute(
+      'CREATE INDEX idx_automatic_payments_user_next ON $tableAutomaticPayments(user_id, next_run_date)',
+    );
+  }
 }
 
 Future<void> _onCreate(Database db, int version) async {
@@ -335,6 +340,9 @@ Future<void> _onCreate(Database db, int version) async {
       created_at TEXT
     )
   ''');
+  await db.execute(
+    'CREATE INDEX idx_automatic_payments_user_next ON $tableAutomaticPayments(user_id, next_run_date)',
+  );
   await db.execute('''
     CREATE TABLE $tableReceivables (
       id TEXT PRIMARY KEY,

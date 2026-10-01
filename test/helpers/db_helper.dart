@@ -244,6 +244,17 @@ Future<void> _createV7Schema(dynamic db) async {
       created_at TEXT
     )
   ''');
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS $tablePaymentMethods (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'other',
+      sync_status TEXT NOT NULL DEFAULT 'synced',
+      updated_at TEXT,
+      created_at TEXT
+    )
+  ''');
 }
 
 Future<void> _createV8Schema(dynamic db) async {

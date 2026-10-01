@@ -107,6 +107,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           ],
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.psychology_outlined),
+            tooltip: 'Asesor financiero',
+            onPressed: () => context.push('/chat'),
+          ),
           ref
               .watch(hideValuesProvider)
               .when(

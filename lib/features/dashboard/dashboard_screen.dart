@@ -9,6 +9,7 @@ import 'package:perfinance/features/dashboard/dashboard_account_automatic_paymen
 import 'package:perfinance/features/dashboard/dashboard_account_expenses_screen.dart';
 import 'package:perfinance/features/dashboard/dashboard_provider.dart';
 import 'package:perfinance/features/automatic_payments/automatic_payments_provider.dart';
+import 'package:perfinance/features/automatic_payments/automatic_payments_screen.dart';
 import 'package:perfinance/services/dashboard_service.dart';
 
 class DashboardScreen extends ConsumerWidget {
@@ -29,6 +30,7 @@ class DashboardScreen extends ConsumerWidget {
         ref.invalidate(dashboardDebtProvider);
         ref.invalidate(hasActiveDebtSourcesProvider);
         ref.invalidate(dashboardAutomaticPaymentsSummaryProvider);
+        ref.invalidate(overdueAutomaticPaymentsProvider);
         ref.invalidate(dashboardUsageProvider);
           ref.invalidate(dashboardComparisonProvider);
         ref.invalidate(dashboardMinPaymentSummaryProvider);
@@ -97,6 +99,45 @@ class DashboardScreen extends ConsumerWidget {
           ),
           ref.watch(hasActiveDebtSourcesProvider).when(
             data: (hasActive) => hasActive ? const SizedBox(height: 12) : const SizedBox.shrink(),
+            loading: () => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox.shrink(),
+          ),
+          ref.watch(overdueAutomaticPaymentsProvider).when(
+            data: (overdue) {
+              if (overdue.isEmpty) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Material(
+                  color: Colors.amber.withValues(alpha: isDark ? 0.18 : 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const AutomaticPaymentsScreen()),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.warning_amber_rounded, color: Colors.amber),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              overdue.length == 1
+                                  ? 'Tenés 1 pago automático atrasado sin procesar'
+                                  : 'Tenés ${overdue.length} pagos automáticos atrasados sin procesar',
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                          const Icon(Icons.chevron_right_rounded),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
             loading: () => const SizedBox.shrink(),
             error: (_, __) => const SizedBox.shrink(),
           ),
