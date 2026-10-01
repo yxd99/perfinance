@@ -8,6 +8,7 @@ import 'package:perfinance/features/auth/register_screen.dart';
 import 'package:perfinance/features/chat/chat_screen.dart';
 import 'package:perfinance/features/expenses/expense_form_screen.dart';
 import 'package:perfinance/features/onboarding/home_or_onboarding_wrapper.dart';
+import 'package:perfinance/features/wallet_shortcut/wallet_shortcut_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -29,6 +30,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/register', builder: (_, __) => const RegisterScreen()),
       GoRoute(path: '/', builder: (_, __) => const HomeOrOnboardingWrapper()),
       GoRoute(path: '/chat', builder: (_, __) => const ChatScreen()),
+      GoRoute(path: '/wallet-shortcut', builder: (_, __) => const WalletShortcutScreen()),
       GoRoute(path: '/debug', builder: (_, __) => const DeepLinkDebugScreen()),
       GoRoute(
         path: '/log-expense',

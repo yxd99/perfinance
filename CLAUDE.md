@@ -11,6 +11,7 @@ App móvil (Flutter, iOS y Android) de finanzas personales, uso personal del aut
 - **Me deben** (`receivables`): estado `active | settled | written_off | hidden`. Si el deudor está registrado, se le crea una deuda espejo de solo lectura (`mirrored_debts`).
 - **Pagos automáticos**: generan egresos recurrentes; estado `active | paused`.
 - **Dashboard** y **chat con asesor financiero** (edge function `financial-advisor`).
+- **Apple Wallet**: un atajo de iOS llama a la edge function `log-wallet-expense` al pagar y crea el egreso en Supabase (`[Wallet]: comercio`) sin abrir la app; llega al teléfono por el pull. Se autentica con un token personal (`shortcut_tokens`), no con la sesión. La tarjeta de Wallet se resuelve por asignación guardada (`wallet_cards`, solo en la nube) y, si no hay, por parecido de nombre. Es la única escritura que no pasa por SQLite local.
 
 ## Arquitectura: offline-first
 
