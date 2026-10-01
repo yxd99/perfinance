@@ -1,174 +1,48 @@
+import 'dart:io';
+
 import 'package:perfinance/data/database/app_database.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
-/// Opens an in-memory SQLite database using the app's schema (onCreate + onUpgrade).
+/// Opens an in-memory SQLite database using the app's REAL schema
+/// (createAppSchema / upgradeAppSchema), so tests cannot drift from production.
 /// [fromVersion] simulates an existing DB at that version (migration path test).
 Future<dynamic> openTestDatabase({int? fromVersion}) async {
   sqfliteFfiInit();
   databaseFactoryFfi.setDatabasesPath('/tmp');
 
-  if (fromVersion == null) {
-    return databaseFactoryFfi.openDatabase(
-      inMemoryDatabasePath,
+  var path = inMemoryDatabasePath;
+  if (fromVersion != null) {
+    // Migration path: create the historic schema, then upgrade to current.
+    // Needs a real file: an in-memory database is discarded when closed.
+    final dir = await Directory.systemTemp.createTemp('perfinance_migration');
+    path = '${dir.path}/test.db';
+    final createFn = fromVersion <= 5
+        ? _createV5Schema
+        : fromVersion <= 7
+            ? _createV7Schema
+            : fromVersion <= 8
+                ? _createV8Schema
+                : fromVersion <= 9
+                    ? _createV9Schema
+                    : fromVersion <= 10
+                        ? _createV10Schema
+                        : _createV11Schema;
+    final db = await databaseFactoryFfi.openDatabase(
+      path,
       options: OpenDatabaseOptions(
-        version: 12,
-        onCreate: (db, v) async => _createV12Schema(db),
-        onOpen: (db) async {
-          await db.execute('PRAGMA foreign_keys = ON');
-        },
+        version: fromVersion,
+        onCreate: (db, v) async => createFn(db),
       ),
     );
+    await db.close();
   }
 
-  // Migration path: open at fromVersion, then upgrade to current.
-  final createFn = fromVersion <= 5
-      ? _createV5Schema
-      : fromVersion <= 7
-          ? _createV7Schema
-          : fromVersion <= 8
-              ? _createV8Schema
-              : fromVersion <= 9
-                  ? _createV9Schema
-                  : fromVersion <= 10
-                      ? _createV10Schema
-                      : _createV11Schema;
-  final db = await databaseFactoryFfi.openDatabase(
-    inMemoryDatabasePath,
-    options: OpenDatabaseOptions(
-      version: fromVersion,
-      onCreate: (db, v) async => createFn(db),
-    ),
-  );
-  await db.close();
   return databaseFactoryFfi.openDatabase(
-    inMemoryDatabasePath,
+    path,
     options: OpenDatabaseOptions(
-      version: 12,
-      onCreate: (db, v) async => _createV12Schema(db),
-      onUpgrade: (db, oldVersion, newVersion) async {
-        if (oldVersion < 7) {
-          await db.transaction((txn) async {
-            await txn.execute(
-              "ALTER TABLE $tableDebts ADD COLUMN status TEXT NOT NULL DEFAULT 'active'",
-            );
-            await txn.execute('''
-              UPDATE $tableDebts
-              SET status = 'paid'
-              WHERE id IN (
-                SELECT dp.debt_id
-                FROM $tableDebtPayments dp
-                GROUP BY dp.debt_id
-                HAVING SUM(dp.amount) >= (
-                  SELECT d2.total_amount FROM $tableDebts d2 WHERE d2.id = dp.debt_id
-                )
-              )
-            ''');
-          });
-        }
-        if (oldVersion < 8) {
-          await db.transaction((txn) async {
-            await txn.execute('''
-              CREATE TABLE $tableReceivables (
-                id TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL,
-                debtor_name TEXT NOT NULL,
-                debtor_email TEXT,
-                total_amount REAL NOT NULL,
-                description TEXT,
-                due_date TEXT,
-                status TEXT NOT NULL DEFAULT 'active',
-                sync_status TEXT NOT NULL DEFAULT 'synced',
-                updated_at TEXT,
-                created_at TEXT
-              )
-            ''');
-            await txn.execute('''
-              CREATE TABLE $tableReceivablePayments (
-                id TEXT PRIMARY KEY,
-                receivable_id TEXT NOT NULL REFERENCES $tableReceivables(id) ON DELETE CASCADE,
-                amount REAL NOT NULL,
-                date TEXT NOT NULL,
-                note TEXT,
-                sync_status TEXT NOT NULL DEFAULT 'synced',
-                updated_at TEXT,
-                created_at TEXT
-              )
-            ''');
-            await txn.execute(
-              'CREATE INDEX idx_receivables_user ON $tableReceivables(user_id)',
-            );
-            await txn.execute(
-              'CREATE INDEX idx_recv_payments_recv ON $tableReceivablePayments(receivable_id)',
-            );
-            await txn.execute(
-              'CREATE INDEX idx_recv_payments_sync ON $tableReceivablePayments(sync_status)',
-            );
-          });
-        }
-        if (oldVersion < 9) {
-          final cols = await db.rawQuery(
-            'PRAGMA table_info($tableReceivablePayments)',
-          ) as List<Map<String, dynamic>>;
-          if (!cols.any((c) => c['name'] == 'note')) {
-            await db.execute(
-              'ALTER TABLE $tableReceivablePayments ADD COLUMN note TEXT',
-            );
-          }
-        }
-        if (oldVersion < 10) {
-          await db.transaction((txn) async {
-            await txn.execute('''
-              CREATE TABLE $tableMirroredDebts (
-                id TEXT PRIMARY KEY,
-                receivable_id TEXT NOT NULL,
-                debtor_user_id TEXT NOT NULL,
-                creditor_user_id TEXT NOT NULL,
-                creditor_email TEXT NOT NULL,
-                debtor_name TEXT,
-                total_amount REAL NOT NULL,
-                description TEXT,
-                due_date TEXT,
-                status TEXT NOT NULL DEFAULT 'active',
-                revoked_at TEXT,
-                sync_status TEXT NOT NULL DEFAULT 'synced',
-                updated_at TEXT,
-                created_at TEXT
-              )
-            ''');
-            await txn.execute('''
-              CREATE TABLE $tableMirroredDebtPayments (
-                id TEXT PRIMARY KEY,
-                mirrored_debt_id TEXT NOT NULL REFERENCES $tableMirroredDebts(id) ON DELETE CASCADE,
-                source_payment_id TEXT NOT NULL,
-                amount REAL NOT NULL,
-                date TEXT NOT NULL,
-                sync_status TEXT NOT NULL DEFAULT 'synced',
-                updated_at TEXT,
-                created_at TEXT
-              )
-            ''');
-            await txn.execute(
-              'CREATE INDEX idx_mirrored_debts_debtor ON $tableMirroredDebts(debtor_user_id)',
-            );
-            await txn.execute(
-              'CREATE INDEX idx_mirrored_pay_debt ON $tableMirroredDebtPayments(mirrored_debt_id)',
-            );
-          });
-        }
-        if (oldVersion < 11) {
-          await db.execute(
-            'ALTER TABLE $tableMinPaymentConfigs ADD COLUMN effective_day INTEGER NOT NULL DEFAULT 1',
-          );
-        }
-        if (oldVersion < 12) {
-          await db.execute(
-            'ALTER TABLE $tableCreditCards ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1',
-          );
-          await db.execute(
-            "ALTER TABLE $tableAutomaticPayments ADD COLUMN status TEXT NOT NULL DEFAULT 'active'",
-          );
-        }
-      },
+      version: appSchemaVersion,
+      onCreate: createAppSchema,
+      onUpgrade: upgradeAppSchema,
       onOpen: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -177,6 +51,7 @@ Future<dynamic> openTestDatabase({int? fromVersion}) async {
 }
 
 Future<void> _createV7Schema(dynamic db) async {
+  await _createBaseTables(db);
   await db.execute('''
     CREATE TABLE IF NOT EXISTS $tableDebts (
       id TEXT PRIMARY KEY,
@@ -367,18 +242,8 @@ Future<void> _createV11Schema(dynamic db) async {
   );
 }
 
-Future<void> _createV12Schema(dynamic db) async {
-  await _createV11Schema(db);
-  // v12 adds is_active to credit_cards and status to automatic_payments.
-  await db.execute(
-    'ALTER TABLE $tableCreditCards ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1',
-  );
-  await db.execute(
-    "ALTER TABLE $tableAutomaticPayments ADD COLUMN status TEXT NOT NULL DEFAULT 'active'",
-  );
-}
-
 Future<void> _createV5Schema(dynamic db) async {
+  await _createBaseTables(db);
   await db.execute('''
     CREATE TABLE IF NOT EXISTS $tableDebts (
       id TEXT PRIMARY KEY,
@@ -398,6 +263,88 @@ Future<void> _createV5Schema(dynamic db) async {
       debt_id TEXT NOT NULL,
       amount REAL NOT NULL,
       date TEXT NOT NULL,
+      sync_status TEXT NOT NULL DEFAULT 'synced',
+      updated_at TEXT,
+      created_at TEXT
+    )
+  ''');
+}
+
+/// Tables that exist since v1 (plus the v2/v5 columns) and were never altered
+/// until v11/v12. Every historic fixture needs them to be a realistic database.
+Future<void> _createBaseTables(dynamic db) async {
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS $tableCreditCards (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      alias TEXT NOT NULL,
+      cut_off_day INTEGER NOT NULL,
+      management_fee REAL NOT NULL DEFAULT 0,
+      sync_status TEXT NOT NULL DEFAULT 'synced',
+      updated_at TEXT,
+      created_at TEXT
+    )
+  ''');
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS $tablePaymentMethods (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'other',
+      sync_status TEXT NOT NULL DEFAULT 'synced',
+      updated_at TEXT,
+      created_at TEXT
+    )
+  ''');
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS $tableExpenses (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      amount REAL NOT NULL,
+      date TEXT NOT NULL,
+      payment_type TEXT NOT NULL,
+      payment_ref TEXT NOT NULL,
+      description TEXT,
+      sync_status TEXT NOT NULL DEFAULT 'synced',
+      updated_at TEXT,
+      created_at TEXT
+    )
+  ''');
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS $tableCardPayments (
+      id TEXT PRIMARY KEY,
+      card_id TEXT NOT NULL REFERENCES $tableCreditCards(id) ON DELETE CASCADE,
+      amount REAL NOT NULL,
+      date TEXT NOT NULL,
+      sync_status TEXT NOT NULL DEFAULT 'synced',
+      updated_at TEXT,
+      created_at TEXT
+    )
+  ''');
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS $tableMinPaymentConfigs (
+      id TEXT PRIMARY KEY,
+      card_id TEXT NOT NULL REFERENCES $tableCreditCards(id) ON DELETE CASCADE,
+      amount REAL NOT NULL,
+      year INTEGER NOT NULL,
+      month INTEGER NOT NULL,
+      sync_status TEXT NOT NULL DEFAULT 'synced',
+      updated_at TEXT,
+      created_at TEXT,
+      UNIQUE(card_id, year, month)
+    )
+  ''');
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS $tableAutomaticPayments (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      payment_type TEXT NOT NULL,
+      payment_ref TEXT NOT NULL,
+      amount REAL NOT NULL,
+      description TEXT NOT NULL,
+      next_run_date TEXT NOT NULL,
+      payment_day_of_month INTEGER,
+      frequency TEXT,
       sync_status TEXT NOT NULL DEFAULT 'synced',
       updated_at TEXT,
       created_at TEXT

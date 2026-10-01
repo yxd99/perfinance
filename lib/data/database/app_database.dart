@@ -3,7 +3,7 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
 const String _dbName = 'perfinance.db';
-const int _version = 13;
+const int appSchemaVersion = 14;
 
 const String tableCreditCards = 'credit_cards';
 const String tablePaymentMethods = 'payment_methods';
@@ -17,6 +17,16 @@ const String tableReceivables = 'receivables';
 const String tableReceivablePayments = 'receivable_payments';
 const String tableMirroredDebts = 'mirrored_debts';
 const String tableMirroredDebtPayments = 'mirrored_debt_payments';
+const String tableSyncCursors = 'sync_cursors';
+
+/// Última marca de tiempo del servidor ya bajada por tabla. Vive en la misma
+/// base que los datos: si la base se borra, la próxima bajada es completa.
+const String _createSyncCursors = '''
+  CREATE TABLE $tableSyncCursors (
+    table_name TEXT PRIMARY KEY,
+    cursor TEXT NOT NULL
+  )
+''';
 
 /// sync_status: synced | pending_insert | pending_update | pending_delete
 const String columnSyncStatus = 'sync_status';
@@ -25,16 +35,16 @@ const String columnUpdatedAt = 'updated_at';
 Future<Database> openAppDatabase(String path) async {
   return openDatabase(
     join(path, _dbName),
-    version: _version,
-    onCreate: _onCreate,
-    onUpgrade: _onUpgrade,
+    version: appSchemaVersion,
+    onCreate: createAppSchema,
+    onUpgrade: upgradeAppSchema,
     onOpen: (db) async {
       await db.execute('PRAGMA foreign_keys = ON');
     },
   );
 }
 
-Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+Future<void> upgradeAppSchema(Database db, int oldVersion, int newVersion) async {
   if (oldVersion < 2) {
     await db.transaction((txn) async {
       await txn.execute('ALTER TABLE $tableExpenses ADD COLUMN description TEXT');
@@ -232,9 +242,12 @@ Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
       'CREATE INDEX idx_automatic_payments_user_next ON $tableAutomaticPayments(user_id, next_run_date)',
     );
   }
+  if (oldVersion < 14) {
+    await db.execute(_createSyncCursors);
+  }
 }
 
-Future<void> _onCreate(Database db, int version) async {
+Future<void> createAppSchema(Database db, int version) async {
   await db.execute('''
     CREATE TABLE $tableCreditCards (
       id TEXT PRIMARY KEY,
@@ -415,4 +428,5 @@ Future<void> _onCreate(Database db, int version) async {
   await db.execute(
     'CREATE INDEX idx_mirrored_pay_debt ON $tableMirroredDebtPayments(mirrored_debt_id)',
   );
+  await db.execute(_createSyncCursors);
 }

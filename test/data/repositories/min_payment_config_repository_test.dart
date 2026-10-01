@@ -108,8 +108,8 @@ void main() {
 
   // ── Task 3.1 ────────────────────────────────────────────────────────────────
 
-  group('insert() — ConflictAlgorithm.ignore (Task 3.1)', () {
-    test('insert ignores duplicate (cardId, year, month) without throwing', () async {
+  group('insert() — ConflictAlgorithm.replace (Task 3.1)', () {
+    test('insert replaces duplicate (cardId, year, month) without throwing', () async {
       final first = _makeConfig(id: 'cfg-1', effectiveDay: 10, amount: 500.0);
       await repo.insert(first);
 
@@ -118,10 +118,10 @@ void main() {
       // Must NOT throw
       await expectLater(repo.insert(second), completes);
 
-      // The first row should be unchanged
-      final row = await _getRow(db, 'cfg-1');
-      expect(row['effective_day'], equals(10));
-      expect(row['amount'], equals(500.0));
+      // The latest config wins: a silently ignored insert would lose the user's change
+      final row = await _getRow(db, 'cfg-2');
+      expect(row['effective_day'], equals(20));
+      expect(row['amount'], equals(999.0));
     });
 
     test('insert stores effectiveDay in the row', () async {
@@ -132,7 +132,7 @@ void main() {
       expect(row['effective_day'], equals(15));
     });
 
-    test('duplicate insert does not overwrite effectiveDay of existing row', () async {
+    test('duplicate insert leaves a single row for (cardId, year, month)', () async {
       final first = _makeConfig(id: 'cfg-prot', effectiveDay: 7, amount: 400.0);
       await repo.insert(first);
 
@@ -140,34 +140,34 @@ void main() {
       final second = _makeConfig(id: 'cfg-prot2', effectiveDay: 28, amount: 800.0);
       await repo.insert(second);
 
-      // First row must still have effectiveDay=7
-      final row = await _getRow(db, 'cfg-prot');
-      expect(row['effective_day'], equals(7),
-          reason: 'effectiveDay must not be overwritten by duplicate insert');
+      final rows = await db.query(tableMinPaymentConfigs) as List<Map<String, dynamic>>;
+      expect(rows, hasLength(1));
+      expect(rows.first['id'], equals('cfg-prot2'));
+      expect(rows.first['effective_day'], equals(28));
     });
   });
 
   // ── Task 3.2 ────────────────────────────────────────────────────────────────
 
-  group('update() — amount only, effectiveDay unchanged (Task 3.2)', () {
-    test('update only changes amount, effectiveDay remains unchanged', () async {
+  group('update() — amount and effectiveDay (Task 3.2)', () {
+    test('update writes amount and effectiveDay', () async {
       final cfg = _makeConfig(id: 'cfg-upd', effectiveDay: 12, amount: 600.0);
       await repo.insert(cfg);
 
-      // Update with different amount (effectiveDay is ignored in update)
+      // Update with different amount and effectiveDay
       await repo.update(MinPaymentConfig(
         id: 'cfg-upd',
         cardId: cfg.cardId,
         amount: 900.0,
         year: cfg.year,
         month: cfg.month,
-        effectiveDay: 25, // This should NOT be written
+        effectiveDay: 25,
       ));
 
       final row = await _getRow(db, 'cfg-upd');
       expect(row['amount'], equals(900.0));
-      expect(row['effective_day'], equals(12),
-          reason: 'effectiveDay must not change after update()');
+      expect(row['effective_day'], equals(25),
+          reason: 'effectiveDay edits must be persisted by update()');
     });
 
     test('update sets sync_status to pending_update', () async {
@@ -233,6 +233,7 @@ void main() {
         amount: 250.0,
         year: local.year,
         month: local.month,
+        effectiveDay: 3,
       ));
 
       // Remote upsert — must be skipped for pending rows

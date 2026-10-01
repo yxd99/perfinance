@@ -32,6 +32,11 @@ import 'package:perfinance/features/receivables/receivables_provider.dart';
 import 'package:perfinance/features/savings/savings_provider.dart';
 import 'package:perfinance/core/observability/error_reporter.dart';
 import 'package:perfinance/core/utils/date_format_utils.dart';
+import 'package:perfinance/services/paged_fetch.dart';
+import 'package:perfinance/services/pending_changes.dart';
+import 'package:perfinance/services/pull_cursor.dart';
+import 'package:perfinance/data/database/app_database.dart';
+import 'package:sqflite/sqflite.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:io';
@@ -39,6 +44,11 @@ import 'dart:io';
 const String _keyLastSync = 'perfinance_last_sync';
 
 final isSyncingProvider = StateProvider<bool>((ref) => false);
+
+/// Cambios locales que todavía no llegaron a Supabase.
+final pendingChangesCountProvider = FutureProvider<int>((ref) {
+  return ref.read(syncServiceProvider).pendingChangesCount();
+});
 
 final syncServiceProvider = Provider<SyncService>((ref) {
   return SyncService(ref);
@@ -101,17 +111,38 @@ class SyncService {
   /// Does NOT set isSyncingProvider — background pushes should not show the banner.
   Future<void> pushPendingIfOnline() async {
     if (_isSyncing) return;
-    final list = await Connectivity().checkConnectivity();
-    final offline = list.isNotEmpty && list.every((r) => r == ConnectivityResult.none);
-    if (offline) return;
-    final userId = await _userId;
-    if (userId == null) return;
-    _isSyncing = true;
     try {
-      await _push(userId);
+      final list = await Connectivity().checkConnectivity();
+      final offline =
+          list.isNotEmpty && list.every((r) => r == ConnectivityResult.none);
+      if (offline) return;
+      final userId = await _userId;
+      if (userId == null) return;
+      _isSyncing = true;
+      try {
+        await _push(userId);
+      } finally {
+        _isSyncing = false;
+      }
     } finally {
-      _isSyncing = false;
+      _ref.invalidate(pendingChangesCountProvider);
     }
+  }
+
+  Future<int> pendingChangesCount() async {
+    final db = await _ref.read(databaseProvider.future);
+    return countPendingChanges(db);
+  }
+
+  /// Intenta subir lo pendiente y devuelve cuántos cambios siguen sin subir.
+  /// Usar antes de borrar la base local: lo que quede pendiente se perdería.
+  Future<int> pushAndCountPending() async {
+    try {
+      await pushPendingIfOnline();
+    } catch (e, st) {
+      ErrorReporter.capture(e, st, operation: 'sync.push_before_logout');
+    }
+    return pendingChangesCount();
   }
 
   Future<void> _syncInternal() async {
@@ -132,6 +163,7 @@ class SyncService {
     _ref.invalidate(dashboardUsageProvider);
     _ref.invalidate(dashboardComparisonProvider);
     _ref.invalidate(dashboardAutomaticPaymentsSummaryProvider);
+    _ref.invalidate(pendingChangesCountProvider);
   }
 
   void _reportPushError(
@@ -145,7 +177,11 @@ class SyncService {
       error,
       stackTrace,
       operation: 'sync.push',
-      details: {'table': table, 'record_id': recordId, 'sync_status': syncStatus},
+      details: {
+        'table': table,
+        'record_id': recordId,
+        'sync_status': syncStatus,
+      },
     );
   }
 
@@ -229,7 +265,8 @@ class SyncService {
         if (p.syncStatus == 'pending_delete') {
           await payTable.delete().eq('id', p.id);
           await payRepo.deleteLocal(p.id);
-        } else if (p.syncStatus == 'pending_insert' || p.syncStatus == 'pending_update') {
+        } else if (p.syncStatus == 'pending_insert' ||
+            p.syncStatus == 'pending_update') {
           await payTable.upsert(_toRemoteCardPayment(p), onConflict: 'id');
           await payRepo.markSynced(p.id);
         }
@@ -241,7 +278,8 @@ class SyncService {
 
     for (final m in await minRepo.getPendingForPush()) {
       try {
-        if (m.syncStatus == 'pending_insert' || m.syncStatus == 'pending_update') {
+        if (m.syncStatus == 'pending_insert' ||
+            m.syncStatus == 'pending_update') {
           await minTable.upsert(_toRemoteMinConfig(m), onConflict: 'id');
           await minRepo.markSynced(m.id);
         }
@@ -274,7 +312,10 @@ class SyncService {
           await debtPaymentsTable.delete().eq('id', p.id);
           await debtPayRepo.deleteLocal(p.id);
         } else if (p.syncStatus == 'pending_insert') {
-          await debtPaymentsTable.upsert(_toRemoteDebtPayment(p), onConflict: 'id');
+          await debtPaymentsTable.upsert(
+            _toRemoteDebtPayment(p),
+            onConflict: 'id',
+          );
           await debtPayRepo.markSynced(p.id);
         }
       } catch (e, st) {
@@ -289,10 +330,16 @@ class SyncService {
           await automaticPaymentsTable.delete().eq('id', a.id);
           await autoPayRepo.deleteLocal(a.id);
         } else if (a.syncStatus == 'pending_insert') {
-          await automaticPaymentsTable.upsert(_toRemoteAutomaticPayment(a), onConflict: 'id');
+          await automaticPaymentsTable.upsert(
+            _toRemoteAutomaticPayment(a),
+            onConflict: 'id',
+          );
           await autoPayRepo.markSynced(a.id);
         } else {
-          await automaticPaymentsTable.upsert(_toRemoteAutomaticPayment(a), onConflict: 'id');
+          await automaticPaymentsTable.upsert(
+            _toRemoteAutomaticPayment(a),
+            onConflict: 'id',
+          );
           await autoPayRepo.markSynced(a.id);
         }
       } catch (e, st) {
@@ -307,10 +354,16 @@ class SyncService {
           await receivablesTable.delete().eq('id', r.id);
           await receivableRepo.deleteLocal(r.id);
         } else if (r.syncStatus == 'pending_insert') {
-          await receivablesTable.upsert(_toRemoteReceivable(r), onConflict: 'id');
+          await receivablesTable.upsert(
+            _toRemoteReceivable(r),
+            onConflict: 'id',
+          );
           await receivableRepo.markSynced(r.id);
         } else if (r.syncStatus == 'pending_update') {
-          await receivablesTable.upsert(_toRemoteReceivable(r), onConflict: 'id');
+          await receivablesTable.upsert(
+            _toRemoteReceivable(r),
+            onConflict: 'id',
+          );
           await receivableRepo.markSynced(r.id);
         }
       } catch (e, st) {
@@ -325,10 +378,16 @@ class SyncService {
           await receivablePaymentsTable.delete().eq('id', p.id);
           await receivablePayRepo.deleteLocal(p.id);
         } else if (p.syncStatus == 'pending_insert') {
-          await receivablePaymentsTable.upsert(_toRemoteReceivablePayment(p), onConflict: 'id');
+          await receivablePaymentsTable.upsert(
+            _toRemoteReceivablePayment(p),
+            onConflict: 'id',
+          );
           await receivablePayRepo.markSynced(p.id);
         } else if (p.syncStatus == 'pending_update') {
-          await receivablePaymentsTable.upsert(_toRemoteReceivablePayment(p), onConflict: 'id');
+          await receivablePaymentsTable.upsert(
+            _toRemoteReceivablePayment(p),
+            onConflict: 'id',
+          );
           await receivablePayRepo.markSynced(p.id);
         }
       } catch (e, st) {
@@ -350,9 +409,20 @@ class SyncService {
     final receivableRepo = _ref.read(receivableRepositoryProvider);
     final receivablePayRepo = _ref.read(receivablePaymentRepositoryProvider);
 
-    final ccRes = await _supabase.from('credit_cards').select().eq('user_id', userId);
-    for (final row in ccRes as List) {
-      final map = Map<String, dynamic>.from(row as Map);
+    // Bajada incremental: cada tabla pide solo lo cambiado desde su cursor.
+    // Los cursores se guardan al final, así un fallo a mitad reintenta todo.
+    final db = await _ref.read(databaseProvider.future);
+    final cursors = await _loadPullCursors(db);
+    final tombstones = await _fetchTombstones(userId, cursors);
+    Set<String> idsOf(List<Map<String, dynamic>> rows) =>
+        rows.map((r) => r['id'] as String).toSet();
+    Future<Set<String>> localIds(String table) async => (await db.query(
+      table,
+      columns: ['id'],
+    )).map((r) => r['id'] as String).toSet();
+
+    final ccRes = await _selectChanged('credit_cards', cursors, userId: userId);
+    for (final map in ccRes) {
       final card = CreditCard(
         id: map['id'] as String,
         userId: map['user_id'] as String,
@@ -366,10 +436,19 @@ class SyncService {
       );
       await ccRepo.upsertFromRemote(card);
     }
+    await _applyTombstones(
+      tombstones,
+      'credit_cards',
+      idsOf(ccRes),
+      ccRepo.deleteLocal,
+    );
 
-    final pmRes = await _supabase.from('payment_methods').select().eq('user_id', userId);
-    for (final row in pmRes as List) {
-      final map = Map<String, dynamic>.from(row as Map);
+    final pmRes = await _selectChanged(
+      'payment_methods',
+      cursors,
+      userId: userId,
+    );
+    for (final map in pmRes) {
       final pm = PaymentMethod(
         id: map['id'] as String,
         userId: map['user_id'] as String,
@@ -381,11 +460,16 @@ class SyncService {
       );
       await pmRepo.upsertFromRemote(pm);
     }
+    await _applyTombstones(
+      tombstones,
+      'payment_methods',
+      idsOf(pmRes),
+      pmRepo.deleteLocal,
+    );
 
-    final expRes = await _supabase.from('expenses').select().eq('user_id', userId);
+    final expRes = await _selectChanged('expenses', cursors, userId: userId);
     final remoteExpenseIds = <String>{};
-    for (final row in expRes as List) {
-      final map = Map<String, dynamic>.from(row as Map);
+    for (final map in expRes) {
       final id = map['id'] as String;
       remoteExpenseIds.add(id);
       final e = Expense(
@@ -402,49 +486,56 @@ class SyncService {
       );
       await expRepo.upsertFromRemote(e);
     }
-    // Re-encolar gastos locales synced que no existen en Supabase (ghost expenses).
-    await expRepo.requeueOrphansAsPendingInsert(remoteExpenseIds, userId);
+    await _applyTombstones(
+      tombstones,
+      'expenses',
+      remoteExpenseIds,
+      expRepo.deleteLocal,
+    );
 
-    final cardIds = (await ccRepo.getAll(userId, includeInactive: true)).map((c) => c.id).toList();
-    for (final cardId in cardIds) {
-      final payRes = await _supabase.from('card_payments').select().eq('card_id', cardId);
-      for (final row in payRes as List) {
-        final map = Map<String, dynamic>.from(row as Map);
-        final p = CardPayment(
-          id: map['id'] as String,
-          cardId: map['card_id'] as String,
-          amount: (map['amount'] as num).toDouble(),
-          date: parseDateOnly(map['date'] as String),
-          syncStatus: 'synced',
-          updatedAt: map['updated_at']?.toString(),
-          createdAt: map['created_at']?.toString(),
-        );
-        await payRepo.upsertFromRemote(p);
-      }
+    // Las tablas hijas se bajan enteras (RLS las limita al usuario); se salta
+    // la fila cuyo padre no está en local para no violar la clave foránea.
+    final cardIds = await localIds(tableCreditCards);
+    final cardPayRes = await _selectChanged('card_payments', cursors);
+    for (final map in cardPayRes) {
+      if (!cardIds.contains(map['card_id'])) continue;
+      final p = CardPayment(
+        id: map['id'] as String,
+        cardId: map['card_id'] as String,
+        amount: (map['amount'] as num).toDouble(),
+        date: parseDateOnly(map['date'] as String),
+        syncStatus: 'synced',
+        updatedAt: map['updated_at']?.toString(),
+        createdAt: map['created_at']?.toString(),
+      );
+      await payRepo.upsertFromRemote(p);
+    }
+    await _applyTombstones(
+      tombstones,
+      'card_payments',
+      idsOf(cardPayRes),
+      payRepo.deleteLocal,
+    );
+
+    final minRes = await _selectChanged('min_payment_configs', cursors);
+    for (final map in minRes) {
+      if (!cardIds.contains(map['card_id'])) continue;
+      final m = MinPaymentConfig(
+        id: map['id'] as String,
+        cardId: map['card_id'] as String,
+        amount: (map['amount'] as num).toDouble(),
+        year: map['year'] as int,
+        month: map['month'] as int,
+        effectiveDay: map['effective_day'] as int? ?? 1,
+        syncStatus: 'synced',
+        updatedAt: map['updated_at']?.toString(),
+        createdAt: map['created_at']?.toString(),
+      );
+      await minRepo.upsertFromRemote(m);
     }
 
-    for (final cardId in cardIds) {
-      final minRes = await _supabase.from('min_payment_configs').select().eq('card_id', cardId);
-      for (final row in minRes as List) {
-        final map = Map<String, dynamic>.from(row as Map);
-        final m = MinPaymentConfig(
-          id: map['id'] as String,
-          cardId: map['card_id'] as String,
-          amount: (map['amount'] as num).toDouble(),
-          year: map['year'] as int,
-          month: map['month'] as int,
-          effectiveDay: map['effective_day'] as int? ?? 1,
-          syncStatus: 'synced',
-          updatedAt: map['updated_at']?.toString(),
-          createdAt: map['created_at']?.toString(),
-        );
-        await minRepo.upsertFromRemote(m);
-      }
-    }
-
-    final debtRes = await _supabase.from('debts').select().eq('user_id', userId);
-    for (final row in debtRes as List) {
-      final map = Map<String, dynamic>.from(row as Map);
+    final debtRes = await _selectChanged('debts', cursors, userId: userId);
+    for (final map in debtRes) {
       final dueDateTime = tryParseDateOnly(map['due_date']?.toString());
       final d = Debt(
         id: map['id'] as String,
@@ -460,28 +551,41 @@ class SyncService {
       );
       await debtRepo.upsertFromRemote(d);
     }
+    await _applyTombstones(
+      tombstones,
+      'debts',
+      idsOf(debtRes),
+      debtRepo.deleteLocal,
+    );
 
-    final debtIds = (await debtRepo.getAll(userId)).map((d) => d.id).toList();
-    for (final debtId in debtIds) {
-      final payRes = await _supabase.from('debt_payments').select().eq('debt_id', debtId);
-      for (final row in payRes as List) {
-        final map = Map<String, dynamic>.from(row as Map);
-        final p = DebtPayment(
-          id: map['id'] as String,
-          debtId: map['debt_id'] as String,
-          amount: (map['amount'] as num).toDouble(),
-          date: parseDateOnly(map['date'] as String),
-          syncStatus: 'synced',
-          updatedAt: map['updated_at']?.toString(),
-          createdAt: map['created_at']?.toString(),
-        );
-        await debtPayRepo.upsertFromRemote(p);
-      }
+    final debtIds = await localIds(tableDebts);
+    final debtPayRes = await _selectChanged('debt_payments', cursors);
+    for (final map in debtPayRes) {
+      if (!debtIds.contains(map['debt_id'])) continue;
+      final p = DebtPayment(
+        id: map['id'] as String,
+        debtId: map['debt_id'] as String,
+        amount: (map['amount'] as num).toDouble(),
+        date: parseDateOnly(map['date'] as String),
+        syncStatus: 'synced',
+        updatedAt: map['updated_at']?.toString(),
+        createdAt: map['created_at']?.toString(),
+      );
+      await debtPayRepo.upsertFromRemote(p);
     }
+    await _applyTombstones(
+      tombstones,
+      'debt_payments',
+      idsOf(debtPayRes),
+      debtPayRepo.deleteLocal,
+    );
 
-    final receivableRes = await _supabase.from('receivables').select().eq('user_id', userId);
-    for (final row in receivableRes as List) {
-      final map = Map<String, dynamic>.from(row as Map);
+    final receivableRes = await _selectChanged(
+      'receivables',
+      cursors,
+      userId: userId,
+    );
+    for (final map in receivableRes) {
       final r = Receivable(
         id: map['id'] as String,
         userId: map['user_id'] as String,
@@ -489,7 +593,9 @@ class SyncService {
         debtorEmail: map['debtor_email'] as String?,
         totalAmount: (map['total_amount'] as num).toDouble(),
         description: map['description'] as String?,
-        dueDate: map['due_date'] != null ? tryParseDateOnly(map['due_date'].toString()) : null,
+        dueDate: map['due_date'] != null
+            ? tryParseDateOnly(map['due_date'].toString())
+            : null,
         status: ReceivableStatusX.fromWire(map['status'] as String?),
         syncStatus: 'synced',
         updatedAt: map['updated_at']?.toString(),
@@ -497,32 +603,45 @@ class SyncService {
       );
       await receivableRepo.upsertFromRemote(r);
     }
+    await _applyTombstones(
+      tombstones,
+      'receivables',
+      idsOf(receivableRes),
+      receivableRepo.deleteLocal,
+    );
 
-    final receivableIds = (await receivableRepo.getAll(userId)).map((r) => r.id).toList();
-    for (final receivableId in receivableIds) {
-      final payRes = await _supabase
-          .from('receivable_payments')
-          .select()
-          .eq('receivable_id', receivableId);
-      for (final row in payRes as List) {
-        final map = Map<String, dynamic>.from(row as Map);
-        final p = ReceivablePayment(
-          id: map['id'] as String,
-          receivableId: map['receivable_id'] as String,
-          amount: (map['amount'] as num).toDouble(),
-          date: parseDateOnly(map['date'] as String),
-          note: map['note'] as String?,
-          syncStatus: 'synced',
-          updatedAt: map['updated_at']?.toString(),
-          createdAt: map['created_at']?.toString(),
-        );
-        await receivablePayRepo.upsertFromRemote(p);
-      }
+    final receivableIds = await localIds(tableReceivables);
+    final receivablePayRes = await _selectChanged(
+      'receivable_payments',
+      cursors,
+    );
+    for (final map in receivablePayRes) {
+      if (!receivableIds.contains(map['receivable_id'])) continue;
+      final p = ReceivablePayment(
+        id: map['id'] as String,
+        receivableId: map['receivable_id'] as String,
+        amount: (map['amount'] as num).toDouble(),
+        date: parseDateOnly(map['date'] as String),
+        note: map['note'] as String?,
+        syncStatus: 'synced',
+        updatedAt: map['updated_at']?.toString(),
+        createdAt: map['created_at']?.toString(),
+      );
+      await receivablePayRepo.upsertFromRemote(p);
     }
+    await _applyTombstones(
+      tombstones,
+      'receivable_payments',
+      idsOf(receivablePayRes),
+      receivablePayRepo.deleteLocal,
+    );
 
-    final autoRes = await _supabase.from('automatic_payments').select().eq('user_id', userId);
-    for (final row in autoRes as List) {
-      final map = Map<String, dynamic>.from(row as Map);
+    final autoRes = await _selectChanged(
+      'automatic_payments',
+      cursors,
+      userId: userId,
+    );
+    for (final map in autoRes) {
       final nextDate = tryParseDateOnly(map['next_run_date']?.toString());
       final a = AutomaticPayment(
         id: map['id'] as String,
@@ -542,27 +661,141 @@ class SyncService {
       );
       await autoPayRepo.upsertFromRemote(a);
     }
+    await _applyTombstones(
+      tombstones,
+      'automatic_payments',
+      idsOf(autoRes),
+      autoPayRepo.deleteLocal,
+    );
 
     await _pullMirroredDebts(userId);
+    await _savePullCursors(db, cursors);
+  }
+
+  Future<Map<String, String>> _loadPullCursors(Database db) async {
+    final rows = await db.query(tableSyncCursors);
+    return {
+      for (final r in rows) r['table_name'] as String: r['cursor'] as String,
+    };
+  }
+
+  Future<void> _savePullCursors(
+    Database db,
+    Map<String, String> cursors,
+  ) async {
+    final batch = db.batch();
+    cursors.forEach((table, cursor) {
+      batch.insert(tableSyncCursors, {
+        'table_name': table,
+        'cursor': cursor,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+    });
+    await batch.commit(noResult: true);
+  }
+
+  /// Baja las filas de [table] cambiadas desde su cursor (todas si no hay
+  /// cursor) y lo avanza en [cursors]. Con [userId] filtra por dueño.
+  Future<List<Map<String, dynamic>>> _selectChanged(
+    String table,
+    Map<String, String> cursors, {
+    String? userId,
+  }) async {
+    final since = pullSince(cursors[table]);
+    final rows = await fetchAllPages((from, to) async {
+      var query = _supabase.from(table).select();
+      if (userId != null) query = query.eq('user_id', userId);
+      if (since != null) query = query.gte('updated_at', since);
+      return await query.order('id').range(from, to);
+    });
+    final next = advanceCursor(cursors[table], rows);
+    if (next != null) cursors[table] = next;
+    return rows;
+  }
+
+  /// Baja todas las filas de [table] donde [column] = [value], paginando.
+  Future<List<Map<String, dynamic>>> _selectAll(
+    String table,
+    String column,
+    Object value,
+  ) {
+    return fetchAllPages(
+      (from, to) async => await _supabase
+          .from(table)
+          .select()
+          .eq(column, value)
+          .order('id')
+          .range(from, to),
+    );
+  }
+
+  /// Ids borrados en la nube desde el último cursor, agrupados por tabla.
+  Future<Map<String, Set<String>>> _fetchTombstones(
+    String userId,
+    Map<String, String> cursors,
+  ) async {
+    const table = 'deleted_records';
+    final since = pullSince(cursors[table]);
+    final rows = await fetchAllPages((from, to) async {
+      var query = _supabase
+          .from(table)
+          .select('table_name, record_id, deleted_at')
+          .eq('user_id', userId);
+      if (since != null) query = query.gte('deleted_at', since);
+      return await query.order('table_name').order('record_id').range(from, to);
+    });
+    final next = advanceCursor(cursors[table], rows, column: 'deleted_at');
+    if (next != null) cursors[table] = next;
+    final byTable = <String, Set<String>>{};
+    for (final row in rows) {
+      byTable
+          .putIfAbsent(row['table_name'] as String, () => {})
+          .add(row['record_id'] as String);
+    }
+    return byTable;
+  }
+
+  /// Borra localmente lo que se borró desde otro dispositivo. Antes confirma
+  /// en la nube que la fila ya no existe: pudo recrearse después del borrado.
+  Future<void> _applyTombstones(
+    Map<String, Set<String>> tombstones,
+    String table,
+    Set<String> changedIds,
+    Future<void> Function(String id) deleteLocal,
+  ) async {
+    final candidates = (tombstones[table] ?? const <String>{})
+        .difference(changedIds)
+        .toList();
+    const chunkSize = 100;
+    for (var i = 0; i < candidates.length; i += chunkSize) {
+      final chunk = candidates.skip(i).take(chunkSize).toList();
+      final alive = await _supabase
+          .from(table)
+          .select('id')
+          .inFilter('id', chunk);
+      final aliveIds = alive.map((r) => r['id'] as String).toSet();
+      for (final id in chunk) {
+        if (!aliveIds.contains(id)) await deleteLocal(id);
+      }
+    }
   }
 
   Future<void> _pullMirroredDebts(String userId) async {
     final repo = _ref.read(mirroredDebtRepositoryProvider);
-    final res = await _supabase.from('mirrored_debts').select().eq('debtor_user_id', userId);
+    final res = await _selectAll('mirrored_debts', 'debtor_user_id', userId);
     final remoteIds = <String>{};
-    for (final row in res as List) {
-      final m = Map<String, dynamic>.from(row as Map);
+    for (final m in res) {
       remoteIds.add(m['id'] as String);
       await repo.upsertFromRemote(m);
     }
     await repo.pruneAbsent(userId, remoteIds);
     for (final id in remoteIds) {
-      final pays = await _supabase
-          .from('mirrored_debt_payments')
-          .select()
-          .eq('mirrored_debt_id', id);
-      for (final prow in pays as List) {
-        await repo.upsertPaymentFromRemote(Map<String, dynamic>.from(prow as Map));
+      final pays = await _selectAll(
+        'mirrored_debt_payments',
+        'mirrored_debt_id',
+        id,
+      );
+      for (final prow in pays) {
+        await repo.upsertPaymentFromRemote(prow);
       }
     }
   }
@@ -632,7 +865,9 @@ class SyncService {
     map.remove('updated_at');
     map.remove('created_at');
     if (map['next_run_date'] is String) {
-      map['next_run_date'] = dateOnlyIso(DateTime.parse(map['next_run_date'] as String));
+      map['next_run_date'] = dateOnlyIso(
+        DateTime.parse(map['next_run_date'] as String),
+      );
     }
     // payment_day_of_month y frequency ya están en toJson() — se incluyen por defecto
     return map;
