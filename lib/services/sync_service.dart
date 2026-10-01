@@ -30,6 +30,7 @@ import 'package:perfinance/features/debts/debts_provider.dart';
 import 'package:perfinance/features/expenses/expenses_provider.dart';
 import 'package:perfinance/features/receivables/receivables_provider.dart';
 import 'package:perfinance/features/savings/savings_provider.dart';
+import 'package:perfinance/core/observability/error_reporter.dart';
 import 'package:perfinance/core/utils/date_format_utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -86,6 +87,9 @@ class SyncService {
     _ref.read(isSyncingProvider.notifier).state = true;
     try {
       await _syncInternal();
+    } catch (e, st) {
+      ErrorReporter.capture(e, st, operation: 'sync.full');
+      rethrow;
     } finally {
       _isSyncing = false;
       _ref.read(isSyncingProvider.notifier).state = false;
@@ -130,6 +134,21 @@ class SyncService {
     _ref.invalidate(dashboardAutomaticPaymentsSummaryProvider);
   }
 
+  void _reportPushError(
+    Object error,
+    StackTrace stackTrace,
+    String table,
+    String recordId,
+    String syncStatus,
+  ) {
+    ErrorReporter.capture(
+      error,
+      stackTrace,
+      operation: 'sync.push',
+      details: {'table': table, 'record_id': recordId, 'sync_status': syncStatus},
+    );
+  }
+
   Future<void> _push(String userId) async {
     final ccRepo = _ref.read(creditCardRepositoryProvider);
     final pmRepo = _ref.read(paymentMethodRepositoryProvider);
@@ -165,8 +184,9 @@ class SyncService {
           await ccTable.upsert(_toRemoteCard(c), onConflict: 'id');
         }
         if (c.syncStatus != 'pending_delete') await ccRepo.markSynced(c.id);
-      } catch (e) {
+      } catch (e, st) {
         if (e is AuthException) rethrow;
+        _reportPushError(e, st, 'credit_cards', c.id, c.syncStatus);
       }
     }
 
@@ -181,8 +201,9 @@ class SyncService {
           await pmTable.upsert(_toRemotePaymentMethod(p), onConflict: 'id');
         }
         if (p.syncStatus != 'pending_delete') await pmRepo.markSynced(p.id);
-      } catch (e) {
+      } catch (e, st) {
         if (e is AuthException) rethrow;
+        _reportPushError(e, st, 'payment_methods', p.id, p.syncStatus);
       }
     }
 
@@ -197,8 +218,9 @@ class SyncService {
           await expTable.upsert(_toRemoteExpense(e), onConflict: 'id');
         }
         if (e.syncStatus != 'pending_delete') await expRepo.markSynced(e.id);
-      } catch (e) {
-        if (e is AuthException) rethrow;
+      } catch (err, st) {
+        if (err is AuthException) rethrow;
+        _reportPushError(err, st, 'expenses', e.id, e.syncStatus);
       }
     }
 
@@ -211,8 +233,9 @@ class SyncService {
           await payTable.upsert(_toRemoteCardPayment(p), onConflict: 'id');
           await payRepo.markSynced(p.id);
         }
-      } catch (e) {
+      } catch (e, st) {
         if (e is AuthException) rethrow;
+        _reportPushError(e, st, 'card_payments', p.id, p.syncStatus);
       }
     }
 
@@ -222,8 +245,9 @@ class SyncService {
           await minTable.upsert(_toRemoteMinConfig(m), onConflict: 'id');
           await minRepo.markSynced(m.id);
         }
-      } catch (e) {
+      } catch (e, st) {
         if (e is AuthException) rethrow;
+        _reportPushError(e, st, 'min_payment_configs', m.id, m.syncStatus);
       }
     }
 
@@ -238,8 +262,9 @@ class SyncService {
           await debtsTable.upsert(_toRemoteDebt(d), onConflict: 'id');
         }
         if (d.syncStatus != 'pending_delete') await debtRepo.markSynced(d.id);
-      } catch (e) {
+      } catch (e, st) {
         if (e is AuthException) rethrow;
+        _reportPushError(e, st, 'debts', d.id, d.syncStatus);
       }
     }
 
@@ -252,8 +277,9 @@ class SyncService {
           await debtPaymentsTable.upsert(_toRemoteDebtPayment(p), onConflict: 'id');
           await debtPayRepo.markSynced(p.id);
         }
-      } catch (e) {
+      } catch (e, st) {
         if (e is AuthException) rethrow;
+        _reportPushError(e, st, 'debt_payments', p.id, p.syncStatus);
       }
     }
 
@@ -269,8 +295,9 @@ class SyncService {
           await automaticPaymentsTable.upsert(_toRemoteAutomaticPayment(a), onConflict: 'id');
           await autoPayRepo.markSynced(a.id);
         }
-      } catch (e) {
+      } catch (e, st) {
         if (e is AuthException) rethrow;
+        _reportPushError(e, st, 'automatic_payments', a.id, a.syncStatus);
       }
     }
 
@@ -286,8 +313,9 @@ class SyncService {
           await receivablesTable.upsert(_toRemoteReceivable(r), onConflict: 'id');
           await receivableRepo.markSynced(r.id);
         }
-      } catch (e) {
+      } catch (e, st) {
         if (e is AuthException) rethrow;
+        _reportPushError(e, st, 'receivables', r.id, r.syncStatus);
       }
     }
 
@@ -303,8 +331,9 @@ class SyncService {
           await receivablePaymentsTable.upsert(_toRemoteReceivablePayment(p), onConflict: 'id');
           await receivablePayRepo.markSynced(p.id);
         }
-      } catch (e) {
+      } catch (e, st) {
         if (e is AuthException) rethrow;
+        _reportPushError(e, st, 'receivable_payments', p.id, p.syncStatus);
       }
     }
   }
