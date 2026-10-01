@@ -93,8 +93,8 @@ class DebtPaymentRepository {
         'amount': p.amount,
         'date': p.date.toIso8601String(),
         columnSyncStatus: 'synced',
-        columnUpdatedAt: now,
-        'created_at': now,
+        columnUpdatedAt: p.updatedAt ?? now,
+        'created_at': p.createdAt ?? now,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );

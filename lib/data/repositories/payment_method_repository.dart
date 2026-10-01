@@ -114,8 +114,8 @@ class PaymentMethodRepository {
         'name': pm.name,
         'type': pm.type,
         columnSyncStatus: 'synced',
-        columnUpdatedAt: now,
-        'created_at': now,
+        columnUpdatedAt: pm.updatedAt ?? now,
+        'created_at': pm.createdAt ?? now,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );

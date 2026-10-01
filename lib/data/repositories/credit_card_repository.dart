@@ -150,8 +150,8 @@ class CreditCardRepository {
         'management_fee': card.managementFee,
         'is_active': card.isActive ? 1 : 0,
         columnSyncStatus: 'synced',
-        columnUpdatedAt: now,
-        'created_at': now,
+        columnUpdatedAt: card.updatedAt ?? now,
+        'created_at': card.createdAt ?? now,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );

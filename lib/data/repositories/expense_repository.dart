@@ -127,8 +127,8 @@ class ExpenseRepository {
         'payment_ref': e.paymentRef,
         'description': e.description,
         columnSyncStatus: 'synced',
-        columnUpdatedAt: now,
-        'created_at': now,
+        columnUpdatedAt: e.updatedAt ?? now,
+        'created_at': e.createdAt ?? now,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );

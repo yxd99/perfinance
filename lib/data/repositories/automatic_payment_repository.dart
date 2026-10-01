@@ -162,8 +162,8 @@ class AutomaticPaymentRepository {
         'frequency': p.frequency,
         'status': p.status,
         columnSyncStatus: 'synced',
-        columnUpdatedAt: now,
-        'created_at': now,
+        columnUpdatedAt: p.updatedAt ?? now,
+        'created_at': p.createdAt ?? now,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
