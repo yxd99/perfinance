@@ -14,5 +14,9 @@
 [functions.financial-advisor]
 verify_jwt = false
 
+# Authenticates with a personal shortcut token instead of a session JWT.
+[functions.log-wallet-expense]
+verify_jwt = false
+
 [functions.send-expense-export]
 verify_jwt = false

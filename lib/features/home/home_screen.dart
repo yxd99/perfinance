@@ -148,6 +148,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         ),
         actions: [
           IconButton(
+            icon: const Icon(Icons.wallet_outlined),
+            tooltip: 'Registro automático con Apple Wallet',
+            onPressed: () => context.push('/wallet-shortcut'),
+          ),
+          IconButton(
             icon: const Icon(Icons.psychology_outlined),
             tooltip: 'Asesor financiero',
             onPressed: () => context.push('/chat'),
