@@ -11,5 +11,8 @@
 #
 # Docs: https://supabase.com/docs/guides/troubleshooting/edge-function-401-error-response
 
+[functions.financial-advisor]
+verify_jwt = false
+
 [functions.send-expense-export]
 verify_jwt = false

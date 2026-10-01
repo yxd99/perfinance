@@ -12,6 +12,14 @@ void main() {
 
     setUp(() async {
       db = await openTestDatabase(fromVersion: 10);
+      // min_payment_configs.card_id references credit_cards(id).
+      await db.insert(tableCreditCards, {
+        'id': 'card-1',
+        'user_id': 'user-1',
+        'alias': 'Visa',
+        'cut_off_day': 10,
+        'management_fee': 0,
+      });
     });
 
     tearDown(() async {

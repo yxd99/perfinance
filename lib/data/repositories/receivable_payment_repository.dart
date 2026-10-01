@@ -212,7 +212,7 @@ class ReceivablePaymentRepository {
         'date': p.date.toIso8601String(),
         'note': p.note,
         columnSyncStatus: 'synced',
-        columnUpdatedAt: now,
+        columnUpdatedAt: p.updatedAt ?? now,
         'created_at': p.createdAt ?? now,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,

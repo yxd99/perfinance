@@ -29,6 +29,26 @@ DateTime nextRunDateFor({
   return DateTime(target.year, target.month, day);
 }
 
+/// Ocurrencia anterior a [nextRunDate] según la frecuencia: la última fecha
+/// ya cobrada, dado que tras procesarse el cron avanza next_run_date al
+/// siguiente ciclo. Usada para saber si un pago ya se cobró este mes.
+DateTime previousRunDateFor({
+  required String frequency,
+  required int dayOfMonth,
+  required DateTime nextRunDate,
+}) {
+  final months = switch (frequency) {
+    'trimestral' => 3,
+    'semestral' => 6,
+    'anual' => 12,
+    _ => 1, // mensual default
+  };
+  final target = DateTime(nextRunDate.year, nextRunDate.month - months, 1);
+  final lastDay = DateTime(target.year, target.month + 1, 0).day;
+  final day = dayOfMonth > lastDay ? lastDay : dayOfMonth;
+  return DateTime(target.year, target.month, day);
+}
+
 class ProcessAutomaticPaymentsService {
   ProcessAutomaticPaymentsService(this._ref);
   final Ref _ref;

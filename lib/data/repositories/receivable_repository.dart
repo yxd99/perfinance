@@ -166,7 +166,7 @@ class ReceivableRepository {
         'due_date': r.dueDate?.toIso8601String(),
         'status': r.status.wire,
         columnSyncStatus: 'synced',
-        columnUpdatedAt: now,
+        columnUpdatedAt: r.updatedAt ?? now,
         'created_at': r.createdAt ?? now,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,

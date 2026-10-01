@@ -107,8 +107,8 @@ class MinPaymentConfigRepository {
         'month': c.month,
         'effective_day': c.effectiveDay,
         columnSyncStatus: 'synced',
-        columnUpdatedAt: now,
-        'created_at': now,
+        columnUpdatedAt: c.updatedAt ?? now,
+        'created_at': c.createdAt ?? now,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );

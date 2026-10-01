@@ -19,6 +19,7 @@ import 'package:perfinance/features/savings/savings_screen.dart';
 import 'package:perfinance/services/connectivity_sync.dart';
 import 'package:perfinance/services/process_automatic_payments_service.dart';
 import 'package:perfinance/services/sync_service.dart';
+import 'dart:async';
 import 'dart:math' show pi;
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -31,6 +32,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
 
   static const List<String> _titles = [
     'Dashboard',
@@ -48,8 +50,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     _tabController = TabController(length: _titles.length, vsync: this);
     _tabController.addListener(() => setState(() {}));
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      startConnectivitySyncListener(
-        () => ref.read(syncServiceProvider).pushPendingIfOnline(),
+      // Al recuperar la red: sube lo pendiente y baja lo cambiado, sin banner.
+      _connectivitySub = startConnectivitySyncListener(
+        () => ref.read(syncServiceProvider).syncNow(silent: true).catchError((_) {}),
       );
       _syncIfStale();
       _processAutomaticPayments();
@@ -58,6 +61,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   @override
   void dispose() {
+    _connectivitySub?.cancel();
     _tabController.dispose();
     super.dispose();
   }
@@ -77,6 +81,42 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final isStale = lastSync == null ||
         DateTime.now().difference(lastSync) > const Duration(minutes: 5);
     if (isStale) await syncService.syncNow();
+  }
+
+  /// Cerrar sesión borra la base local: antes se sube lo pendiente y, si algo
+  /// no pudo subirse, se pide confirmación porque esos cambios se perderían.
+  Future<void> _logout() async {
+    final syncService = ref.read(syncServiceProvider);
+    final pending = await syncService.pushAndCountPending();
+    if (!mounted) return;
+    if (pending > 0) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Cambios sin sincronizar'),
+          content: Text(
+            pending == 1
+                ? 'Hay 1 cambio que no se pudo subir a la nube. Si cerrás sesión ahora se pierde.'
+                : 'Hay $pending cambios que no se pudieron subir a la nube. Si cerrás sesión ahora se pierden.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Cerrar sesión igual'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
+    await syncService.clearLocalDataOnLogout();
+    ref.invalidate(databaseProvider);
+    await ref.read(authServiceProvider).signOut();
+    if (mounted) context.go('/login');
   }
 
   @override
@@ -107,6 +147,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           ],
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.psychology_outlined),
+            tooltip: 'Asesor financiero',
+            onPressed: () => context.push('/chat'),
+          ),
           ref
               .watch(hideValuesProvider)
               .when(
@@ -124,12 +169,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           _SyncIconButton(isSyncing: isSyncing),
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await ref.read(syncServiceProvider).clearLocalDataOnLogout();
-              ref.invalidate(databaseProvider);
-              await ref.read(authServiceProvider).signOut();
-              if (context.mounted) context.go('/login');
-            },
+            onPressed: _logout,
           ),
         ],
       ),
@@ -246,6 +286,7 @@ class _SyncIconButtonState extends ConsumerState<_SyncIconButton>
 
   @override
   Widget build(BuildContext context) {
+    final pending = ref.watch(pendingChangesCountProvider).valueOrNull ?? 0;
     return AnimatedBuilder(
       animation: _controller,
       builder: (_, child) => Transform.rotate(
@@ -253,8 +294,14 @@ class _SyncIconButtonState extends ConsumerState<_SyncIconButton>
         child: child,
       ),
       child: IconButton(
-        icon: const Icon(Icons.sync),
-        tooltip: 'Sincronizar ahora (se sincroniza automáticamente con conexión)',
+        icon: Badge(
+          isLabelVisible: pending > 0,
+          label: Text('$pending'),
+          child: const Icon(Icons.sync),
+        ),
+        tooltip: pending > 0
+            ? '$pending cambios sin subir. Tocá para sincronizar'
+            : 'Sincronizar ahora (se sincroniza automáticamente con conexión)',
         onPressed: widget.isSyncing
             ? null
             : () async {

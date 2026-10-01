@@ -131,8 +131,8 @@ class DebtRepository {
         'due_date': d.dueDate.toIso8601String(),
         'status': d.status.wire,
         columnSyncStatus: 'synced',
-        columnUpdatedAt: now,
-        'created_at': now,
+        columnUpdatedAt: d.updatedAt ?? now,
+        'created_at': d.createdAt ?? now,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );

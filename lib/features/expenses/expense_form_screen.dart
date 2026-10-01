@@ -15,9 +15,19 @@ import 'package:perfinance/features/savings/payment_method_form_screen.dart';
 import 'package:uuid/uuid.dart';
 
 class ExpenseFormScreen extends ConsumerStatefulWidget {
-  const ExpenseFormScreen({super.key, this.edit});
+  const ExpenseFormScreen({
+    super.key,
+    this.edit,
+    this.initialAmount,
+    this.initialDescription,
+  });
 
   final Expense? edit;
+
+  /// Prefill values for a new expense (e.g. from a deep link triggered by
+  /// an Apple Pay Shortcuts automation). Ignored when [edit] is set.
+  final double? initialAmount;
+  final String? initialDescription;
 
   @override
   ConsumerState<ExpenseFormScreen> createState() => _ExpenseFormScreenState();
@@ -43,6 +53,13 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
       _isCreditCard = e.paymentType == 'credit_card';
       _selectedCardId = _isCreditCard ? e.paymentRef : null;
       _selectedMethodId = !_isCreditCard ? e.paymentRef : null;
+    } else {
+      if (widget.initialAmount != null) {
+        _amountController.text = formatCurrency(widget.initialAmount!.round());
+      }
+      if (widget.initialDescription != null) {
+        _descriptionController.text = widget.initialDescription!;
+      }
     }
   }
 

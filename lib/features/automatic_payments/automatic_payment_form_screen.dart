@@ -39,10 +39,11 @@ class _AutomaticPaymentFormScreenState extends ConsumerState<AutomaticPaymentFor
   bool _isCreditCard = true;
   String? _selectedCardId;
   String? _selectedMethodId;
+  DateTime? _nextRunDateOverride;
 
   void _onDayChanged() => setState(() {});
 
-  DateTime? get _nextDate {
+  DateTime? get _computedNextDate {
     final day = int.tryParse(_dayController.text.trim());
     if (day == null || day < 1 || day > 31) return null;
     return nextRunDateFor(
@@ -50,6 +51,19 @@ class _AutomaticPaymentFormScreenState extends ConsumerState<AutomaticPaymentFor
       dayOfMonth: day,
       from: DateTime.now(),
     );
+  }
+
+  DateTime? get _nextDate => _nextRunDateOverride ?? _computedNextDate;
+
+  Future<void> _pickNextRunDate() async {
+    final initial = _nextDate ?? DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (picked != null) setState(() => _nextRunDateOverride = picked);
   }
 
   @override
@@ -65,6 +79,7 @@ class _AutomaticPaymentFormScreenState extends ConsumerState<AutomaticPaymentFor
       // Precargar día y frecuencia; fallback legacy desde nextRunDate
       _dayController.text = p.paymentDayOfMonth.toString();
       _frequency = p.frequency;
+      _nextRunDateOverride = p.nextRunDate;
     }
     _dayController.addListener(_onDayChanged);
   }
@@ -94,12 +109,29 @@ class _AutomaticPaymentFormScreenState extends ConsumerState<AutomaticPaymentFor
             if (_nextDate != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
-                child: Text(
-                  'Próximo pago: ${formatDisplayDate(_nextDate!)}',
-                  style: const TextStyle(
-                    color: Colors.green,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16,
+                child: InkWell(
+                  onTap: _pickNextRunDate,
+                  child: Row(
+                    children: [
+                      const Icon(Icons.event, color: Colors.green, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Próximo pago: ${formatDisplayDate(_nextDate!)}',
+                          style: const TextStyle(
+                            color: Colors.green,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                      const Icon(Icons.edit, color: Colors.green, size: 18),
+                      if (_nextRunDateOverride != null)
+                        TextButton(
+                          onPressed: () => setState(() => _nextRunDateOverride = null),
+                          child: const Text('Restablecer'),
+                        ),
+                    ],
                   ),
                 ),
               ),
@@ -233,16 +265,18 @@ class _AutomaticPaymentFormScreenState extends ConsumerState<AutomaticPaymentFor
     final description = _descriptionController.text.trim();
     final dayOfMonth = int.parse(_dayController.text.trim());
 
-    // Al editar: conservar el nextRunDate existente para que el proceso automático
-    // lo ejecute y avance la fecha. Llamar a nextRunDateFor aquí saltaría un período
-    // sin crear el egreso correspondiente.
-    final nextRun = widget.edit != null
-        ? widget.edit!.nextRunDate
-        : nextRunDateFor(
-            frequency: _frequency,
-            dayOfMonth: dayOfMonth,
-            from: DateTime.now(),
-          );
+    // Al editar sin tocar la fecha: conservar el nextRunDate existente para que el
+    // proceso automático lo ejecute y avance la fecha. Llamar a nextRunDateFor aquí
+    // saltaría un período sin crear el egreso correspondiente. Si el usuario ajustó
+    // la fecha manualmente (_nextRunDateOverride), esa tiene prioridad siempre.
+    final nextRun = _nextRunDateOverride ??
+        (widget.edit != null
+            ? widget.edit!.nextRunDate
+            : nextRunDateFor(
+                frequency: _frequency,
+                dayOfMonth: dayOfMonth,
+                from: DateTime.now(),
+              ));
 
     final repo = ref.read(automaticPaymentRepositoryProvider);
 
