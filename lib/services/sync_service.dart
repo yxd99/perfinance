@@ -58,6 +58,7 @@ class SyncService {
   SyncService(this._ref);
   final Ref _ref;
   bool _isSyncing = false;
+  bool _pushQueued = false;
 
   Future<String?> get _userId async => _ref.read(authServiceProvider).userId;
   SupabaseClient get _supabase => Supabase.instance.client;
@@ -91,10 +92,11 @@ class SyncService {
     await clearLastSync();
   }
 
-  Future<void> syncNow() async {
+  /// Push + pull. Con [silent] no muestra el banner (sincronización de fondo).
+  Future<void> syncNow({bool silent = false}) async {
     if (_isSyncing) return;
     _isSyncing = true;
-    _ref.read(isSyncingProvider.notifier).state = true;
+    if (!silent) _ref.read(isSyncingProvider.notifier).state = true;
     try {
       await _syncInternal();
     } catch (e, st) {
@@ -102,15 +104,29 @@ class SyncService {
       rethrow;
     } finally {
       _isSyncing = false;
-      _ref.read(isSyncingProvider.notifier).state = false;
+      if (!silent) _ref.read(isSyncingProvider.notifier).state = false;
+      _runQueuedPush();
     }
+  }
+
+  /// Un push pedido mientras había una sincronización en curso se ejecuta al
+  /// terminar, para que ese cambio no quede esperando al próximo disparo.
+  void _runQueuedPush() {
+    if (!_pushQueued) return;
+    _pushQueued = false;
+    pushPendingIfOnline().catchError((Object e, StackTrace st) {
+      ErrorReporter.capture(e, st, operation: 'sync.queued_push');
+    });
   }
 
   /// Push pending local records to Supabase without pulling remote changes.
   /// Call this after any local write when online.
   /// Does NOT set isSyncingProvider — background pushes should not show the banner.
   Future<void> pushPendingIfOnline() async {
-    if (_isSyncing) return;
+    if (_isSyncing) {
+      _pushQueued = true;
+      return;
+    }
     try {
       final list = await Connectivity().checkConnectivity();
       final offline =
@@ -123,6 +139,7 @@ class SyncService {
         await _push(userId);
       } finally {
         _isSyncing = false;
+        _runQueuedPush();
       }
     } finally {
       _ref.invalidate(pendingChangesCountProvider);

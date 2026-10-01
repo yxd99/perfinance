@@ -19,6 +19,7 @@ import 'package:perfinance/features/savings/savings_screen.dart';
 import 'package:perfinance/services/connectivity_sync.dart';
 import 'package:perfinance/services/process_automatic_payments_service.dart';
 import 'package:perfinance/services/sync_service.dart';
+import 'dart:async';
 import 'dart:math' show pi;
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -31,6 +32,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
 
   static const List<String> _titles = [
     'Dashboard',
@@ -48,8 +50,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     _tabController = TabController(length: _titles.length, vsync: this);
     _tabController.addListener(() => setState(() {}));
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      startConnectivitySyncListener(
-        () => ref.read(syncServiceProvider).pushPendingIfOnline(),
+      // Al recuperar la red: sube lo pendiente y baja lo cambiado, sin banner.
+      _connectivitySub = startConnectivitySyncListener(
+        () => ref.read(syncServiceProvider).syncNow(silent: true).catchError((_) {}),
       );
       _syncIfStale();
       _processAutomaticPayments();
@@ -58,6 +61,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   @override
   void dispose() {
+    _connectivitySub?.cancel();
     _tabController.dispose();
     super.dispose();
   }
