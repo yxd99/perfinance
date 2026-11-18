@@ -1,5 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:perfinance/data/models/automatic_payment.dart';
 import 'package:perfinance/data/models/expense.dart';
 import 'package:perfinance/data/repositories/automatic_payment_repository.dart';
 import 'package:perfinance/data/repositories/expense_repository.dart';

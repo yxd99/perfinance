@@ -54,6 +54,7 @@ Reportar siempre con `ErrorReporter.capture(e, st, operation: 'area.accion', det
 - Ejecutar: `flutter run --dart-define-from-file=dart_defines.json` (claves en `dart_defines.json.example`; sin `SENTRY_DSN` Sentry queda apagado).
 - Tests: `flutter test`. Análisis: `flutter analyze`.
 - Migraciones: `supabase migration list --linked`, `supabase db push`.
+- Release Android: push a `main` compila el APK y lo sube a Drive (`.github/workflows/android-release.yml`). Setup y secrets en `docs/release-android.md`.
 
 ## Tests
 
