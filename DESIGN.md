@@ -237,7 +237,7 @@ Warm paper and ink with a single purple voice, five banknote hues for identity, 
 
 ### Hero gradients
 - **Month Note** (hero-start → hero-end, top-left to bottom-right): the 50.000 note. Identical in both themes; it is a printed object, not a surface. Text on it uses on-hero (white), on-hero-muted (white 90%) and on-hero-soft (white 20%, decoration only: guilloché lines, ring rosette).
-- **Debt Note** (hero-debt-start → hero-debt-end): available for debt hero cards in screens not yet redesigned.
+- **Debt Note** (hero-debt-start → hero-debt-end): legacy token, no longer used by any screen; candidate for removal.
 
 ### Contrast (WCAG, computed from the tokens)
 - Ink on canvas 14.9:1; faded ink on canvas 6.2:1, on surface 6.7:1.
@@ -352,8 +352,17 @@ A 4pt-radius outlined tag ("Wallet") in label small faded ink next to expenses c
 ### Motion
 Platform transitions: Cupertino push on iOS, fade-upwards on Android; sheets rise and dismiss by swipe. The pace ring fill is the only custom animation and respects Reduce Motion. Theme switches snap rather than interpolate colours.
 
+### Shared patterns (added in polish)
+- **Rows:** tap opens detail or edit; swipe-left deletes after a confirmation dialog, with a matching VoiceOver "Eliminar" action. Long-press carries no hidden meaning and no list needs a gesture hint.
+- **Adding:** the last row of a grouped list is an accent `InsetAddRow` ("Agregar tarjeta", "Agregar deudor"…). No full-width purple add buttons; Deudas uses a "+" in its title row.
+- **Totals:** a quiet line above the list ("Total por pagar: $X"), muted label with the amount in heavy ink. No tinted total bars.
+- **Settled items:** stamped with `PaidStamp` ("PAGADA", "SALDADA") in `positive`, never hidden.
+- **Debt colour:** owed amounts are ink; `danger` only for overdue, and overdue is also said in words ("venció 8 dic").
+- **Pace ring:** the centre names what the fill measures ("61% de octubre"); the day of the month sits under the note label ("Día 18 de 30"). Without last-month spend the centre falls back to the day count.
+- **Empty and error states:** a bare glyph in `textMuted` (no tinted circle), voseo message, one action; errors offer "Reintentar".
+
 ### Not yet in the system
-Deudas (body below the shell), Tarjetas, Me deben, Auto-pagos, the financial-advisor chat and login still use pre-redesign layouts rendered on the new tokens. They are not reference material for new surfaces. The logo (`assets/images/perfinance-logo.png`) is undecided: keep or redraw.
+The logo (`assets/images/perfinance-logo.png`) is undecided: keep or redraw. The credit-card history filter keeps Material filter chips (six options do not fit a segmented control).
 
 ## Do's and Don'ts
 

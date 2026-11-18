@@ -60,7 +60,7 @@
       { "pair": "dark-on-accent / dark-accent", "ratio": 8.22 },
       { "pair": "dark-danger / dark-surface", "ratio": 6.6 }
     ],
-    "notYetInSystem": ["Deudas body", "Tarjetas", "Me deben", "Auto-pagos", "financial-advisor chat", "login", "logo (keep or redraw undecided)"]
+    "notYetInSystem": ["logo (keep or redraw undecided)", "credit-card history filter uses Material filter chips"]
   },
   "components": [
     {
