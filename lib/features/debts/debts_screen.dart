@@ -1,19 +1,27 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perfinance/core/providers/hide_values_provider.dart';
 import 'package:perfinance/core/theme/app_theme.dart';
 import 'package:perfinance/core/utils/user_friendly_errors.dart';
-import 'package:perfinance/core/widgets/app_empty_state.dart';
 import 'package:perfinance/core/widgets/app_error_state.dart';
-import 'package:perfinance/core/utils/date_format_utils.dart';
 import 'package:perfinance/core/widgets/currency_input.dart';
-import 'package:perfinance/core/widgets/summary_total_bar.dart';
+import 'package:perfinance/core/widgets/paid_stamp.dart';
 import 'package:perfinance/data/models/debt.dart';
 import 'package:perfinance/data/repositories/debt_repository.dart';
 import 'package:perfinance/data/repositories/mirrored_debt_repository.dart';
-import 'package:perfinance/features/debts/debts_provider.dart';
 import 'package:perfinance/features/debts/debt_detail_screen.dart';
 import 'package:perfinance/features/debts/debt_form_screen.dart';
+import 'package:perfinance/features/debts/debt_list_copy.dart';
+import 'package:perfinance/features/debts/debts_provider.dart';
+
+const _filterLabels = {
+  DebtListFilter.active: 'Activas',
+  DebtListFilter.paid: 'Pagadas',
+  DebtListFilter.all: 'Todas',
+  DebtListFilter.hidden: 'Ocultas',
+};
 
 class DebtsScreen extends ConsumerStatefulWidget {
   const DebtsScreen({super.key});
@@ -24,229 +32,190 @@ class DebtsScreen extends ConsumerStatefulWidget {
 
 class _DebtsScreenState extends ConsumerState<DebtsScreen> {
   final _searchController = TextEditingController();
-  final _searchFocus = FocusNode();
 
   @override
   void dispose() {
     _searchController.dispose();
-    _searchFocus.dispose();
     super.dispose();
+  }
+
+  void _refresh() {
+    ref.invalidate(debtsListProvider);
+    ref.invalidate(filteredDebtsWithPaidProvider);
   }
 
   @override
   Widget build(BuildContext context) {
+    final c = context.colors;
+    final t = Theme.of(context).textTheme;
     final asyncList = ref.watch(filteredDebtsWithPaidProvider);
     final filter = ref.watch(debtListFilterProvider);
+    final query = ref.watch(debtSearchQueryProvider);
     final hideValues = ref.watch(hideValuesProvider).value ?? false;
     final asyncTotal = ref.watch(outstandingDebtsTotalProvider);
-    final t = Theme.of(context).textTheme;
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Título grande igual al de las otras pestañas del shell.
+        // Título grande igual al de las otras pestañas del shell, con la
+        // acción de agregar como en una barra de navegación de iOS.
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 52, 16, 4),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Semantics(
-              header: true,
-              child: Text(
-                'Deudas',
-                style: t.headlineLarge?.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.5),
+          padding: const EdgeInsets.fromLTRB(16, 52, 4, 4),
+          child: Row(
+            children: [
+              Expanded(
+                child: Semantics(
+                  header: true,
+                  child: Text(
+                    'Deudas',
+                    style: t.headlineLarge?.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.5),
+                  ),
+                ),
               ),
-            ),
+              IconButton(
+                icon: Icon(CupertinoIcons.add, color: c.accent),
+                tooltip: 'Agregar deuda',
+                onPressed: () => _openForm(context),
+              ),
+            ],
           ),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-          child: ValueListenableBuilder<TextEditingValue>(
-            valueListenable: _searchController,
-            builder: (context, value, _) {
-              return TextField(
-                controller: _searchController,
-                focusNode: _searchFocus,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: InputDecoration(
-                  hintText: 'Buscar por descripción',
-                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon: value.text.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear),
-                          onPressed: () {
-                            _searchController.clear();
-                            ref.read(debtSearchQueryProvider.notifier).state = '';
-                          },
-                        )
-                      : null,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  isDense: true,
-                ),
-                onChanged: (v) => ref.read(debtSearchQueryProvider.notifier).state = v,
-              );
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+          child: CupertinoSearchTextField(
+            controller: _searchController,
+            placeholder: 'Buscar deuda',
+            padding: const EdgeInsetsDirectional.fromSTEB(6, 12, 6, 12),
+            backgroundColor: c.track,
+            itemColor: c.textMuted,
+            style: t.bodyLarge?.copyWith(color: c.ink),
+            placeholderStyle: t.bodyLarge?.copyWith(color: c.textMuted),
+            onChanged: (v) => ref.read(debtSearchQueryProvider.notifier).state = v,
+            onSuffixTap: () {
+              _searchController.clear();
+              ref.read(debtSearchQueryProvider.notifier).state = '';
             },
           ),
         ),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            children: [
-              _FilterChip(
-                label: 'Activas',
-                selected: filter == DebtListFilter.active,
-                onTap: () => ref.read(debtListFilterProvider.notifier).state = DebtListFilter.active,
-              ),
-              const SizedBox(width: 8),
-              _FilterChip(
-                label: 'Pagadas',
-                selected: filter == DebtListFilter.paid,
-                onTap: () => ref.read(debtListFilterProvider.notifier).state = DebtListFilter.paid,
-              ),
-              const SizedBox(width: 8),
-              _FilterChip(
-                label: 'Todas',
-                selected: filter == DebtListFilter.all,
-                onTap: () => ref.read(debtListFilterProvider.notifier).state = DebtListFilter.all,
-              ),
-              const SizedBox(width: 8),
-              _FilterChip(
-                label: 'Ocultas',
-                selected: filter == DebtListFilter.hidden,
-                onTap: () => ref.read(debtListFilterProvider.notifier).state = DebtListFilter.hidden,
-              ),
-            ],
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          child: CupertinoSlidingSegmentedControl<DebtListFilter>(
+            groupValue: filter,
+            backgroundColor: c.track,
+            thumbColor: c.surface,
+            children: {
+              for (final e in _filterLabels.entries)
+                e.key: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Text(
+                    e.value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: c.ink, fontWeight: filter == e.key ? FontWeight.w600 : FontWeight.w500),
+                  ),
+                ),
+            },
+            onValueChanged: (v) {
+              if (v != null) ref.read(debtListFilterProvider.notifier).state = v;
+            },
           ),
         ),
         Expanded(
           child: asyncList.when(
             data: (list) {
               if (list.isEmpty) {
-                return AppEmptyState(
-                  icon: Icons.account_balance_wallet_outlined,
-                  message: 'No hay deudas que coincidan.',
-                  actionLabel: filter == DebtListFilter.active ? 'Ver todas' : 'Agregar deuda',
-                  onAction: filter == DebtListFilter.active
+                final showAll = filter == DebtListFilter.active && query.trim().isEmpty;
+                return _EmptyList(
+                  message: debtsEmptyMessage(filter, query),
+                  actionLabel: showAll ? 'Ver todas' : 'Agregar deuda',
+                  onAction: showAll
                       ? () => ref.read(debtListFilterProvider.notifier).state = DebtListFilter.all
-                      : () => _openForm(context, ref),
+                      : () => _openForm(context),
                 );
               }
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+              return ListView(
+                padding: const EdgeInsets.only(bottom: 24),
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                    child: asyncTotal.when(
-                      data: (total) => SummaryTotalBar(
-                        label: 'Total deudas activas',
-                        amount: '\$${formatCurrencyDisplay(total, hideValues)}',
-                      ),
-                      loading: () => const SizedBox.shrink(),
-                      error: (_, __) => const SizedBox.shrink(),
-                    ),
-                  ),
-                  Expanded(
-                    child: ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                      itemCount: list.length + 1,
-                      itemBuilder: (context, i) {
-                        if (i == 0) {
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 16),
-                            child: FilledButton.icon(
-                              onPressed: () => _openForm(context, ref),
-                              icon: const Icon(Icons.add),
-                              label: const Text('Agregar deuda'),
-                            ),
-                          );
-                        }
-                        final item = list[i - 1];
-
-                        // Mirrored debts: read-only branch, no Dismissible
-                        if (item.debt.isMirrored) {
-                          return MirroredDebtCard(
-                            item: item,
-                            onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => DebtDetailScreen(debt: item.debt),
-                              ),
-                            ).then((_) {
-                              ref.invalidate(debtsListProvider);
-                              ref.invalidate(filteredDebtsWithPaidProvider);
-                            }),
-                            onDelete: item.debt.isRevoked
-                                ? () async {
-                                    await ref
-                                        .read(mirroredDebtRepositoryProvider)
-                                        .deleteByMirroredId(item.debt.mirroredDebtId!);
-                                    ref.invalidate(debtsListProvider);
-                                    ref.invalidate(filteredDebtsWithPaidProvider);
-                                  }
-                                : null,
-                          );
-                        }
-
-                        // Normal debts: existing Dismissible swipe-to-pay path
-                        return Dismissible(
-                          key: ValueKey('debt-${item.debt.id}'),
-                          direction: item.debt.status == DebtStatus.active
-                              ? DismissDirection.endToStart
-                              : DismissDirection.none,
-                          background: Container(
-                            color: context.colors.accent,
-                            alignment: Alignment.centerRight,
-                            padding: const EdgeInsets.symmetric(horizontal: 24),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                Icon(Icons.check_circle_outline, color: context.colors.onAccent),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Pagar',
-                                  style: TextStyle(
-                                    color: context.colors.onAccent,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          confirmDismiss: (_) async {
-                            final ok = await _confirmPayDialog(context, item.debt.name);
-                            if (ok != true) return false;
-                            await ref.read(debtRepositoryProvider).payDebt(item.debt.id);
-                            ref.invalidate(debtsListProvider);
-                            ref.invalidate(filteredDebtsWithPaidProvider);
-                            return false;
-                          },
-                          child: _DebtCard(
-                            item: item,
-                            hideValues: hideValues,
-                            onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => DebtDetailScreen(debt: item.debt),
-                              ),
-                            ).then((_) {
-                              ref.invalidate(debtsListProvider);
-                              ref.invalidate(filteredDebtsWithPaidProvider);
-                            }),
-                            onLongPress: () => _editDebt(context, ref, item.debt),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
+                  _TotalLine(total: asyncTotal.valueOrNull, hideValues: hideValues),
+                  _DebtGroup(children: [for (final item in list) _buildRow(context, item, hideValues)]),
                 ],
               );
             },
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => AppErrorState(
-              message: UserFriendlyErrors.fromAsyncError(e, UserFriendlyErrors.debtsLoadFailed),
-            ),
+            loading: () => const Center(child: CupertinoActivityIndicator()),
+            error: (e, _) =>
+                AppErrorState(message: UserFriendlyErrors.fromAsyncError(e, UserFriendlyErrors.debtsLoadFailed)),
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildRow(BuildContext context, DebtWithPaid item, bool hideValues) {
+    final c = context.colors;
+    void openDetail() => Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => DebtDetailScreen(debt: item.debt)),
+    ).then((_) => _refresh());
+
+    // Deudas recibidas: solo lectura, sin deslizar para pagar.
+    if (item.debt.isMirrored) {
+      return MirroredDebtCard(
+        item: item,
+        hideValues: hideValues,
+        onTap: openDetail,
+        onDelete: item.debt.isRevoked
+            ? () async {
+                await ref.read(mirroredDebtRepositoryProvider).deleteByMirroredId(item.debt.mirroredDebtId!);
+                _refresh();
+              }
+            : null,
+      );
+    }
+
+    final canPay = item.debt.status == DebtStatus.active;
+    Future<bool> pay() async {
+      final ok = await _confirmPayDialog(context, item.debt.name);
+      if (ok != true) return false;
+      await ref.read(debtRepositoryProvider).payDebt(item.debt.id);
+      _refresh();
+      return true;
+    }
+
+    return Semantics(
+      customSemanticsActions: {
+        if (canPay) const CustomSemanticsAction(label: 'Marcar como pagada'): () => pay(),
+        const CustomSemanticsAction(label: 'Editar deuda'): () => _editDebt(context, item.debt),
+      },
+      child: Dismissible(
+        key: ValueKey('debt-${item.debt.id}'),
+        direction: canPay ? DismissDirection.endToStart : DismissDirection.none,
+        background: Container(
+          color: c.accent,
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Icon(CupertinoIcons.checkmark_circle, color: c.onAccent),
+              const SizedBox(width: 8),
+              Text(
+                'Pagar',
+                style: TextStyle(color: c.onAccent, fontWeight: FontWeight.w700),
+              ),
+            ],
+          ),
+        ),
+        // Se paga en el repositorio; la fila no se descarta, cambia de estado.
+        confirmDismiss: (_) async {
+          await pay();
+          return false;
+        },
+        child: _DebtRow(
+          item: item,
+          hideValues: hideValues,
+          onTap: openDetail,
+          onLongPress: () => _editDebt(context, item.debt),
+        ),
+      ),
     );
   }
 
@@ -255,7 +224,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Marcar como pagada'),
-        content: Text('¿Marcar "$name" como pagada?'),
+        content: Text('¿Marcar «$name» como pagada?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
           FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Pagar')),
@@ -264,91 +233,41 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
     );
   }
 
-  void _openForm(BuildContext context, WidgetRef ref) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const DebtFormScreen()),
-    ).then((_) {
-      ref.invalidate(debtsListProvider);
-      ref.invalidate(filteredDebtsWithPaidProvider);
-    });
+  void _openForm(BuildContext context) {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => const DebtFormScreen())).then((_) => _refresh());
   }
 
-  void _editDebt(BuildContext context, WidgetRef ref, Debt debt) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => DebtFormScreen(editDebt: debt)),
-    ).then((_) {
-      ref.invalidate(debtsListProvider);
-      ref.invalidate(filteredDebtsWithPaidProvider);
-    });
+  void _editDebt(BuildContext context, Debt debt) {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => DebtFormScreen(editDebt: debt))).then((_) => _refresh());
   }
 }
 
-/// Public card widget for mirrored debts — read-only, no swipe-to-pay.
-/// Exported so tests can render it directly.
-class MirroredDebtCard extends StatelessWidget {
-  const MirroredDebtCard({
-    super.key,
-    required this.item,
-    this.onTap,
-    this.onDelete,
-  });
+/// «Total por pagar: $X» de las deudas activas, discreto sobre la lista.
+class _TotalLine extends StatelessWidget {
+  const _TotalLine({required this.total, required this.hideValues});
 
-  final DebtWithPaid item;
-  final VoidCallback? onTap;
-  final VoidCallback? onDelete;
+  final double? total;
+  final bool hideValues;
 
   @override
   Widget build(BuildContext context) {
-    final debt = item.debt;
-    return Opacity(
-      opacity: debt.isRevoked ? 0.75 : 1.0,
-      child: Card(
-        margin: const EdgeInsets.only(bottom: 12),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+    final value = total;
+    if (value == null) return const SizedBox(height: 8);
+    final c = context.colors;
+    final style = Theme.of(context).textTheme.bodyMedium;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      child: Text.rich(
+        TextSpan(
           children: [
-            Stack(
-              children: [
-                // "Recibida" badge — always shown for mirrored
-                Positioned(
-                  top: 0,
-                  right: 0,
-                  child: _Pill(label: 'Recibida', color: context.colors.infoSoft, textColor: context.colors.info),
-                ),
-                ListTile(
-                  contentPadding: const EdgeInsets.fromLTRB(20, 12, 72, 12),
-                  leading: CircleAvatar(
-                    backgroundColor: context.colors.infoSoft,
-                    child: Icon(Icons.account_balance_wallet_outlined, color: context.colors.info),
-                  ),
-                  title: Text(debt.name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: Text(
-                    'Registrada por ${debt.creditorEmail}',
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: onTap,
-                  // NO onLongPress — edit not allowed for mirrored
-                ),
-              ],
+            TextSpan(
+              text: 'Total por pagar: ',
+              style: style?.copyWith(color: c.textMuted),
             ),
-            if (debt.isRevoked) ...[
-              _RevokedBanner(creditorEmail: debt.creditorEmail!),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                child: OutlinedButton(
-                  onPressed: onDelete,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Theme.of(context).colorScheme.error,
-                    side: BorderSide(color: Theme.of(context).colorScheme.error),
-                  ),
-                  child: const Text('Eliminar'),
-                ),
-              ),
-            ],
+            TextSpan(
+              text: '\$${formatCurrencyDisplay(value, hideValues)}',
+              style: style?.copyWith(color: c.ink, fontWeight: FontWeight.w600, fontFeatures: kTabularFigures),
+            ),
           ],
         ),
       ),
@@ -356,57 +275,153 @@ class MirroredDebtCard extends StatelessWidget {
   }
 }
 
-class _RevokedBanner extends StatelessWidget {
-  const _RevokedBanner({required this.creditorEmail});
-  final String creditorEmail;
+/// Lista agrupada inset sobre papel claro, con líneas finas entre filas.
+class _DebtGroup extends StatelessWidget {
+  const _DebtGroup({required this.children});
+
+  final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: context.colors.track,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: context.colors.divider),
-      ),
-      child: Text(
-        'Esta deuda fue cancelada por $creditorEmail',
-        style: TextStyle(
-          fontSize: 13,
-          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+    final c = context.colors;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Material(
+          color: c.surface,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var i = 0; i < children.length; i++) ...[
+                if (i > 0) Divider(height: 0.5, thickness: 0.5, indent: 16, color: c.divider),
+                children[i],
+              ],
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _FilterChip extends StatelessWidget {
-  const _FilterChip({required this.label, required this.selected, required this.onTap});
+class _EmptyList extends StatelessWidget {
+  const _EmptyList({required this.message, required this.actionLabel, required this.onAction});
 
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
+  final String message;
+  final String actionLabel;
+  final VoidCallback onAction;
 
   @override
   Widget build(BuildContext context) {
-    return FilterChip(
-      label: Text(label),
-      selected: selected,
-      onSelected: (_) => onTap(),
-      selectedColor: context.colors.accentSoft,
-      checkmarkColor: context.colors.accent,
+    final c = context.colors;
+    final t = Theme.of(context).textTheme;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: t.bodyLarge?.copyWith(color: c.textMuted),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: onAction,
+              style: TextButton.styleFrom(
+                foregroundColor: c.accent,
+                minimumSize: const Size(44, 44),
+                textStyle: t.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+              ),
+              child: Text(actionLabel),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
 
-class _DebtCard extends StatelessWidget {
-  const _DebtCard({
-    required this.item,
-    required this.hideValues,
-    required this.onTap,
-    required this.onLongPress,
-  });
+/// Fila base: nombre, línea de estado y a la derecha el monto o el sello.
+class _RowShell extends StatelessWidget {
+  const _RowShell({required this.title, required this.status, required this.trailing, this.onTap, this.onLongPress});
+
+  final String title;
+  final String status;
+  final Widget? trailing;
+  final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final t = Theme.of(context).textTheme;
+    return Material(
+      color: c.surface,
+      child: InkWell(
+        onTap: onTap,
+        onLongPress: onLongPress,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 56),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(title, style: t.bodyLarge, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: 2),
+                      Text(
+                        status,
+                        style: t.bodySmall?.copyWith(color: c.textMuted),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                if (trailing != null) ...[const SizedBox(width: 12), trailing!],
+                if (onTap != null) ...[
+                  const SizedBox(width: 4),
+                  Icon(CupertinoIcons.chevron_forward, size: 16, color: c.textMuted),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Amount extends StatelessWidget {
+  const _Amount({required this.value, required this.owed, required this.hideValues});
+
+  final double value;
+  final bool owed;
+  final bool hideValues;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Text(
+      '\$${formatCurrencyDisplay(value, hideValues)}',
+      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+        fontWeight: FontWeight.w700,
+        fontFeatures: kTabularFigures,
+        color: owed ? c.danger : c.textMuted,
+      ),
+    );
+  }
+}
+
+class _DebtRow extends StatelessWidget {
+  const _DebtRow({required this.item, required this.hideValues, required this.onTap, required this.onLongPress});
 
   final DebtWithPaid item;
   final bool hideValues;
@@ -415,110 +430,96 @@ class _DebtCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final remaining = debtRemaining(item);
+    final Widget trailing = switch (item.debt.status) {
+      DebtStatus.paid => const PaidStamp(label: 'Pagada'),
+      DebtStatus.active => _Amount(value: remaining, owed: remaining > 0, hideValues: hideValues),
+      DebtStatus.hidden => _Amount(value: remaining, owed: false, hideValues: hideValues),
+    };
+    return _RowShell(
+      title: item.debt.name,
+      status: debtStatusLine(item, hideValues: hideValues),
+      trailing: trailing,
+      onTap: onTap,
+      onLongPress: onLongPress,
+    );
+  }
+}
+
+/// Fila de una deuda recibida (espejo): solo lectura, sin deslizar para pagar.
+/// Pública para poder probarla directo.
+class MirroredDebtCard extends StatelessWidget {
+  const MirroredDebtCard({super.key, required this.item, this.hideValues = false, this.onTap, this.onDelete});
+
+  final DebtWithPaid item;
+  final bool hideValues;
+  final VoidCallback? onTap;
+  final VoidCallback? onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final t = Theme.of(context).textTheme;
     final debt = item.debt;
-    final paid = item.paid;
-    final remaining = debt.totalAmount - paid;
-    final installmentsPaid = debt.amountPerInstallment > 0
-        ? (paid / debt.amountPerInstallment).floor()
-        : 0;
-    final badge = item.badgeKind;
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      clipBehavior: Clip.antiAlias,
-      child: Stack(
+    final remaining = debtRemaining(item);
+    return Material(
+      color: c.surface,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (badge != DebtBadgeKind.none && badge != DebtBadgeKind.mirrored && badge != DebtBadgeKind.revokedMirrored)
-            Positioned(
-              top: 0,
-              right: 0,
-              child: _DebtStatusBadge(kind: badge),
-            ),
-          ListTile(
-            contentPadding: EdgeInsets.fromLTRB(20, 12, badge != DebtBadgeKind.none ? 72 : 20, 12),
-            leading: CircleAvatar(
-              backgroundColor: context.colors.accentSoft,
-              child: Icon(Icons.account_balance_wallet_outlined, color: context.colors.accent),
-            ),
-            title: Text(debt.name, style: const TextStyle(fontWeight: FontWeight.w600)),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          _RowShell(
+            title: debt.name,
+            status: debtStatusLine(item, hideValues: hideValues),
+            trailing: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (!hideValues) ...[
-                  Text('Total: \$${formatCurrencyDisplay(debt.totalAmount, hideValues)} · ${debt.numberOfInstallments} cuotas'),
-                  Text('Pagado: $installmentsPaid/${debt.numberOfInstallments} cuotas · Falta: \$${formatCurrencyDisplay(remaining, hideValues)}'),
-                ],
-                Text(
-                  'Vence: ${formatDisplayDate(debt.dueDate)}',
-                  style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
-                ),
+                if (!debt.isRevoked) _Amount(value: remaining, owed: remaining > 0, hideValues: hideValues),
+                const SizedBox(height: 2),
+                const _ReceivedMarker(),
               ],
             ),
-            trailing: const Icon(Icons.chevron_right),
             onTap: onTap,
-            onLongPress: onLongPress,
           ),
+          if (debt.isRevoked)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 8, 6),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Esta deuda fue cancelada por ${debt.creditorEmail}',
+                      style: t.bodySmall?.copyWith(color: c.textMuted),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: onDelete,
+                    style: TextButton.styleFrom(foregroundColor: c.danger, minimumSize: const Size(44, 44)),
+                    child: const Text('Eliminar'),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );
   }
 }
 
-class _DebtStatusBadge extends StatelessWidget {
-  const _DebtStatusBadge({required this.kind});
-  final DebtBadgeKind kind;
+/// Marca «Recibida», como la de Wallet en Egresos: contorno fino, sin relleno.
+class _ReceivedMarker extends StatelessWidget {
+  const _ReceivedMarker();
 
   @override
   Widget build(BuildContext context) {
-    switch (kind) {
-      case DebtBadgeKind.none:
-      case DebtBadgeKind.mirrored:
-      case DebtBadgeKind.revokedMirrored:
-        return const SizedBox.shrink();
-      case DebtBadgeKind.paid:
-        return _Pill(label: 'Pagada', color: context.colors.accent, textColor: context.colors.onAccent);
-      case DebtBadgeKind.hidden:
-        return _Pill(
-          label: 'Oculta',
-          color: context.colors.track,
-          textColor: context.colors.textMuted,
-          borderColor: context.colors.divider,
-        );
-    }
-  }
-}
-
-class _Pill extends StatelessWidget {
-  const _Pill({required this.label, required this.color, required this.textColor, this.borderColor});
-  final String label;
-  final Color color;
-  final Color textColor;
-  final Color? borderColor;
-
-  @override
-  Widget build(BuildContext context) {
+    final c = context.colors;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
       decoration: BoxDecoration(
-        color: color,
-        border: borderColor != null ? Border.all(color: borderColor!) : null,
-        boxShadow: [
-          BoxShadow(
-            color: context.colors.shadow,
-            blurRadius: 4,
-            offset: const Offset(0, 1),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: c.info),
       ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: textColor,
-          fontWeight: FontWeight.w700,
-          fontSize: 12,
-          letterSpacing: 0.5,
-        ),
-      ),
+      child: Text('Recibida', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: c.info)),
     );
   }
 }
