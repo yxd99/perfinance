@@ -13,7 +13,7 @@ abstract class ChatAgentConfigs {
     label: 'Asesor',
     description: 'Análisis financiero, métricas, consejos',
     icon: Icons.analytics_outlined,
-    color: Color(0xFF2ECC71),
+    tone: AgentTone.accent,
     persistToDb: true,
     systemPrompt: _advisorPrompt,
   );
@@ -23,7 +23,7 @@ abstract class ChatAgentConfigs {
     label: 'Asistente',
     description: 'Registrar gastos, pagos, deudas',
     icon: Icons.edit_note,
-    color: Color(0xFF3498DB),
+    tone: AgentTone.info,
     persistToDb: true,
     systemPrompt: _assistantPrompt,
   );
@@ -33,7 +33,7 @@ abstract class ChatAgentConfigs {
     label: 'Rápido',
     description: 'Mensajes temporales, no se guardan',
     icon: Icons.flash_on_outlined,
-    color: Color(0xFFF39C12),
+    tone: AgentTone.warning,
     persistToDb: false,
     systemPrompt: _ephemeralPrompt,
   );

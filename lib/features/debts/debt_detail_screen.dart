@@ -93,12 +93,12 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
               if (isPaid)
                 _InfoBanner(
                   message: 'Esta deuda está marcada como pagada. Reactivala para registrar nuevos pagos.',
-                  color: AppThemeColors.primaryGreen,
+                  color: context.colors.accent,
                 ),
               if (isHidden)
                 _InfoBanner(
                   message: 'Esta deuda está oculta. Reactivala para volver a operarla.',
-                  color: AppThemeColors.neutralGrey,
+                  color: context.colors.textMuted,
                 ),
               Card(
                 child: Padding(
@@ -149,8 +149,8 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
                         icon: const Icon(Icons.visibility_off_outlined),
                         label: const Text('Ocultar'),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: AppThemeColors.neutralGrey,
-                          side: const BorderSide(color: AppThemeColors.neutralGrey),
+                          foregroundColor: context.colors.textMuted,
+                          side: BorderSide(color: context.colors.divider),
                         ),
                       ),
                     ),
@@ -173,8 +173,8 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
                         icon: const Icon(Icons.visibility_off_outlined),
                         label: const Text('Ocultar'),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: AppThemeColors.neutralGrey,
-                          side: const BorderSide(color: AppThemeColors.neutralGrey),
+                          foregroundColor: context.colors.textMuted,
+                          side: BorderSide(color: context.colors.divider),
                         ),
                       ),
                     ),
@@ -219,8 +219,8 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
                       margin: const EdgeInsets.only(bottom: 8),
                       child: ListTile(
                         leading: CircleAvatar(
-                          backgroundColor: AppThemeColors.primaryGreen.withValues(alpha: 0.2),
-                          child: Icon(Icons.check, color: AppThemeColors.primaryGreen, size: 20),
+                          backgroundColor: context.colors.accentSoft,
+                          child: Icon(Icons.check, color: context.colors.accent, size: 20),
                         ),
                         title: Text('\$${formatCurrencyDisplay(p.amount, hideValues)}'),
                         subtitle: Text(formatDisplayDate(p.date)),
@@ -259,9 +259,9 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
                 margin: const EdgeInsets.only(bottom: 12),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.blueGrey.withValues(alpha: 0.08),
+                  color: context.colors.infoSoft,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.blueGrey.withValues(alpha: 0.3)),
+                  border: Border.all(color: context.colors.info.withValues(alpha: 0.3)),
                 ),
                 child: Text(
                   'Registrada por ${_debt.creditorEmail}',
@@ -274,9 +274,9 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
                   margin: const EdgeInsets.only(bottom: 12),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.grey.withValues(alpha: 0.12),
+                    color: context.colors.track,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.grey.withValues(alpha: 0.4)),
+                    border: Border.all(color: context.colors.divider),
                   ),
                   child: Text(
                     'Esta deuda fue cancelada por ${_debt.creditorEmail}',
@@ -329,8 +329,8 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
                       margin: const EdgeInsets.only(bottom: 8),
                       child: ListTile(
                         leading: CircleAvatar(
-                          backgroundColor: Colors.blueGrey.withValues(alpha: 0.15),
-                          child: const Icon(Icons.check, color: Colors.blueGrey, size: 20),
+                          backgroundColor: context.colors.infoSoft,
+                          child: Icon(Icons.check, color: context.colors.info, size: 20),
                         ),
                         title: Text('\$${formatCurrencyDisplay(p.amount, hideValues)}'),
                         subtitle: Text(formatDisplayDate(p.date)),
@@ -407,7 +407,7 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
           OutlinedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: OutlinedButton.styleFrom(foregroundColor: AppThemeColors.neutralGrey),
+            style: OutlinedButton.styleFrom(foregroundColor: context.colors.textMuted),
             child: const Text('Ocultar'),
           ),
         ],
@@ -532,17 +532,24 @@ class _StatusBadge extends StatelessWidget {
       case DebtStatus.active:
         return const SizedBox.shrink();
       case DebtStatus.paid:
-        return _Pill(label: 'Pagada', color: AppThemeColors.primaryGreen);
+        return _Pill(label: 'Pagada', color: context.colors.accent, textColor: context.colors.onAccent);
       case DebtStatus.hidden:
-        return _Pill(label: 'Oculta', color: AppThemeColors.neutralGrey);
+        return _Pill(
+          label: 'Oculta',
+          color: context.colors.track,
+          textColor: context.colors.textMuted,
+          borderColor: context.colors.divider,
+        );
     }
   }
 }
 
 class _Pill extends StatelessWidget {
-  const _Pill({required this.label, required this.color});
+  const _Pill({required this.label, required this.color, required this.textColor, this.borderColor});
   final String label;
   final Color color;
+  final Color textColor;
+  final Color? borderColor;
 
   @override
   Widget build(BuildContext context) {
@@ -551,11 +558,12 @@ class _Pill extends StatelessWidget {
       decoration: BoxDecoration(
         color: color,
         borderRadius: BorderRadius.circular(8),
+        border: borderColor != null ? Border.all(color: borderColor!) : null,
       ),
       child: Text(
         label,
-        style: const TextStyle(
-          color: Colors.white,
+        style: TextStyle(
+          color: textColor,
           fontWeight: FontWeight.w700,
           fontSize: 12,
         ),

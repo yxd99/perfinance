@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:perfinance/core/theme/app_theme.dart';
 import 'package:perfinance/core/utils/date_format_utils.dart';
 import 'package:perfinance/core/widgets/currency_input.dart';
 import 'package:perfinance/data/models/receivable.dart';
@@ -92,7 +93,7 @@ class _RegisterPaymentSheetState extends ConsumerState<_RegisterPaymentSheet> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey[300],
+                  color: context.colors.track,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -226,15 +227,18 @@ class _RegisterPaymentSheetState extends ConsumerState<_RegisterPaymentSheet> {
     } on StateError catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text(e.message, style: TextStyle(color: context.colors.onDanger)),
+            backgroundColor: context.colors.danger,
+          ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error al guardar: $e'),
-            backgroundColor: Colors.red,
+            content: Text('Error al guardar: $e', style: TextStyle(color: context.colors.onDanger)),
+            backgroundColor: context.colors.danger,
           ),
         );
       }

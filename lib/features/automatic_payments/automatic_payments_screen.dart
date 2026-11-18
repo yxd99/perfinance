@@ -55,8 +55,8 @@ class AutomaticPaymentsScreen extends ConsumerWidget {
                 margin: const EdgeInsets.only(bottom: 8),
                 child: ListTile(
                   leading: CircleAvatar(
-                    backgroundColor: AppThemeColors.primaryGreen.withValues(alpha: 0.2),
-                    child: Icon(Icons.autorenew, color: AppThemeColors.primaryGreen),
+                    backgroundColor: context.colors.accentSoft,
+                    child: Icon(Icons.autorenew, color: context.colors.accent),
                   ),
                   title: Text(p.description, style: const TextStyle(fontWeight: FontWeight.w600)),
                   subtitle: Text(

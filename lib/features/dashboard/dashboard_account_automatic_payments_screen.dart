@@ -69,7 +69,7 @@ class DashboardAccountAutomaticPaymentsScreen extends ConsumerWidget {
                   'Total estimado: \$${formatCurrencyDisplay(total, hideValues)}',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w700,
-                        color: AppThemeColors.primaryGreen,
+                        color: context.colors.accent,
                       ),
                 ),
               ),
@@ -83,8 +83,8 @@ class DashboardAccountAutomaticPaymentsScreen extends ConsumerWidget {
                       margin: const EdgeInsets.only(bottom: 8),
                       child: ListTile(
                         leading: CircleAvatar(
-                          backgroundColor: AppThemeColors.primaryGreen.withValues(alpha: 0.2),
-                          child: Icon(Icons.autorenew, color: AppThemeColors.primaryGreen, size: 22),
+                          backgroundColor: context.colors.accentSoft,
+                          child: Icon(Icons.autorenew, color: context.colors.accent, size: 22),
                         ),
                         title: Text(p.description, style: const TextStyle(fontWeight: FontWeight.w600)),
                         subtitle: Text(

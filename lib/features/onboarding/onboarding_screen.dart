@@ -45,6 +45,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final c = context.colors;
     return Scaffold(
       body: Container(
         decoration: Theme.of(context).brightness == Brightness.dark
@@ -60,7 +61,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   child: Text(
                     'Omitir',
                     style: TextStyle(
-                      color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
+                      color: c.textMuted,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -87,8 +88,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(4),
                           color: i == _currentPage
-                              ? AppThemeColors.primaryGreen
-                              : (isDark ? Colors.grey.shade700 : Colors.grey.shade400),
+                              ? c.accent
+                              : c.track,
                         ),
                       ),
                     ),
@@ -142,6 +143,7 @@ class _SlidePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.colors;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 32),
       child: Column(
@@ -150,11 +152,11 @@ class _SlidePage extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(28),
             decoration: BoxDecoration(
-              color: AppThemeColors.primaryGreen.withValues(alpha: isDark ? 0.25 : 0.15),
+              color: c.accentSoft,
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: AppThemeColors.primaryGreen.withValues(alpha: isDark ? 0.2 : 0.25),
+                  color: c.accent.withValues(alpha: isDark ? 0.2 : 0.25),
                   blurRadius: 24,
                   offset: const Offset(0, 8),
                 ),
@@ -163,7 +165,7 @@ class _SlidePage extends StatelessWidget {
             child: Icon(
               slide.icon,
               size: 72,
-              color: AppThemeColors.primaryGreen,
+              color: c.accent,
             ),
           ),
           const SizedBox(height: 40),

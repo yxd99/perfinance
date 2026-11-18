@@ -1,37 +1,18 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:perfinance/core/theme/app_colors.dart';
+
+export 'package:perfinance/core/theme/app_colors.dart';
 
 /// Rutas de assets de la app.
 abstract class AppAssets {
   static const String logo = 'assets/images/perfinance-logo.png';
 }
 
-/// Colores y gradientes del tema para usar en widgets.
+/// Fondos decorativos que todavía no tienen rol semántico (login y onboarding).
+/// Los colores de interfaz van en [AppColors].
 abstract class AppThemeColors {
-  static const Color primaryGreen = Color(0xFF2ECC71);
-  static const Color primaryGreenLight = Color(0xFF58D68D);
-  static const Color accentBlue = Color(0xFF3498DB);
-  static const Color accentGold = Color(0xFFF1C40F);
-  static const Color surfaceDark = Color(0xFF1C1C1E);
-  static const Color backgroundDark = Color(0xFF0D0D0D);
-  static const Color primaryGreenDark = Color(0xFF1A9E55);
-  static const Color neutralGrey = Color(0xFF718096);
-  static const Color errorRed = Color(0xFFE53E3E);
-  static const Color errorRedDark = Color(0xFFC53030);
-  static const LinearGradient debtGradient = LinearGradient(
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-    colors: [Color(0xFFE53E3E), Color(0xFF9B2335)],
-  );
-
-  /// Gradiente principal (verde) para hero cards y acentos.
-  static const LinearGradient primaryGradient = LinearGradient(
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-    colors: [Color(0xFF2ECC71), Color(0xFF1A9E55)],
-  );
-
   /// Gradiente suave para fondos claros.
   static const LinearGradient backgroundGradientLight = LinearGradient(
     begin: Alignment.topCenter,
@@ -42,37 +23,53 @@ abstract class AppThemeColors {
       Color(0xFFFFFFFF),
     ],
   );
-
-  /// Gradiente para AppBar light.
-  static const LinearGradient appBarGradientLight = LinearGradient(
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-    colors: [
-      Color(0xFFFFFFFF),
-      Color(0xFFF5FBF8),
-    ],
-  );
 }
 
-/// Tema moderno y llamativo alineado con el logo PerFinance.
+/// Tema de la app. Los colores salen de [AppColors]; acá solo se mapean a Material.
 class AppTheme {
-  static const Color _primaryGreen = Color(0xFF2ECC71);
-  static const Color _accentBlue = Color(0xFF3498DB);
-  static const Color _accentGold = Color(0xFFF1C40F);
   static const Color _surfaceDark = Color(0xFF1C1C1E);
   static const Color _backgroundDark = Color(0xFF0D0D0D);
 
+  static ColorScheme _scheme(AppColors c, Brightness brightness, Color surface) {
+    return ColorScheme.fromSeed(
+      seedColor: c.accent,
+      brightness: brightness,
+      primary: c.accent,
+      onPrimary: c.onAccent,
+      primaryContainer: c.accentSoft,
+      onPrimaryContainer: c.accent,
+      secondary: c.info,
+      tertiary: c.warning,
+      error: c.danger,
+      onError: c.onDanger,
+      errorContainer: c.dangerSoft,
+      onErrorContainer: c.danger,
+      surface: surface,
+      onSurfaceVariant: c.textMuted,
+      outlineVariant: c.divider,
+    );
+  }
+
+  static TabBarThemeData _tabBarTheme(AppColors c) {
+    return TabBarThemeData(
+      indicator: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        color: c.accent,
+      ),
+      indicatorSize: TabBarIndicatorSize.tab,
+      labelColor: c.onAccent,
+      unselectedLabelColor: c.textMuted,
+      labelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+      unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500),
+    );
+  }
+
   static ThemeData get light {
+    const c = AppColors.light;
     return ThemeData(
       useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: _primaryGreen,
-        primary: _primaryGreen,
-        secondary: _accentBlue,
-        tertiary: _accentGold,
-        brightness: Brightness.light,
-        surface: Colors.white,
-      ),
+      colorScheme: _scheme(c, Brightness.light, Colors.white),
+      extensions: const [AppColors.light],
       scaffoldBackgroundColor: const Color(0xFFF4FBF7),
       appBarTheme: AppBarTheme(
         centerTitle: true,
@@ -92,44 +89,26 @@ class AppTheme {
         margin: EdgeInsets.zero,
         clipBehavior: Clip.antiAlias,
       ),
-      tabBarTheme: TabBarThemeData(
-        indicator: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: _primaryGreen.withValues(alpha: 0.35),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-          gradient: AppThemeColors.primaryGradient,
-        ),
-        indicatorSize: TabBarIndicatorSize.tab,
-        labelColor: Colors.white,
-        unselectedLabelColor: Colors.grey.shade600,
-        labelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: Colors.white),
-        unselectedLabelStyle: TextStyle(fontWeight: FontWeight.w500, color: Colors.grey.shade600),
-      ),
+      tabBarTheme: _tabBarTheme(c),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.shade300),
+          borderSide: BorderSide(color: c.divider),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: _primaryGreen, width: 2),
+          borderSide: BorderSide(color: c.accent, width: 2),
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           elevation: 2,
-          shadowColor: _primaryGreen.withValues(alpha: 0.4),
+          shadowColor: c.shadow,
         ),
       ),
       textTheme: _buildTextTheme(Brightness.light),
@@ -143,16 +122,11 @@ class AppTheme {
   }
 
   static ThemeData get dark {
+    const c = AppColors.dark;
     return ThemeData(
       useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: _primaryGreen,
-        primary: _primaryGreen,
-        secondary: _accentBlue,
-        tertiary: _accentGold,
-        brightness: Brightness.dark,
-        surface: _surfaceDark,
-      ),
+      colorScheme: _scheme(c, Brightness.dark, _surfaceDark),
+      extensions: const [AppColors.dark],
       scaffoldBackgroundColor: _backgroundDark,
       appBarTheme: const AppBarTheme(
         centerTitle: true,
@@ -171,33 +145,23 @@ class AppTheme {
         margin: EdgeInsets.zero,
         clipBehavior: Clip.antiAlias,
       ),
-      tabBarTheme: TabBarThemeData(
-        indicator: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          gradient: AppThemeColors.primaryGradient,
-        ),
-        indicatorSize: TabBarIndicatorSize.tab,
-        labelColor: Colors.white,
-        unselectedLabelColor: Colors.grey.shade400,
-        labelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: Colors.white),
-      ),
+      tabBarTheme: _tabBarTheme(c),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: _surfaceDark,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.shade700),
+          borderSide: BorderSide(color: c.divider),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: _primaryGreen, width: 2),
+          borderSide: BorderSide(color: c.accent, width: 2),
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),

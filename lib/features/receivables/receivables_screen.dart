@@ -211,8 +211,8 @@ class _ReceivableCard extends StatelessWidget {
                 children: [
                   CircleAvatar(
                     radius: 18,
-                    backgroundColor: AppThemeColors.primaryGreen.withValues(alpha: 0.15),
-                    child: const Icon(Icons.person_outline, color: AppThemeColors.primaryGreen, size: 20),
+                    backgroundColor: context.colors.accentSoft,
+                    child: Icon(Icons.person_outline, color: context.colors.accent, size: 20),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -221,7 +221,7 @@ class _ReceivableCard extends StatelessWidget {
                       style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
                     ),
                   ),
-                  if (isSettled) _Pill(label: 'Cobrada', color: AppThemeColors.primaryGreen),
+                  if (isSettled) _Pill(label: 'Cobrada', color: context.colors.positive),
                 ],
               ),
               const SizedBox(height: 4),
@@ -230,7 +230,7 @@ class _ReceivableCard extends StatelessWidget {
                 child: Text(
                   r.debtorEmail ?? 'Sin email',
                   style: TextStyle(
-                    color: r.debtorEmail != null ? Colors.grey[600] : AppThemeColors.neutralGrey,
+                    color: context.colors.textMuted,
                     fontSize: 13,
                   ),
                 ),
@@ -238,8 +238,8 @@ class _ReceivableCard extends StatelessWidget {
               const SizedBox(height: 12),
               LinearProgressIndicator(
                 value: progress,
-                backgroundColor: Colors.grey[200],
-                valueColor: AlwaysStoppedAnimation(AppThemeColors.primaryGreen),
+                backgroundColor: context.colors.track,
+                valueColor: AlwaysStoppedAnimation(context.colors.accent),
                 minHeight: 6,
                 borderRadius: BorderRadius.circular(3),
               ),
@@ -249,12 +249,12 @@ class _ReceivableCard extends StatelessWidget {
                 children: [
                   Text(
                     '\$${formatCurrency(view.totalPaid)} / \$${formatCurrency(r.totalAmount)}',
-                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                    style: TextStyle(color: context.colors.textMuted, fontSize: 12),
                   ),
                   Text(
                     remaining <= 0 ? 'Cobrado al 100%' : 'Falta: \$${formatCurrency(remaining)}',
                     style: TextStyle(
-                      color: remaining <= 0 ? AppThemeColors.primaryGreen : AppThemeColors.errorRed,
+                      color: remaining <= 0 ? context.colors.positive : context.colors.warning,
                       fontWeight: FontWeight.w600,
                       fontSize: 12,
                     ),
@@ -273,17 +273,17 @@ class _ReceivableCard extends StatelessWidget {
         direction: DismissDirection.endToStart,
         background: Container(
           decoration: BoxDecoration(
-            color: AppThemeColors.primaryGreen,
+            color: context.colors.accent,
             borderRadius: BorderRadius.circular(12),
           ),
           alignment: Alignment.centerRight,
           padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: const Row(
+          child: Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              Icon(Icons.check_circle_outline, color: Colors.white),
-              SizedBox(width: 8),
-              Text('Cobrar todo', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+              Icon(Icons.check_circle_outline, color: context.colors.onAccent),
+              const SizedBox(width: 8),
+              Text('Cobrar todo', style: TextStyle(color: context.colors.onAccent, fontWeight: FontWeight.w700)),
             ],
           ),
         ),

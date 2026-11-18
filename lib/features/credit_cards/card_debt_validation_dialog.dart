@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:perfinance/core/theme/app_theme.dart';
 import 'package:perfinance/core/widgets/currency_input.dart';
 import 'package:perfinance/services/card_debt_reconciliation_service.dart';
 
@@ -29,8 +30,8 @@ Future<CardDebtValidationDecision?> showCardDebtValidationDialog({
             actualDebt: actualDebt,
           );
           final deltaColor = switch (reconciliation.action) {
-            CardDebtAdjustmentAction.missingExpense => Colors.orange.shade700,
-            CardDebtAdjustmentAction.cardPayment => Colors.green.shade700,
+            CardDebtAdjustmentAction.missingExpense => context.colors.warning,
+            CardDebtAdjustmentAction.cardPayment => context.colors.positive,
             CardDebtAdjustmentAction.none => Theme.of(context).colorScheme.primary,
           };
           final deltaLabel = switch (reconciliation.action) {

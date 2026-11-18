@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:perfinance/core/theme/app_theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perfinance/core/utils/date_format_utils.dart';
 import 'package:perfinance/services/sync_service.dart';
@@ -113,19 +114,19 @@ class _AutomaticPaymentFormScreenState extends ConsumerState<AutomaticPaymentFor
                   onTap: _pickNextRunDate,
                   child: Row(
                     children: [
-                      const Icon(Icons.event, color: Colors.green, size: 20),
+                      Icon(Icons.event, color: context.colors.accent, size: 20),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           'Próximo pago: ${formatDisplayDate(_nextDate!)}',
-                          style: const TextStyle(
-                            color: Colors.green,
+                          style: TextStyle(
+                            color: context.colors.accent,
                             fontWeight: FontWeight.w600,
                             fontSize: 16,
                           ),
                         ),
                       ),
-                      const Icon(Icons.edit, color: Colors.green, size: 18),
+                      Icon(Icons.edit, color: context.colors.accent, size: 18),
                       if (_nextRunDateOverride != null)
                         TextButton(
                           onPressed: () => setState(() => _nextRunDateOverride = null),

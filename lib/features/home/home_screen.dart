@@ -213,14 +213,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                       list.every((r) => r == ConnectivityResult.none);
                   if (!offline) return const SizedBox.shrink();
                   return Material(
-                    color: Colors.orange.shade700,
-                    child: const SafeArea(
+                    color: context.colors.warningSoft,
+                    child: SafeArea(
                       child: Padding(
-                        padding: EdgeInsets.symmetric(vertical: 8),
+                        padding: const EdgeInsets.symmetric(vertical: 8),
                         child: Center(
                           child: Text(
                             'Sin conexión. Los datos se sincronizarán al recuperar la red.',
-                            style: TextStyle(color: Colors.white),
+                            style: TextStyle(color: context.colors.warning),
                           ),
                         ),
                       ),

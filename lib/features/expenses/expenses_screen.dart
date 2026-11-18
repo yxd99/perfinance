@@ -450,26 +450,27 @@ class ExpensesScreen extends ConsumerWidget {
 class _CreditCardBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final c = context.colors;
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: AppThemeColors.primaryGreen.withValues(alpha: 0.15),
+          color: c.accentSoft,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppThemeColors.primaryGreen.withValues(alpha: 0.5), width: 1),
+          border: Border.all(color: c.accent.withValues(alpha: 0.5), width: 1),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.credit_card, size: 14, color: AppThemeColors.primaryGreen),
+            Icon(Icons.credit_card, size: 14, color: c.accent),
             const SizedBox(width: 4),
             Text(
               'Crédito',
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
-                color: AppThemeColors.primaryGreen,
+                color: c.accent,
               ),
             ),
           ],

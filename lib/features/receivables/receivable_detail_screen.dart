@@ -98,7 +98,7 @@ class _ReceivableDetailScreenState extends ConsumerState<ReceivableDetailScreen>
                   : 0.0)
               .toDouble();
           final remainingLabel = remaining <= 0 ? 'Cobrado al 100%' : '\$${formatCurrency(remaining)}';
-          final remainingColor = remaining <= 0 ? AppThemeColors.primaryGreen : AppThemeColors.errorRed;
+          final remainingColor = remaining <= 0 ? context.colors.positive : context.colors.warning;
 
           return ListView(
             padding: const EdgeInsets.all(16),
@@ -106,7 +106,7 @@ class _ReceivableDetailScreenState extends ConsumerState<ReceivableDetailScreen>
               if (isSettled)
                 _InfoBanner(
                   message: 'Esta deuda fue cobrada en su totalidad. Reactivala para registrar nuevos cobros.',
-                  color: AppThemeColors.primaryGreen,
+                  color: context.colors.positive,
                 ),
               Card(
                 child: Padding(
@@ -131,8 +131,8 @@ class _ReceivableDetailScreenState extends ConsumerState<ReceivableDetailScreen>
                       const SizedBox(height: 12),
                       LinearProgressIndicator(
                         value: progress,
-                        backgroundColor: Colors.grey[200],
-                        valueColor: AlwaysStoppedAnimation(AppThemeColors.primaryGreen),
+                        backgroundColor: context.colors.track,
+                        valueColor: AlwaysStoppedAnimation(context.colors.accent),
                         minHeight: 8,
                         borderRadius: BorderRadius.circular(4),
                       ),
@@ -147,7 +147,7 @@ class _ReceivableDetailScreenState extends ConsumerState<ReceivableDetailScreen>
                               fontWeight: FontWeight.w600,
                             ),
                           ),
-                          Text('${(progress * 100).round()}%', style: TextStyle(color: Colors.grey[600])),
+                          Text('${(progress * 100).round()}%', style: TextStyle(color: context.colors.textMuted)),
                         ],
                       ),
                       if (_receivable.debtorEmail != null) ...[
@@ -178,7 +178,7 @@ class _ReceivableDetailScreenState extends ConsumerState<ReceivableDetailScreen>
                     ),
                     const SizedBox(height: 8),
                     OutlinedButton(
-                      style: OutlinedButton.styleFrom(foregroundColor: AppThemeColors.neutralGrey),
+                      style: OutlinedButton.styleFrom(foregroundColor: context.colors.textMuted),
                       onPressed: () => _cancelReceivable(context),
                       child: const Text('Cancelar deuda'),
                     ),
@@ -187,12 +187,12 @@ class _ReceivableDetailScreenState extends ConsumerState<ReceivableDetailScreen>
                       FilledButton.tonalIcon(
                         onPressed: _sendingReminder ? null : _sendReminder,
                         icon: _sendingReminder
-                            ? const SizedBox(
+                            ? SizedBox(
                                 width: 16,
                                 height: 16,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  color: AppThemeColors.neutralGrey,
+                                  color: context.colors.textMuted,
                                 ),
                               )
                             : const Icon(Icons.send_outlined, size: 18),
@@ -208,7 +208,7 @@ class _ReceivableDetailScreenState extends ConsumerState<ReceivableDetailScreen>
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.amber.withValues(alpha: 0.15),
+                        color: context.colors.warningSoft,
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: const Text('El saldo llegó a \$0. ¿Querés marcarla como cobrada?'),
@@ -285,7 +285,6 @@ class _ReceivableDetailScreenState extends ConsumerState<ReceivableDetailScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Podés enviar otro recordatorio en 24 horas.'),
-            backgroundColor: AppThemeColors.neutralGrey,
           ),
         );
         return;
@@ -334,17 +333,17 @@ class _ReceivableDetailScreenState extends ConsumerState<ReceivableDetailScreen>
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Recordatorio enviado'),
-          backgroundColor: AppThemeColors.primaryGreen,
+        SnackBar(
+          content: Text('Recordatorio enviado', style: TextStyle(color: context.colors.onAccent)),
+          backgroundColor: context.colors.accent,
         ),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error al enviar: $e'),
-          backgroundColor: AppThemeColors.errorRed,
+          content: Text('Error al enviar: $e', style: TextStyle(color: context.colors.onDanger)),
+          backgroundColor: context.colors.danger,
         ),
       );
     } finally {
@@ -361,7 +360,7 @@ class _ReceivableDetailScreenState extends ConsumerState<ReceivableDetailScreen>
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
           OutlinedButton(
-            style: OutlinedButton.styleFrom(foregroundColor: AppThemeColors.neutralGrey),
+            style: OutlinedButton.styleFrom(foregroundColor: context.colors.textMuted),
             onPressed: () => Navigator.pop(context, true),
             child: const Text('Cancelar deuda'),
           ),
@@ -464,8 +463,8 @@ class _PaymentTile extends StatelessWidget {
     return ListTile(
       contentPadding: EdgeInsets.zero,
       leading: CircleAvatar(
-        backgroundColor: AppThemeColors.primaryGreen.withValues(alpha: 0.15),
-        child: const Icon(Icons.check, color: AppThemeColors.primaryGreen),
+        backgroundColor: context.colors.accentSoft,
+        child: Icon(Icons.check, color: context.colors.accent),
       ),
       title: Text('\$${formatCurrency(payment.amount)}', style: const TextStyle(fontWeight: FontWeight.w600)),
       subtitle: Text(formatDisplayDate(payment.date)),
@@ -512,9 +511,9 @@ class _StatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return switch (status) {
-      ReceivableStatus.settled => _Pill(label: 'Cobrada', color: AppThemeColors.primaryGreen),
-      ReceivableStatus.hidden => _Pill(label: 'Cancelada', color: AppThemeColors.neutralGrey),
-      ReceivableStatus.writtenOff => _Pill(label: 'Incobrable', color: AppThemeColors.neutralGrey),
+      ReceivableStatus.settled => _Pill(label: 'Cobrada', color: context.colors.positive),
+      ReceivableStatus.hidden => _Pill(label: 'Cancelada', color: context.colors.textMuted),
+      ReceivableStatus.writtenOff => _Pill(label: 'Incobrable', color: context.colors.textMuted),
       ReceivableStatus.active => const SizedBox.shrink(),
     };
   }
@@ -552,7 +551,7 @@ class _RowLabel extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: TextStyle(color: Colors.grey[600])),
+          Text(label, style: TextStyle(color: context.colors.textMuted)),
           Text(value, style: const TextStyle(fontWeight: FontWeight.w500)),
         ],
       ),

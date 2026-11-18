@@ -27,10 +27,10 @@ class AppEmptyState extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: AppThemeColors.primaryGreen.withValues(alpha: 0.1),
+                color: context.colors.accentSoft,
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, size: 48, color: AppThemeColors.primaryGreen.withValues(alpha: 0.7)),
+              child: Icon(icon, size: 48, color: context.colors.accent),
             ),
             const SizedBox(height: 16),
             Text(message, style: Theme.of(context).textTheme.bodyLarge, textAlign: TextAlign.center),

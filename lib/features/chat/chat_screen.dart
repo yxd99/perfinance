@@ -132,6 +132,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with SingleTickerProvid
   }
 
   Widget _buildConversationDrawer(ChatState state) {
+    final c = context.colors;
     return Drawer(
       child: SafeArea(
         child: Column(
@@ -153,7 +154,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with SingleTickerProvid
                         child: Text(
                           'Sin conversaciones aún.\nEscribí para empezar una.',
                           textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.grey.shade500),
+                          style: TextStyle(color: c.textMuted),
                         ),
                       ),
                     )
@@ -164,11 +165,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with SingleTickerProvid
                         final isActive = state.activeConversation?.id == convo.id;
                         return ListTile(
                           selected: isActive,
-                          selectedTileColor: AppThemeColors.primaryGreen.withValues(alpha: 0.1),
+                          selectedTileColor: c.accentSoft,
                           leading: Icon(
                             state.agentConfig.icon,
                             size: 20,
-                            color: isActive ? AppThemeColors.primaryGreen : Colors.grey,
+                            color: isActive ? c.accent : c.textMuted,
                           ),
                           title: Text(
                             convo.title,
@@ -181,10 +182,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with SingleTickerProvid
                           ),
                           subtitle: Text(
                             DateFormat('dd MMM, HH:mm').format(convo.updatedAt),
-                            style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                            style: TextStyle(fontSize: 12, color: c.textMuted),
                           ),
                           trailing: IconButton(
-                            icon: Icon(Icons.close, size: 16, color: Colors.grey.shade400),
+                            icon: Icon(Icons.close, size: 16, color: c.textMuted),
                             onPressed: () => ref.read(chatProvider.notifier).deleteConversation(convo),
                           ),
                           onTap: () {
@@ -233,13 +234,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with SingleTickerProvid
 
   Widget _buildEmptyState(ChatState state, bool isDark) {
     final config = state.agentConfig;
+    final c = context.colors;
+    final toneColor = agentColor(context, config.tone);
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(AppTokens.spaceXL),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(config.icon, size: 64, color: config.color.withValues(alpha: 0.5)),
+            Icon(config.icon, size: 64, color: toneColor.withValues(alpha: 0.5)),
             const SizedBox(height: AppTokens.spaceLG),
             Text(
               config.label,
@@ -249,26 +252,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with SingleTickerProvid
             Text(
               config.description,
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: c.textMuted),
             ),
             const SizedBox(height: AppTokens.spaceXL),
             if (state.isEphemeral)
               Text(
                 'Los mensajes no se guardan.',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade400, fontStyle: FontStyle.italic),
+                style: TextStyle(fontSize: 12, color: c.textMuted, fontStyle: FontStyle.italic),
               )
             else ...[
               if (state.conversations.isNotEmpty) ...[
                 Text(
                   '${state.conversations.length} conversación${state.conversations.length > 1 ? 'es' : ''}',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                  style: TextStyle(fontSize: 12, color: c.textMuted),
                 ),
                 const SizedBox(height: AppTokens.spaceSM),
               ],
               Text(
                 _getHintForAgent(state.activeAgent),
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: c.textMuted),
               ),
             ],
           ],
@@ -298,6 +301,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with SingleTickerProvid
 
   Widget _buildThinkingBubble(bool isDark) {
     final agentConfig = ref.read(chatProvider).agentConfig;
+    final c = context.colors;
+    final scheme = Theme.of(context).colorScheme;
+    final toneColor = agentColor(context, agentConfig.tone);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceXS),
       child: Row(
@@ -305,14 +311,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with SingleTickerProvid
         children: [
           CircleAvatar(
             radius: 14,
-            backgroundColor: agentConfig.color.withValues(alpha: 0.2),
-            child: Icon(agentConfig.icon, size: 16, color: agentConfig.color),
+            backgroundColor: toneColor.withValues(alpha: 0.2),
+            child: Icon(agentConfig.icon, size: 16, color: toneColor),
           ),
           const SizedBox(width: AppTokens.spaceSM),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceLG, vertical: AppTokens.spaceMD),
             decoration: BoxDecoration(
-              color: isDark ? AppThemeColors.surfaceDark : Colors.white,
+              color: scheme.surface,
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(AppTokens.radiusLG),
                 topRight: Radius.circular(AppTokens.radiusLG),
@@ -320,7 +326,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with SingleTickerProvid
               ),
               boxShadow: isDark
                   ? null
-                  : [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4, offset: const Offset(0, 2))],
+                  : [BoxShadow(color: c.shadow, blurRadius: 4, offset: const Offset(0, 2))],
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -330,14 +336,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with SingleTickerProvid
                   height: 14,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: agentConfig.color,
+                    color: toneColor,
                   ),
                 ),
                 const SizedBox(width: AppTokens.spaceSM),
                 Text(
                   'Pensando...',
                   style: TextStyle(
-                    color: Colors.grey.shade500,
+                    color: c.textMuted,
                     fontSize: 13,
                     fontStyle: FontStyle.italic,
                   ),
@@ -352,6 +358,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with SingleTickerProvid
 
   Widget _buildMessageBubble(ChatMessage message, bool isDark, {bool isStreaming = false}) {
     final isUser = message.role == ChatMessageRole.user;
+    final c = context.colors;
+    final scheme = Theme.of(context).colorScheme;
+    final toneColor = agentColor(context, ref.read(chatProvider).agentConfig.tone);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceXS),
       child: Row(
@@ -361,8 +370,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with SingleTickerProvid
           if (!isUser) ...[
             CircleAvatar(
               radius: 14,
-              backgroundColor: ref.read(chatProvider).agentConfig.color.withValues(alpha: 0.2),
-              child: Icon(ref.read(chatProvider).agentConfig.icon, size: 16, color: ref.read(chatProvider).agentConfig.color),
+              backgroundColor: toneColor.withValues(alpha: 0.2),
+              child: Icon(ref.read(chatProvider).agentConfig.icon, size: 16, color: toneColor),
             ),
             const SizedBox(width: AppTokens.spaceSM),
           ],
@@ -382,9 +391,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with SingleTickerProvid
               child: Container(
               padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceLG, vertical: AppTokens.spaceMD),
               decoration: BoxDecoration(
-                color: isUser
-                    ? (isDark ? AppThemeColors.primaryGreenDark : AppThemeColors.primaryGreen)
-                    : (isDark ? AppThemeColors.surfaceDark : Colors.white),
+                color: isUser ? c.accent : scheme.surface,
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(AppTokens.radiusLG),
                   topRight: const Radius.circular(AppTokens.radiusLG),
@@ -393,7 +400,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with SingleTickerProvid
                 ),
                 boxShadow: isDark
                     ? null
-                    : [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4, offset: const Offset(0, 2))],
+                    : [BoxShadow(color: c.shadow, blurRadius: 4, offset: const Offset(0, 2))],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -402,7 +409,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with SingleTickerProvid
                     Text(
                       message.content,
                       style: TextStyle(
-                        color: isUser ? Colors.white : (isDark ? Colors.white : Colors.black87),
+                        color: isUser ? c.onAccent : scheme.onSurface,
                         fontSize: 14,
                         height: 1.4,
                       ),
@@ -412,26 +419,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with SingleTickerProvid
                       data: message.content,
                       styleSheet: MarkdownStyleSheet(
                         p: TextStyle(
-                          color: isDark ? Colors.white : Colors.black87,
+                          color: scheme.onSurface,
                           fontSize: 14,
                           height: 1.4,
                         ),
                         strong: TextStyle(
-                          color: isDark ? Colors.white : Colors.black87,
+                          color: scheme.onSurface,
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
                         ),
                         code: TextStyle(
-                          backgroundColor: isDark ? Colors.white12 : Colors.grey.shade100,
+                          backgroundColor: c.track,
                           fontSize: 13,
-                          color: ref.read(chatProvider).agentConfig.color,
+                          color: toneColor,
                         ),
                         codeblockDecoration: BoxDecoration(
-                          color: isDark ? Colors.white12 : Colors.grey.shade100,
+                          color: c.track,
                           borderRadius: BorderRadius.circular(8),
                         ),
                         blockquoteDecoration: BoxDecoration(
-                          border: Border(left: BorderSide(color: ref.read(chatProvider).agentConfig.color, width: 3)),
+                          border: Border(left: BorderSide(color: toneColor, width: 3)),
                         ),
                       ),
                     ),
@@ -443,7 +450,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with SingleTickerProvid
                         height: 12,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: isUser ? Colors.white70 : ref.read(chatProvider).agentConfig.color,
+                          color: isUser ? c.onAccent.withValues(alpha: 0.8) : toneColor,
                         ),
                       ),
                     ),
@@ -459,11 +466,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with SingleTickerProvid
   }
 
   Widget _buildActionPrompt(ActionRequired action) {
+    final c = context.colors;
     return Container(
       padding: const EdgeInsets.all(AppTokens.spaceLG),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
-        border: Border(top: BorderSide(color: Colors.grey.shade200)),
+        border: Border(top: BorderSide(color: c.divider)),
       ),
       child: SingleChildScrollView(
         child: Column(
@@ -479,8 +487,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with SingleTickerProvid
                 return ActionChip(
                   label: Text(opt.label, style: const TextStyle(fontSize: 13)),
                   onPressed: () => _resolveAction(opt.value),
-                  backgroundColor: AppThemeColors.primaryGreen.withValues(alpha: 0.1),
-                side: BorderSide(color: AppThemeColors.primaryGreen.withValues(alpha: 0.3)),
+                  backgroundColor: c.accentSoft,
+                side: BorderSide(color: c.accent.withValues(alpha: 0.3)),
               );
             }).toList(),
           ),
@@ -492,11 +500,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with SingleTickerProvid
 
   Widget _buildInputBar(ChatState state, ChatAgentConfig agentConfig) {
     final isLoading = state.status == ChatStatus.loading || state.status == ChatStatus.streaming;
+    final c = context.colors;
     return Container(
       padding: const EdgeInsets.fromLTRB(AppTokens.spaceMD, AppTokens.spaceSM, AppTokens.spaceSM, AppTokens.spaceMD),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
-        border: Border(top: BorderSide(color: Colors.grey.shade200)),
+        border: Border(top: BorderSide(color: c.divider)),
       ),
       child: Row(
         children: [
@@ -530,22 +539,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with SingleTickerProvid
           const SizedBox(width: AppTokens.spaceSM),
           Container(
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [agentConfig.color, agentConfig.color.withValues(alpha: 0.7)],
-              ),
+              color: c.accent,
               shape: BoxShape.circle,
             ),
             child: IconButton(
               icon: isLoading
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 18,
                       height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      child: CircularProgressIndicator(strokeWidth: 2, color: c.onAccent),
                     )
-                  : const Icon(Icons.arrow_upward, color: Colors.white),
+                  : Icon(Icons.arrow_upward, color: c.onAccent),
               onPressed: isLoading ? null : _sendMessage,
               style: IconButton.styleFrom(
-                foregroundColor: Colors.white,
+                foregroundColor: c.onAccent,
                 backgroundColor: Colors.transparent,
               ),
             ),
@@ -581,7 +588,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with SingleTickerProvid
                 ref.read(chatProvider.notifier).deleteConversation(state.activeConversation!);
               }
             },
-            style: FilledButton.styleFrom(backgroundColor: AppThemeColors.errorRed),
+            style: FilledButton.styleFrom(
+              backgroundColor: context.colors.danger,
+              foregroundColor: context.colors.onDanger,
+            ),
             child: const Text('Eliminar'),
           ),
         ],

@@ -178,18 +178,18 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
                               ? DismissDirection.endToStart
                               : DismissDirection.none,
                           background: Container(
-                            color: AppThemeColors.primaryGreen,
+                            color: context.colors.accent,
                             alignment: Alignment.centerRight,
                             padding: const EdgeInsets.symmetric(horizontal: 24),
-                            child: const Row(
+                            child: Row(
                               mainAxisAlignment: MainAxisAlignment.end,
                               children: [
-                                Icon(Icons.check_circle_outline, color: Colors.white),
-                                SizedBox(width: 8),
+                                Icon(Icons.check_circle_outline, color: context.colors.onAccent),
+                                const SizedBox(width: 8),
                                 Text(
                                   'Pagar',
                                   style: TextStyle(
-                                    color: Colors.white,
+                                    color: context.colors.onAccent,
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
@@ -301,13 +301,13 @@ class MirroredDebtCard extends StatelessWidget {
                 Positioned(
                   top: 0,
                   right: 0,
-                  child: _Pill(label: 'Recibida', color: Colors.blueGrey),
+                  child: _Pill(label: 'Recibida', color: context.colors.infoSoft, textColor: context.colors.info),
                 ),
                 ListTile(
                   contentPadding: const EdgeInsets.fromLTRB(20, 12, 72, 12),
                   leading: CircleAvatar(
-                    backgroundColor: Colors.blueGrey.withValues(alpha: 0.15),
-                    child: const Icon(Icons.account_balance_wallet_outlined, color: Colors.blueGrey),
+                    backgroundColor: context.colors.infoSoft,
+                    child: Icon(Icons.account_balance_wallet_outlined, color: context.colors.info),
                   ),
                   title: Text(debt.name, style: const TextStyle(fontWeight: FontWeight.w600)),
                   subtitle: Text(
@@ -351,9 +351,9 @@ class _RevokedBanner extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Colors.grey.withValues(alpha: 0.15),
+        color: context.colors.track,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.withValues(alpha: 0.4)),
+        border: Border.all(color: context.colors.divider),
       ),
       child: Text(
         'Esta deuda fue cancelada por $creditorEmail',
@@ -379,8 +379,8 @@ class _FilterChip extends StatelessWidget {
       label: Text(label),
       selected: selected,
       onSelected: (_) => onTap(),
-      selectedColor: AppThemeColors.primaryGreen.withValues(alpha: 0.3),
-      checkmarkColor: AppThemeColors.primaryGreen,
+      selectedColor: context.colors.accentSoft,
+      checkmarkColor: context.colors.accent,
     );
   }
 }
@@ -421,8 +421,8 @@ class _DebtCard extends StatelessWidget {
           ListTile(
             contentPadding: EdgeInsets.fromLTRB(20, 12, badge != DebtBadgeKind.none ? 72 : 20, 12),
             leading: CircleAvatar(
-              backgroundColor: AppThemeColors.primaryGreen.withValues(alpha: 0.2),
-              child: Icon(Icons.account_balance_wallet_outlined, color: AppThemeColors.primaryGreen),
+              backgroundColor: context.colors.accentSoft,
+              child: Icon(Icons.account_balance_wallet_outlined, color: context.colors.accent),
             ),
             title: Text(debt.name, style: const TextStyle(fontWeight: FontWeight.w600)),
             subtitle: Column(
@@ -461,17 +461,24 @@ class _DebtStatusBadge extends StatelessWidget {
       case DebtBadgeKind.revokedMirrored:
         return const SizedBox.shrink();
       case DebtBadgeKind.paid:
-        return _Pill(label: 'Pagada', color: AppThemeColors.primaryGreen);
+        return _Pill(label: 'Pagada', color: context.colors.accent, textColor: context.colors.onAccent);
       case DebtBadgeKind.hidden:
-        return _Pill(label: 'Oculta', color: AppThemeColors.neutralGrey);
+        return _Pill(
+          label: 'Oculta',
+          color: context.colors.track,
+          textColor: context.colors.textMuted,
+          borderColor: context.colors.divider,
+        );
     }
   }
 }
 
 class _Pill extends StatelessWidget {
-  const _Pill({required this.label, required this.color});
+  const _Pill({required this.label, required this.color, required this.textColor, this.borderColor});
   final String label;
   final Color color;
+  final Color textColor;
+  final Color? borderColor;
 
   @override
   Widget build(BuildContext context) {
@@ -479,9 +486,10 @@ class _Pill extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
         color: color,
+        border: borderColor != null ? Border.all(color: borderColor!) : null,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
+            color: context.colors.shadow,
             blurRadius: 4,
             offset: const Offset(0, 1),
           ),
@@ -489,8 +497,8 @@ class _Pill extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: const TextStyle(
-          color: Colors.white,
+        style: TextStyle(
+          color: textColor,
           fontWeight: FontWeight.w700,
           fontSize: 12,
           letterSpacing: 0.5,

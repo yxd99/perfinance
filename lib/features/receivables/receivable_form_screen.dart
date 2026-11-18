@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:perfinance/core/theme/app_theme.dart';
 import 'package:perfinance/core/widgets/currency_input.dart';
 import 'package:perfinance/services/sync_service.dart';
 import 'package:perfinance/data/models/receivable.dart';
@@ -83,7 +84,7 @@ class _ReceivableFormScreenState extends ConsumerState<ReceivableFormScreen> {
             const SizedBox(height: 4),
             Text(
               'Se usará para notificarle los cobros.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: context.colors.textMuted),
             ),
             const SizedBox(height: 16),
             CurrencyTextField(

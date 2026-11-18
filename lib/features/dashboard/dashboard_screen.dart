@@ -22,6 +22,7 @@ class DashboardScreen extends ConsumerWidget {
     final asyncDebt = ref.watch(dashboardDebtProvider);
     final asyncUsage = ref.watch(dashboardUsageProvider);
     final asyncComparison = ref.watch(dashboardComparisonProvider);
+    final colors = context.colors;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final hideValues = ref.watch(hideValuesProvider).value ?? false;
 
@@ -73,12 +74,12 @@ class DashboardScreen extends ConsumerWidget {
                                 title: Text(
                                   'Detalle',
                                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: AppThemeColors.primaryGreen,
+                                    color: colors.accent,
                                     fontWeight: FontWeight.w500,
                                   ),
                                 ),
-                                iconColor: AppThemeColors.primaryGreen,
-                                collapsedIconColor: AppThemeColors.primaryGreen,
+                                iconColor: colors.accent,
+                                collapsedIconColor: colors.accent,
                                 children: [
                                   _DebtBreakdownSection(items: debt.items, isDark: isDark, hideValues: hideValues),
                                 ],
@@ -108,7 +109,7 @@ class DashboardScreen extends ConsumerWidget {
               return Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Material(
-                  color: Colors.amber.withValues(alpha: isDark ? 0.18 : 0.15),
+                  color: colors.warningSoft,
                   borderRadius: BorderRadius.circular(12),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(12),
@@ -120,7 +121,7 @@ class DashboardScreen extends ConsumerWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       child: Row(
                         children: [
-                          const Icon(Icons.warning_amber_rounded, color: Colors.amber),
+                          Icon(Icons.warning_amber_rounded, color: colors.warning),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
@@ -163,7 +164,7 @@ class DashboardScreen extends ConsumerWidget {
                           Container(
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
-                              color: AppThemeColors.primaryGreen.withValues(alpha: isDark ? 0.2 : 0.12),
+                              color: colors.accentSoft,
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Row(
@@ -180,7 +181,7 @@ class DashboardScreen extends ConsumerWidget {
                                   '\$${formatCurrencyDisplay(summary.totalPerMonth, hideValues)}',
                                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                                         fontWeight: FontWeight.w700,
-                                        color: AppThemeColors.primaryGreen,
+                                        color: colors.accent,
                                       ),
                                 ),
                               ],
@@ -200,10 +201,10 @@ class DashboardScreen extends ConsumerWidget {
                               child: ListTile(
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                                 leading: CircleAvatar(
-                                  backgroundColor: (a.isCreditCard ? AppThemeColors.primaryGreen : Colors.blue).withValues(alpha: isDark ? 0.4 : 0.15),
+                                  backgroundColor: a.isCreditCard ? colors.accentSoft : colors.infoSoft,
                                   child: Icon(
                                     a.isCreditCard ? Icons.credit_card : Icons.savings,
-                                    color: a.isCreditCard ? AppThemeColors.primaryGreen : Colors.blue,
+                                    color: a.isCreditCard ? colors.accent : colors.info,
                                     size: 20,
                                   ),
                                 ),
@@ -272,7 +273,7 @@ class DashboardScreen extends ConsumerWidget {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                                 decoration: BoxDecoration(
-                                  color: AppThemeColors.primaryGreen.withValues(alpha: isDark ? 0.2 : 0.12),
+                                  color: colors.accentSoft,
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Row(
@@ -289,7 +290,7 @@ class DashboardScreen extends ConsumerWidget {
                                       '\$${formatCurrencyDisplay(minSummary.totalPending, hideValues)}',
                                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                                             fontWeight: FontWeight.w700,
-                                            color: AppThemeColors.primaryGreen,
+                                            color: colors.accent,
                                           ),
                                     ),
                                   ],
@@ -305,8 +306,8 @@ class DashboardScreen extends ConsumerWidget {
                                 child: ListTile(
                                   contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                                   leading: CircleAvatar(
-                                    backgroundColor: AppThemeColors.primaryGreen.withValues(alpha: isDark ? 0.4 : 0.15),
-                                    child: Icon(Icons.receipt_long, color: AppThemeColors.primaryGreen, size: 22),
+                                    backgroundColor: colors.accentSoft,
+                                    child: Icon(Icons.receipt_long, color: colors.accent, size: 22),
                                   ),
                                   title: Text(u.alias, style: const TextStyle(fontWeight: FontWeight.w600)),
                                   subtitle: Column(
@@ -320,7 +321,7 @@ class DashboardScreen extends ConsumerWidget {
                                           child: Text(
                                             'Pago mín. pendiente: \$${formatCurrencyDisplay(minPending, hideValues)}',
                                             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                                  color: AppThemeColors.primaryGreen,
+                                                  color: colors.accent,
                                                   fontWeight: FontWeight.w500,
                                                 ),
                                           ),
@@ -366,8 +367,8 @@ class DashboardScreen extends ConsumerWidget {
                                         child: ListTile(
                                           contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                                           leading: CircleAvatar(
-                                            backgroundColor: AppThemeColors.primaryGreen.withValues(alpha: isDark ? 0.4 : 0.15),
-                                            child: Icon(Icons.receipt_long, color: AppThemeColors.primaryGreen, size: 22),
+                                            backgroundColor: colors.accentSoft,
+                                            child: Icon(Icons.receipt_long, color: colors.accent, size: 22),
                                           ),
                                           title: Text(u.alias, style: const TextStyle(fontWeight: FontWeight.w600)),
                                           subtitle: Text('${u.count} veces · \$${formatCurrencyDisplay(u.totalAmount, hideValues)}'),
@@ -408,8 +409,8 @@ class DashboardScreen extends ConsumerWidget {
                                         child: ListTile(
                                           contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                                           leading: CircleAvatar(
-                                            backgroundColor: AppThemeColors.primaryGreen.withValues(alpha: isDark ? 0.4 : 0.15),
-                                            child: Icon(Icons.receipt_long, color: AppThemeColors.primaryGreen, size: 22),
+                                            backgroundColor: colors.accentSoft,
+                                            child: Icon(Icons.receipt_long, color: colors.accent, size: 22),
                                           ),
                                           title: Text(u.alias, style: const TextStyle(fontWeight: FontWeight.w600)),
                                           subtitle: Text('${u.count} veces · \$${formatCurrencyDisplay(u.totalAmount, hideValues)}'),
@@ -475,12 +476,12 @@ class DashboardScreen extends ConsumerWidget {
                                       leading: CircleAvatar(
                                         backgroundColor: isEqual
                                             ? Theme.of(context).colorScheme.onSurface.withValues(alpha: isDark ? 0.2 : 0.12)
-                                            : (isIncrease ? Colors.red : AppThemeColors.primaryGreen).withValues(alpha: isDark ? 0.4 : 0.15),
+                                            : (isIncrease ? colors.dangerSoft : colors.positiveSoft),
                                         child: Icon(
                                           isEqual ? Icons.drag_handle : (isIncrease ? Icons.trending_up : Icons.trending_down),
                                           color: isEqual
                                               ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6)
-                                              : (isIncrease ? Colors.red : AppThemeColors.primaryGreen),
+                                              : (isIncrease ? colors.danger : colors.positive),
                                           size: 22,
                                         ),
                                       ),
@@ -493,7 +494,7 @@ class DashboardScreen extends ConsumerWidget {
                                         decoration: BoxDecoration(
                                           color: isEqual
                                               ? Theme.of(context).colorScheme.onSurface.withValues(alpha: isDark ? 0.15 : 0.08)
-                                              : (isIncrease ? Theme.of(context).colorScheme.error : AppThemeColors.primaryGreen).withValues(alpha: isDark ? 0.25 : 0.12),
+                                              : (isIncrease ? colors.dangerSoft : colors.positiveSoft),
                                           borderRadius: BorderRadius.circular(10),
                                         ),
                                         child: Text(
@@ -501,7 +502,7 @@ class DashboardScreen extends ConsumerWidget {
                                           style: TextStyle(
                                             color: isEqual
                                                 ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)
-                                                : (isIncrease ? Theme.of(context).colorScheme.error : AppThemeColors.primaryGreen),
+                                                : (isIncrease ? colors.danger : colors.positive),
                                             fontWeight: FontWeight.bold,
                                             fontSize: 13,
                                           ),
@@ -604,23 +605,24 @@ class _DebtHeroCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.colors;
     final hasDebt = amount > 0;
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: AppThemeColors.primaryGreen.withValues(alpha: isDark ? 0.2 : 0.25),
+            color: c.accent.withValues(alpha: isDark ? 0.2 : 0.25),
             blurRadius: 16,
             offset: const Offset(0, 6),
           ),
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.06),
+            color: c.shadow,
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
-        gradient: hasDebt ? AppThemeColors.debtGradient : AppThemeColors.primaryGradient,
+        gradient: hasDebt ? c.heroDebtGradient : c.heroGradient,
       ),
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -632,12 +634,12 @@ class _DebtHeroCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.25),
+                    color: c.onHeroSoft,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
                     hasDebt ? Icons.warning_amber_rounded : Icons.account_balance_wallet_rounded,
-                    color: Colors.white,
+                    color: c.onHero,
                     size: 24,
                   ),
                 ),
@@ -645,7 +647,7 @@ class _DebtHeroCard extends StatelessWidget {
                 Text(
                   'Deuda total',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: Colors.white.withValues(alpha: 0.95),
+                        color: c.onHeroMuted,
                         fontWeight: FontWeight.w600,
                       ),
                 ),
@@ -656,7 +658,7 @@ class _DebtHeroCard extends StatelessWidget {
               '\$${formatCurrencyDisplay(amount, hideValues)}',
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                     fontWeight: FontWeight.w800,
-                    color: Colors.white,
+                    color: c.onHero,
                     letterSpacing: -0.5,
                   ),
             ),
@@ -738,22 +740,23 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.colors;
     return Row(
       children: [
         Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            gradient: AppThemeColors.primaryGradient,
+            gradient: c.heroGradient,
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
-                color: AppThemeColors.primaryGreen.withValues(alpha: 0.35),
+                color: c.accent.withValues(alpha: 0.35),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
             ],
           ),
-          child: Icon(icon, color: Colors.white, size: 20),
+          child: Icon(icon, color: c.onHero, size: 20),
         ),
         const SizedBox(width: 12),
         Expanded(

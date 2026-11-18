@@ -97,6 +97,7 @@ class _CreditCardTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.colors;
     return GestureDetector(
       onTap: onTap,
       onLongPress: onLongPress,
@@ -105,11 +106,11 @@ class _CreditCardTile extends StatelessWidget {
         child: Container(
           margin: const EdgeInsets.only(bottom: 12),
           decoration: BoxDecoration(
-            gradient: AppThemeColors.primaryGradient,
+            gradient: c.heroGradient,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: AppThemeColors.primaryGreen.withValues(alpha: 0.3),
+                color: c.shadow,
                 blurRadius: 8,
                 offset: const Offset(0, 4),
               ),
@@ -126,8 +127,8 @@ class _CreditCardTile extends StatelessWidget {
                       children: [
                         Text(
                           card.alias,
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: c.onHero,
                             fontWeight: FontWeight.w700,
                             fontSize: 16,
                           ),
@@ -142,14 +143,14 @@ class _CreditCardTile extends StatelessWidget {
                     Text(
                       'Corte día ${card.cutOffDay} · Cuota \$${formatCurrencyDisplay(card.managementFee, hideValues)}',
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.85),
+                        color: c.onHeroMuted,
                         fontSize: 13,
                       ),
                     ),
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right, color: Colors.white),
+              Icon(Icons.chevron_right, color: c.onHero),
             ],
           ),
         ),
@@ -163,15 +164,16 @@ class _InactiveBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.colors;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.25),
+        color: c.onHeroSoft,
         borderRadius: BorderRadius.circular(8),
       ),
-      child: const Text(
+      child: Text(
         'Inactiva',
-        style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+        style: TextStyle(color: c.onHero, fontSize: 11, fontWeight: FontWeight.w600),
       ),
     );
   }

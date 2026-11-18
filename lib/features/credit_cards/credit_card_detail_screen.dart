@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:perfinance/core/theme/app_theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perfinance/core/providers/hide_values_provider.dart';
 import 'package:perfinance/core/utils/date_format_utils.dart';
@@ -242,7 +243,7 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
                           ),
                           const SizedBox(height: 8),
                           if (status.isUpToDate)
-                            const Text('Estás al día', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold))
+                            Text('Estás al día', style: TextStyle(color: context.colors.positive, fontWeight: FontWeight.bold))
                           else
                             Text('Pendiente: \$${formatCurrencyDisplay(status.pending, hideValues)}'),
                         ] else
@@ -453,7 +454,7 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
                       padding: const EdgeInsets.only(top: 6),
                       child: Text(
                         'Solo podés modificar el monto este mes. La fecha de referencia queda fija en el día ${existing!.effectiveDay}.',
-                        style: Theme.of(ctx).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+                        style: Theme.of(ctx).textTheme.bodySmall?.copyWith(color: ctx.colors.textMuted),
                       ),
                     ),
                   // Task 5.2: late-date warning
@@ -463,7 +464,7 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
                       child: Text(
                         'Configuraste una fecha de referencia tardía — la mayoría de tus pagos de este mes no contarán hacia el mínimo.',
                         style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
-                          color: Colors.orange[800],
+                          color: ctx.colors.warning,
                         ),
                       ),
                     ),
@@ -471,7 +472,7 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
                   const SizedBox(height: 12),
                   Text(
                     'Esta fecha solo afecta cómo la app registra tus pagos. Tu banco cuenta todos los pagos del ciclo.',
-                    style: Theme.of(ctx).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+                    style: Theme.of(ctx).textTheme.bodySmall?.copyWith(color: ctx.colors.textMuted),
                   ),
                 ],
               ),
