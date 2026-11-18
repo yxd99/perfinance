@@ -13,7 +13,7 @@ class HomeOrOnboardingWrapper extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return ref.watch(onboardingCompletedProvider).when(
           loading: () => const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
+            body: Center(child: CircularProgressIndicator.adaptive()),
           ),
           error: (_, __) => const HomeScreen(),
           data: (completed) => completed ? const HomeScreen() : const OnboardingScreen(),

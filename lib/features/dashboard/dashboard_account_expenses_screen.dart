@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perfinance/core/providers/hide_values_provider.dart';
@@ -59,7 +60,7 @@ class DashboardAccountExpensesScreen extends ConsumerWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.receipt_long_outlined, size: 64, color: Theme.of(context).colorScheme.outline),
+                  Icon(CupertinoIcons.doc_text, size: 64, color: Theme.of(context).colorScheme.outline),
                   const SizedBox(height: 16),
                   Text(
                     'Sin egresos en $monthLabel',
@@ -81,7 +82,7 @@ class DashboardAccountExpensesScreen extends ConsumerWidget {
                   '$monthLabel · Total: \$${formatCurrencyDisplay(total, hideValues)}',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w700,
-                        color: AppThemeColors.primaryGreen,
+                        color: context.colors.accent,
                       ),
                 ),
               ),
@@ -112,7 +113,7 @@ class DashboardAccountExpensesScreen extends ConsumerWidget {
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                   decoration: BoxDecoration(
-                                    color: AppThemeColors.primaryGreen.withValues(alpha: 0.15),
+                                    color: context.colors.accentSoft,
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Text(
@@ -120,7 +121,7 @@ class DashboardAccountExpensesScreen extends ConsumerWidget {
                                     style: TextStyle(
                                       fontSize: 11,
                                       fontWeight: FontWeight.w600,
-                                      color: AppThemeColors.primaryGreen,
+                                      color: context.colors.accent,
                                     ),
                                   ),
                                 ),

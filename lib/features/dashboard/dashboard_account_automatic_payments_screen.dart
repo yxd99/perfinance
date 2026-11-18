@@ -1,9 +1,9 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perfinance/core/providers/hide_values_provider.dart';
 import 'package:perfinance/core/theme/app_theme.dart';
 import 'package:perfinance/core/widgets/currency_input.dart';
-import 'package:perfinance/data/models/automatic_payment.dart';
 import 'package:perfinance/features/automatic_payments/automatic_payment_form_screen.dart';
 import 'package:perfinance/features/automatic_payments/automatic_payments_provider.dart';
 
@@ -44,7 +44,7 @@ class DashboardAccountAutomaticPaymentsScreen extends ConsumerWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.autorenew, size: 64, color: Theme.of(context).colorScheme.outline),
+                  Icon(CupertinoIcons.arrow_2_circlepath, size: 64, color: Theme.of(context).colorScheme.outline),
                   const SizedBox(height: 16),
                   Text(
                     'Sin pagos automáticos en esta cuenta',
@@ -69,7 +69,7 @@ class DashboardAccountAutomaticPaymentsScreen extends ConsumerWidget {
                   'Total estimado: \$${formatCurrencyDisplay(total, hideValues)}',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w700,
-                        color: AppThemeColors.primaryGreen,
+                        color: context.colors.accent,
                       ),
                 ),
               ),
@@ -83,14 +83,14 @@ class DashboardAccountAutomaticPaymentsScreen extends ConsumerWidget {
                       margin: const EdgeInsets.only(bottom: 8),
                       child: ListTile(
                         leading: CircleAvatar(
-                          backgroundColor: AppThemeColors.primaryGreen.withValues(alpha: 0.2),
-                          child: Icon(Icons.autorenew, color: AppThemeColors.primaryGreen, size: 22),
+                          backgroundColor: context.colors.accentSoft,
+                          child: Icon(CupertinoIcons.arrow_2_circlepath, color: context.colors.accent, size: 22),
                         ),
                         title: Text(p.description, style: const TextStyle(fontWeight: FontWeight.w600)),
                         subtitle: Text(
                           '\$${formatCurrencyDisplay(p.amount, hideValues)} · Día ${p.paymentDayOfMonth} · ${_capitalize(p.frequency)}',
                         ),
-                        trailing: const Icon(Icons.chevron_right),
+                        trailing: const Icon(CupertinoIcons.chevron_right),
                         onTap: () {
                           Navigator.push(
                             context,

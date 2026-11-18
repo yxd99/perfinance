@@ -28,7 +28,7 @@ Debt _mirroredDebt({
       creditorEmail: creditorEmail,
       name: 'Deuda espejada test',
       totalAmount: 800.0,
-      dueDate: DateTime(2026, 12, 31),
+      dueDate: DateTime(2099, 12, 31),
       status: status,
     );
 

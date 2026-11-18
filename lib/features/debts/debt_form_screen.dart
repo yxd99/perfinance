@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:perfinance/core/observability/error_reporter.dart';
 import 'package:perfinance/core/utils/date_format_utils.dart';
 import 'package:perfinance/services/sync_service.dart';
 import 'package:perfinance/core/widgets/currency_input.dart';
@@ -142,7 +143,10 @@ class _DebtFormScreenState extends ConsumerState<DebtFormScreen> {
     }
     if (mounted) {
       ref.invalidate(debtsListProvider);
-      ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
+      ref
+          .read(syncServiceProvider)
+          .pushPendingIfOnline()
+          .catchError((Object e, StackTrace st) => ErrorReporter.capture(e, st, operation: 'debts.push'));
       Navigator.pop(context);
     }
   }

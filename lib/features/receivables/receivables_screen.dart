@@ -1,335 +1,243 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:perfinance/core/widgets/inset_add_row.dart';
 import 'package:perfinance/core/theme/app_theme.dart';
-import 'package:perfinance/services/sync_service.dart';
+import 'package:perfinance/core/utils/user_friendly_errors.dart';
 import 'package:perfinance/core/widgets/app_empty_state.dart';
 import 'package:perfinance/core/widgets/app_error_state.dart';
 import 'package:perfinance/core/widgets/currency_input.dart';
-import 'package:perfinance/core/widgets/summary_total_bar.dart';
+import 'package:perfinance/core/widgets/paid_stamp.dart';
 import 'package:perfinance/data/models/receivable.dart';
-import 'package:perfinance/data/models/receivable_payment.dart';
-import 'package:perfinance/data/repositories/receivable_payment_repository.dart';
-import 'package:perfinance/data/repositories/receivable_repository.dart';
+import 'package:perfinance/features/receivables/receivable_actions.dart';
 import 'package:perfinance/features/receivables/receivable_detail_screen.dart';
 import 'package:perfinance/features/receivables/receivable_form_screen.dart';
-import 'package:perfinance/features/receivables/receivable_notification_service.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:perfinance/features/receivables/receivable_row_status.dart';
 import 'package:perfinance/features/receivables/receivables_provider.dart';
-import 'package:uuid/uuid.dart';
+import 'package:perfinance/features/receivables/widgets/inset_list_group.dart';
 
-final receivableListFilterProvider =
-    StateProvider<ReceivableListFilter>((ref) => ReceivableListFilter.active);
+final receivableListFilterProvider = StateProvider<ReceivableListFilter>((ref) => ReceivableListFilter.active);
 
+const _filterLabels = <ReceivableListFilter, String>{
+  ReceivableListFilter.active: 'Activas',
+  ReceivableListFilter.settled: 'Cobradas',
+  ReceivableListFilter.all: 'Todas',
+};
+
+/// Cuerpo de «Me deben». El Scaffold y la barra los pone el hub «Más».
 class ReceivablesScreen extends ConsumerWidget {
   const ReceivablesScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final c = context.colors;
     final filter = ref.watch(receivableListFilterProvider);
     final asyncList = ref.watch(filteredReceivablesProvider(filter));
     final asyncTotal = ref.watch(receivablesTotalOutstandingProvider);
 
     return Column(
       children: [
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            children: [
-              _FilterChip(
-                label: 'Activas',
-                selected: filter == ReceivableListFilter.active,
-                onTap: () => ref.read(receivableListFilterProvider.notifier).state =
-                    ReceivableListFilter.active,
-              ),
-              const SizedBox(width: 8),
-              _FilterChip(
-                label: 'Cobradas',
-                selected: filter == ReceivableListFilter.settled,
-                onTap: () => ref.read(receivableListFilterProvider.notifier).state =
-                    ReceivableListFilter.settled,
-              ),
-              const SizedBox(width: 8),
-              _FilterChip(
-                label: 'Todas',
-                selected: filter == ReceivableListFilter.all,
-                onTap: () => ref.read(receivableListFilterProvider.notifier).state =
-                    ReceivableListFilter.all,
-              ),
-            ],
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          child: SizedBox(
+            width: double.infinity,
+            child: CupertinoSlidingSegmentedControl<ReceivableListFilter>(
+              groupValue: filter,
+              backgroundColor: c.track,
+              thumbColor: c.surface,
+              children: {
+                for (final e in _filterLabels.entries)
+                  e.key: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Text(
+                      e.value,
+                      style: TextStyle(color: c.ink, fontWeight: filter == e.key ? FontWeight.w600 : FontWeight.w500),
+                    ),
+                  ),
+              },
+              onValueChanged: (value) {
+                if (value == null) return;
+                ref.read(receivableListFilterProvider.notifier).state = value;
+              },
+            ),
           ),
         ),
         Expanded(
           child: asyncList.when(
+            skipLoadingOnReload: true,
             data: (views) {
               if (views.isEmpty) {
+                final settledTab = filter == ReceivableListFilter.settled;
                 return AppEmptyState(
-                  icon: Icons.handshake_outlined,
-                  message: 'Nadie te debe plata por ahora.',
-                  actionLabel: 'Agregar deudor',
-                  onAction: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const ReceivableFormScreen()),
-                  ),
+                  icon: CupertinoIcons.person_2,
+                  message: settledTab
+                      ? 'Todavía no saldaste ningún cobro. Cuando alguien te pague todo, queda acá.'
+                      : 'Nadie te debe plata por ahora.',
+                  actionLabel: settledTab ? null : 'Agregar deudor',
+                  onAction: settledTab ? null : () => _openForm(context),
                 );
               }
-              return ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: views.length,
-                itemBuilder: (context, i) {
-                  final view = views[i];
-                  return _ReceivableCard(
-                    view: view,
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ReceivableDetailScreen(receivable: view.receivable),
+              return ListView(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                children: [
+                  // Total tranquilo arriba de la lista, como en Deudas y Egresos.
+                  asyncTotal.when(
+                    data: (total) => Padding(
+                      padding: const EdgeInsets.fromLTRB(0, 0, 0, 8),
+                      child: Text.rich(
+                        TextSpan(
+                          text: 'Total por cobrar: ',
+                          style: TextStyle(color: c.textMuted),
+                          children: [
+                            TextSpan(
+                              text: '\$${formatCurrency(total)}',
+                              style: TextStyle(color: c.ink, fontWeight: FontWeight.w700, fontFeatures: kTabularFigures),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                    onSettleAll: view.receivable.status == ReceivableStatus.active
-                        ? () => _settleAll(context, ref, view)
-                        : null,
-                  );
-                },
+                    loading: () => const SizedBox.shrink(),
+                    error: (_, __) => const SizedBox.shrink(),
+                  ),
+                  InsetListGroup(
+                    children: [
+                      for (final view in views)
+                        _ReceivableRow(
+                          view: view,
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => ReceivableDetailScreen(receivable: view.receivable)),
+                          ),
+                          onDelete: () => confirmAndDeleteReceivable(context, view.receivable),
+                        ),
+                      InsetAddRow(label: 'Agregar deudor', onTap: () => _openForm(context)),
+                    ],
+                  ),
+                ],
               );
             },
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => AppErrorState(message: e.toString()),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          child: Column(
-            children: [
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const ReceivableFormScreen()),
-                  ),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Agregar deudor'),
-                ),
-              ),
-              const SizedBox(height: 8),
-              asyncTotal.when(
-                data: (total) => SummaryTotalBar(
-                  label: 'Total por cobrar',
-                  amount: '\$${formatCurrency(total)}',
-                ),
-                loading: () => const SizedBox.shrink(),
-                error: (_, __) => const SizedBox.shrink(),
-              ),
-            ],
+            loading: () => const Center(child: CircularProgressIndicator.adaptive()),
+            error: (e, _) => AppErrorState(
+              message: UserFriendlyErrors.fromAsyncError(e, 'No se pudo cargar lo que te deben. Probá de nuevo.'),
+              onRetry: () => ref.invalidate(receivablesListProvider),
+            ),
           ),
         ),
       ],
     );
   }
 
-  Future<void> _settleAll(BuildContext context, WidgetRef ref, ReceivableView view) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Marcar como cobrada'),
-        content: Text('¿Marcar "${view.receivable.debtorName}" como cobrada por completo?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Cobrar todo'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true) return;
-
-    final remaining = view.remainingBalance;
-    if (remaining > 0) {
-      final payRepo = ref.read(receivablePaymentRepositoryProvider);
-      await payRepo.insert(
-        ReceivablePayment(
-          id: const Uuid().v4(),
-          receivableId: view.receivable.id,
-          amount: remaining,
-          date: DateTime.now(),
-        ),
-      );
-      if (view.receivable.debtorEmail != null) {
-        try {
-          await ref.read(receivableNotificationServiceProvider).notify(
-                ReceivableNotificationPayload(
-                  event: ReceivableNotificationEvent.paymentRecorded,
-                  recipientEmail: view.receivable.debtorEmail!,
-                  debtorName: view.receivable.debtorName,
-                  totalAmount: view.receivable.totalAmount,
-                  remainingBalance: 0,
-                  paymentAmount: remaining,
-                  paymentDate: DateTime.now(),
-                  creditorEmail: Supabase.instance.client.auth.currentUser?.email,
-                ),
-              );
-        } catch (_) {}
-      }
-    } else {
-      await ref.read(receivableRepositoryProvider).settle(view.receivable.id);
-    }
-    ref.invalidate(receivablesListProvider);
-    ref.invalidate(receivablePaymentsProvider(view.receivable.id));
-    ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
+  void _openForm(BuildContext context) {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => const ReceivableFormScreen()));
   }
 }
 
-class _ReceivableCard extends StatelessWidget {
-  const _ReceivableCard({required this.view, required this.onTap, this.onSettleAll});
+/// Fila de un cobro. Tocar abre el detalle (ahí se registra o se cobra todo);
+/// deslizar a la izquierda elimina, con confirmación. VoiceOver tiene la
+/// misma acción de eliminar.
+class _ReceivableRow extends StatelessWidget {
+  const _ReceivableRow({required this.view, required this.onTap, required this.onDelete});
 
   final ReceivableView view;
   final VoidCallback onTap;
-  final VoidCallback? onSettleAll;
+  final Future<bool> Function() onDelete;
 
   @override
   Widget build(BuildContext context) {
+    final c = context.colors;
+    final t = Theme.of(context).textTheme;
     final r = view.receivable;
-    final remaining = view.remainingBalance;
-    final isSettled = r.status == ReceivableStatus.settled;
-    final progress = r.totalAmount > 0
-        ? (view.totalPaid / r.totalAmount).clamp(0.0, 1.0)
-        : 0.0;
+    final status = receivableRowStatus(view);
+    final isActive = r.status == ReceivableStatus.active;
+    final toneColor = switch (status.tone) {
+      ReceivableRowTone.warning => c.warning,
+      ReceivableRowTone.positive => c.positive,
+      ReceivableRowTone.muted => c.textMuted,
+    };
+    final progress = r.totalAmount > 0 ? (view.totalPaid / r.totalAmount).clamp(0.0, 1.0).toDouble() : 0.0;
 
-    Widget card = Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
+    final row = InkWell(
+      onTap: onTap,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 56),
         child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
             children: [
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: 18,
-                    backgroundColor: AppThemeColors.primaryGreen.withValues(alpha: 0.15),
-                    child: const Icon(Icons.person_outline, color: AppThemeColors.primaryGreen, size: 20),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
                       r.debtorName,
-                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                      style: t.bodyLarge?.copyWith(color: isActive ? c.ink : c.textMuted),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                  if (isSettled) _Pill(label: 'Cobrada', color: AppThemeColors.primaryGreen),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Padding(
-                padding: const EdgeInsets.only(left: 48),
-                child: Text(
-                  r.debtorEmail ?? 'Sin email',
-                  style: TextStyle(
-                    color: r.debtorEmail != null ? Colors.grey[600] : AppThemeColors.neutralGrey,
-                    fontSize: 13,
-                  ),
+                    const SizedBox(height: 2),
+                    Text(
+                      status.detail,
+                      style: t.bodySmall?.copyWith(color: c.textMuted, fontFeatures: kTabularFigures),
+                      maxLines: 2,
+                    ),
+                    if (isActive) ...[
+                      const SizedBox(height: 6),
+                      ExcludeSemantics(
+                        child: LinearProgressIndicator(
+                          value: progress,
+                          backgroundColor: c.track,
+                          valueColor: AlwaysStoppedAnimation(c.accent),
+                          minHeight: 3,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
-              const SizedBox(height: 12),
-              LinearProgressIndicator(
-                value: progress,
-                backgroundColor: Colors.grey[200],
-                valueColor: AlwaysStoppedAnimation(AppThemeColors.primaryGreen),
-                minHeight: 6,
-                borderRadius: BorderRadius.circular(3),
-              ),
-              const SizedBox(height: 6),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    '\$${formatCurrency(view.totalPaid)} / \$${formatCurrency(r.totalAmount)}',
-                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
+              const SizedBox(width: 12),
+              if (status.stamp != null)
+                PaidStamp(label: status.stamp!)
+              // Sin Flexible: con flex el monto recibía media fila y quedaba
+              // flotando en el centro; así va pegado al chevron, como en las
+              // otras listas.
+              else if (status.trailing != null)
+                Text(
+                  status.trailing!,
+                  textAlign: TextAlign.right,
+                  style: t.titleSmall?.copyWith(
+                    color: toneColor,
+                    fontWeight: FontWeight.w700,
+                    fontFeatures: kTabularFigures,
                   ),
-                  Text(
-                    remaining <= 0 ? 'Cobrado al 100%' : 'Falta: \$${formatCurrency(remaining)}',
-                    style: TextStyle(
-                      color: remaining <= 0 ? AppThemeColors.primaryGreen : AppThemeColors.errorRed,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              const SizedBox(width: 4),
+              Icon(CupertinoIcons.chevron_right, size: 16, color: c.textMuted),
             ],
           ),
         ),
       ),
     );
 
-    if (onSettleAll != null) {
-      return Dismissible(
+    return Semantics(
+      customSemanticsActions: {
+        const CustomSemanticsAction(label: 'Eliminar deudor'): onDelete,
+      },
+      child: Dismissible(
         key: ValueKey('receivable-${r.id}'),
         direction: DismissDirection.endToStart,
+        // Se borra dentro de la confirmación: si falla, la fila vuelve a su lugar.
+        confirmDismiss: (_) => onDelete(),
         background: Container(
-          decoration: BoxDecoration(
-            color: AppThemeColors.primaryGreen,
-            borderRadius: BorderRadius.circular(12),
-          ),
+          color: c.danger,
           alignment: Alignment.centerRight,
           padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: const Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              Icon(Icons.check_circle_outline, color: Colors.white),
-              SizedBox(width: 8),
-              Text('Cobrar todo', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-            ],
-          ),
+          child: Icon(CupertinoIcons.trash, color: c.onDanger, semanticLabel: 'Eliminar'),
         ),
-        confirmDismiss: (_) async {
-          onSettleAll?.call();
-          return false;
-        },
-        child: card,
-      );
-    }
-    return card;
-  }
-}
-
-class _FilterChip extends StatelessWidget {
-  const _FilterChip({required this.label, required this.selected, required this.onTap});
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return FilterChip(
-      label: Text(label),
-      selected: selected,
-      onSelected: (_) => onTap(),
-    );
-  }
-}
-
-class _Pill extends StatelessWidget {
-  const _Pill({required this.label, required this.color});
-
-  final String label;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(12),
+        child: row,
       ),
-      child: Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600)),
     );
   }
 }

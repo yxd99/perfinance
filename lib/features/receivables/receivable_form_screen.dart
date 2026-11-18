@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:perfinance/core/observability/error_reporter.dart';
+import 'package:perfinance/core/theme/app_theme.dart';
 import 'package:perfinance/core/widgets/currency_input.dart';
 import 'package:perfinance/services/sync_service.dart';
 import 'package:perfinance/data/models/receivable.dart';
@@ -48,7 +50,7 @@ class _ReceivableFormScreenState extends ConsumerState<ReceivableFormScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(_isEdit ? 'Editar deuda' : 'Nueva deuda')),
+      appBar: AppBar(title: Text(_isEdit ? 'Editar cobro' : 'Nuevo cobro')),
       body: Form(
         key: _formKey,
         child: ListView(
@@ -61,7 +63,7 @@ class _ReceivableFormScreenState extends ConsumerState<ReceivableFormScreen> {
                 labelText: 'Nombre o descripción',
                 hintText: 'Ej: Juan Pérez, préstamo...',
               ),
-              validator: (v) => v == null || v.trim().isEmpty ? 'Ingresa un nombre' : null,
+              validator: (v) => v == null || v.trim().isEmpty ? 'Ingresá un nombre' : null,
             ),
             const SizedBox(height: 16),
             TextFormField(
@@ -82,8 +84,8 @@ class _ReceivableFormScreenState extends ConsumerState<ReceivableFormScreen> {
             ),
             const SizedBox(height: 4),
             Text(
-              'Se usará para notificarle los cobros.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey),
+              'Lo usamos para notificarle los cobros.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: context.colors.textMuted),
             ),
             const SizedBox(height: 16),
             CurrencyTextField(
@@ -91,7 +93,11 @@ class _ReceivableFormScreenState extends ConsumerState<ReceivableFormScreen> {
               decoration: const InputDecoration(labelText: 'Monto total adeudado'),
             ),
             const SizedBox(height: 24),
-            FilledButton(onPressed: _save, child: const Text('Guardar')),
+            FilledButton(
+              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+              onPressed: _save,
+              child: const Text('Guardar'),
+            ),
           ],
         ),
       ),
@@ -148,13 +154,18 @@ class _ReceivableFormScreenState extends ConsumerState<ReceivableFormScreen> {
                   creditorEmail: user.email,
                 ),
               );
-        } catch (_) {}
+        } catch (e, st) {
+          // La deuda ya quedó guardada; solo falló el aviso por email.
+          ErrorReporter.capture(e, st, operation: 'receivables.notify_created');
+        }
       }
     }
 
     if (mounted) {
       ref.invalidate(receivablesListProvider);
-      ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
+      ref.read(syncServiceProvider).pushPendingIfOnline().catchError(
+            (Object e, StackTrace st) => ErrorReporter.capture(e, st, operation: 'receivables.push'),
+          );
       Navigator.pop(context);
     }
   }

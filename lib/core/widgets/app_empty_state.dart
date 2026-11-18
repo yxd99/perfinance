@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:perfinance/core/theme/app_theme.dart';
 
@@ -24,21 +25,15 @@ class AppEmptyState extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppThemeColors.primaryGreen.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, size: 48, color: AppThemeColors.primaryGreen.withValues(alpha: 0.7)),
-            ),
+            // Glifo suelto, sin círculo de color: el mundo Billete no usa íconos en círculo.
+            Icon(icon, size: 40, color: context.colors.textMuted),
             const SizedBox(height: 16),
             Text(message, style: Theme.of(context).textTheme.bodyLarge, textAlign: TextAlign.center),
             if (actionLabel != null && onAction != null) ...[
               const SizedBox(height: 16),
               FilledButton.icon(
                 onPressed: onAction,
-                icon: const Icon(Icons.add),
+                icon: const Icon(CupertinoIcons.add),
                 label: Text(actionLabel!),
               ),
             ],

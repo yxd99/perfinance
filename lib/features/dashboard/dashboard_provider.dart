@@ -21,6 +21,8 @@ final dashboardDebtProvider = FutureProvider.autoDispose<DebtBreakdown>((ref) as
   final payRepo = ref.read(cardPaymentRepositoryProvider);
   final debtRepo = ref.read(debtRepositoryProvider);
   final debtPayRepo = ref.read(debtPaymentRepositoryProvider);
+  // DashboardService solo usa año y mes de asOfEndOfMonth: corta en el día 1 del
+  // mes siguiente (exclusivo). Pasar el día 1 del mes elegido es correcto, no un bug.
   final asOfEndOfMonth = DateTime(month.year, month.month, 1);
   return DashboardService.debtBreakdown(
     cardRepo,

@@ -1,5 +1,8 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:perfinance/core/observability/error_reporter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:perfinance/core/theme/app_theme.dart';
 import 'package:perfinance/core/utils/date_format_utils.dart';
 import 'package:perfinance/core/widgets/currency_input.dart';
 import 'package:perfinance/data/models/receivable.dart';
@@ -92,7 +95,7 @@ class _RegisterPaymentSheetState extends ConsumerState<_RegisterPaymentSheet> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey[300],
+                  color: context.colors.track,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -110,9 +113,10 @@ class _RegisterPaymentSheetState extends ConsumerState<_RegisterPaymentSheet> {
             const SizedBox(height: 12),
             ListTile(
               contentPadding: EdgeInsets.zero,
+              minTileHeight: 56,
               title: const Text('Fecha del cobro'),
               subtitle: Text(formatDisplayDate(_date)),
-              trailing: const Icon(Icons.calendar_today),
+              trailing: Icon(CupertinoIcons.calendar, color: context.colors.accent),
               onTap: () async {
                 final picked = await showDatePicker(
                   context: context,
@@ -180,7 +184,15 @@ class _RegisterPaymentSheetState extends ConsumerState<_RegisterPaymentSheet> {
               paymentDate: _date,
               creditorEmail: Supabase.instance.client.auth.currentUser?.email,
             ));
-          } catch (_) {}
+          } catch (e, st) {
+            // El cobro ya quedó guardado; solo falló el aviso por email.
+            ErrorReporter.capture(
+              e,
+              st,
+              operation: 'receivables.notify_payment_edited',
+              details: {'receivable_id': widget.receivable.id},
+            );
+          }
         }
       } else {
         final newPayment = ReceivablePayment(
@@ -205,7 +217,15 @@ class _RegisterPaymentSheetState extends ConsumerState<_RegisterPaymentSheet> {
               paymentDate: _date,
               creditorEmail: Supabase.instance.client.auth.currentUser?.email,
             ));
-          } catch (_) {}
+          } catch (e, st) {
+            // El cobro ya quedó guardado; solo falló el aviso por email.
+            ErrorReporter.capture(
+              e,
+              st,
+              operation: 'receivables.notify_payment_recorded',
+              details: {'receivable_id': widget.receivable.id},
+            );
+          }
         }
       }
 
@@ -213,7 +233,7 @@ class _RegisterPaymentSheetState extends ConsumerState<_RegisterPaymentSheet> {
         // Capturar ScaffoldMessenger y el messenger ANTES de hacer pop.
         final messenger = ScaffoldMessenger.of(context);
         final successMsg = widget.receivable.debtorEmail != null
-            ? 'Cobro registrado. Se notificó a ${widget.receivable.debtorEmail}'
+            ? 'Cobro registrado. Le avisamos a ${widget.receivable.debtorEmail}.'
             : 'Cobro registrado.';
 
         ref.invalidate(receivablesListProvider);
@@ -221,20 +241,31 @@ class _RegisterPaymentSheetState extends ConsumerState<_RegisterPaymentSheet> {
 
         messenger.showSnackBar(SnackBar(content: Text(successMsg)));
 
-        ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
+        ref.read(syncServiceProvider).pushPendingIfOnline().catchError(
+              (Object e, StackTrace st) => ErrorReporter.capture(e, st, operation: 'receivables.push'),
+            );
       }
     } on StateError catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text(e.message, style: TextStyle(color: context.colors.onDanger)),
+            backgroundColor: context.colors.danger,
+          ),
         );
       }
-    } catch (e) {
+    } catch (e, st) {
+      ErrorReporter.capture(
+        e,
+        st,
+        operation: 'receivables.save_payment',
+        details: {'receivable_id': widget.receivable.id, 'editing': _isEdit},
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error al guardar: $e'),
-            backgroundColor: Colors.red,
+            content: Text('No se pudo guardar el cobro. Probá de nuevo.', style: TextStyle(color: context.colors.onDanger)),
+            backgroundColor: context.colors.danger,
           ),
         );
       }
