@@ -20,7 +20,6 @@ import 'package:perfinance/services/connectivity_sync.dart';
 import 'package:perfinance/services/process_automatic_payments_service.dart';
 import 'package:perfinance/services/sync_service.dart';
 import 'dart:async';
-import 'dart:math' show pi;
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -292,39 +291,36 @@ class _SyncIconButtonState extends ConsumerState<_SyncIconButton>
   @override
   Widget build(BuildContext context) {
     final pending = ref.watch(pendingChangesCountProvider).valueOrNull ?? 0;
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (_, child) => Transform.rotate(
-        angle: _controller.value * 2 * pi,
-        child: child,
-      ),
-      child: IconButton(
-        icon: Badge(
-          isLabelVisible: pending > 0,
-          label: Text('$pending'),
+    return IconButton(
+      // Solo gira el ícono: el badge con la cantidad queda quieto.
+      icon: Badge(
+        isLabelVisible: pending > 0,
+        label: Text('$pending'),
+        child: RotationTransition(
+          turns: _controller,
           child: const Icon(Icons.sync),
         ),
-        tooltip: pending > 0
-            ? '$pending cambios sin subir. Tocá para sincronizar'
-            : 'Sincronizar ahora (se sincroniza automáticamente con conexión)',
-        onPressed: widget.isSyncing
-            ? null
-            : () async {
-                if (!context.mounted) return;
-                try {
-                  await ref.read(syncServiceProvider).syncNow();
-                } catch (_) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(UserFriendlyErrors.syncFailed),
-                        backgroundColor: Theme.of(context).colorScheme.error,
-                      ),
-                    );
-                  }
-                }
-              },
       ),
+      tooltip: pending > 0
+          ? '$pending cambios sin subir. Tocá para sincronizar'
+          : 'Sincronizar ahora (se sincroniza automáticamente con conexión)',
+      onPressed: widget.isSyncing
+          ? null
+          : () async {
+              if (!context.mounted) return;
+              try {
+                await ref.read(syncServiceProvider).syncNow();
+              } catch (_) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(UserFriendlyErrors.syncFailed),
+                      backgroundColor: Theme.of(context).colorScheme.error,
+                    ),
+                  );
+                }
+              }
+            },
     );
   }
 }
