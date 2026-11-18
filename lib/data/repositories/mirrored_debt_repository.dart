@@ -60,10 +60,12 @@ abstract class MirroredDebtRepository {
     return rows.map(MirroredDebtPayment.fromJson).toList();
   }
 
-  /// Blind replace (server is always authoritative — no pending guard).
+  /// Blind upsert (server is always authoritative — no pending guard).
+  /// Updates in place so the cascade does not drop its local payments.
   Future<void> upsertFromRemote(Map<String, dynamic> m) async {
     final d = await db;
-    await d.insert(
+    await upsertRowById(
+      d,
       tableMirroredDebts,
       {
         'id': m['id'],
@@ -81,8 +83,7 @@ abstract class MirroredDebtRepository {
         columnUpdatedAt: DateTime.now().toIso8601String(),
         'created_at': m['created_at']?.toString(),
       },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+      );
   }
 
   /// Upsert a mirrored payment (blind replace — server authoritative).

@@ -3,7 +3,7 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
 const String _dbName = 'perfinance.db';
-const int appSchemaVersion = 14;
+const int appSchemaVersion = 15;
 
 const String tableCreditCards = 'credit_cards';
 const String tablePaymentMethods = 'payment_methods';
@@ -31,6 +31,23 @@ const String _createSyncCursors = '''
 /// sync_status: synced | pending_insert | pending_update | pending_delete
 const String columnSyncStatus = 'sync_status';
 const String columnUpdatedAt = 'updated_at';
+
+/// Inserta o actualiza la fila [values] por su `id`.
+/// No usar INSERT OR REPLACE en tablas con hijas: SQLite borra la fila antes de
+/// insertarla y el ON DELETE CASCADE se lleva sus hijas (pagos pendientes incluidos).
+Future<void> upsertRowById(
+  dynamic db,
+  String table,
+  Map<String, Object?> values,
+) async {
+  final updated = await db.update(
+    table,
+    values,
+    where: 'id = ?',
+    whereArgs: [values['id']],
+  ) as int;
+  if (updated == 0) await db.insert(table, values);
+}
 
 Future<Database> openAppDatabase(String path) async {
   return openDatabase(
@@ -244,6 +261,12 @@ Future<void> upgradeAppSchema(Database db, int oldVersion, int newVersion) async
   }
   if (oldVersion < 14) {
     await db.execute(_createSyncCursors);
+  }
+  if (oldVersion < 15) {
+    // Los pulls con INSERT OR REPLACE borraron hijas locales en cascada (pagos
+    // de tarjeta, pagos mínimos, abonos). Sin cursores la próxima bajada es
+    // completa y las recupera; las filas pendientes no se pisan.
+    await db.delete(tableSyncCursors);
   }
 }
 
