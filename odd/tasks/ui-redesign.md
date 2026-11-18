@@ -12,9 +12,9 @@ Branch: feat-impeccable-flutter-ui · Delivery: ask-on-risk · Test runner: `flu
 
 ## Tasks
 
-- T1 · S1 · inline: semantic color tokens (`AppColors` ThemeExtension) + theme contrast · done (commit: see L6)
-- T2 · S1 · delegated (parallel writers, disjoint surfaces): migrate features to tokens (A dashboard/home/onboarding/auth/core widgets; B credit_cards/expenses/savings/automatic_payments/wallet_shortcut; C debts/receivables/chat) · done (commit: see L6)
-- T3 · S2 · inline · pending
+- T1 · S1 · inline: semantic color tokens (`AppColors` ThemeExtension) + theme contrast · done (commit ce4ef5c)
+- T2 · S1 · delegated (parallel writers, disjoint surfaces): migrate features to tokens (A dashboard/home/onboarding/auth/core widgets; B credit_cards/expenses/savings/automatic_payments/wallet_shortcut; C debts/receivables/chat) · done (commit ce4ef5c)
+- T3 · S2 · inline · done (PRODUCT.md, see L7)
 - T4 · S3 · inline · pending
 - T5 · S4 · pending
 - T6 · S5 · pending
@@ -28,3 +28,4 @@ Branch: feat-impeccable-flutter-ui · Delivery: ask-on-risk · Test runner: `flu
 - L4: critique snapshot `.impeccable/critique/2026-11-18T00-55-10Z__lib-features.md`. Local Supabase on 55321, demo user demo@perfinance.local.
 - L5: T2 route delegated by Writer trigger (a): three independent units, disjoint file sets, each ~30 color sites.
 - L6: T1+T2 verified. Computed contrast: light accent #18784A 5.49:1 on white / 4.78:1 on accentSoft; dark accent #2ECC71 8.1:1 on surface with onAccent #06210F; all token pairs ≥4.5:1. `flutter analyze`: 24 infos, identical set to HEAD baseline (0 new). `flutter test`: 410 passed. Simulator light+dark captures of all 7 tabs OK. Receivables "Falta" now warning, not danger. Critique P2 hypothesis about dashboard_provider.dart:43 retracted: "Deuda total" renders once sync completes.
+- L7 (user, init interview): opens the app to "Revisar el mes" and "Registrar a mano"; success = "Controlar el gasto"; users = "Solo yo". Written to PRODUCT.md (platform ios). iOS reference loaded: tab bar for 2–5 sections, SF Pro for UI, Dynamic Type, 44pt targets, system controls.
