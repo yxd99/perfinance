@@ -36,7 +36,10 @@ Branch: feat-impeccable-flutter-ui · Delivery: ask-on-risk · Test runner: `flu
   - T6e · inline: Mes drift (16pt gutter + Cupertino icons 6da072c), unused navigationBarTheme removed (tabBarTheme kept: chat uses TabBar) · done
   - 2026-11-18: writers T6a–d stopped by the 5h rate limit with no edits landed; user restarted the machine; local Supabase containers auto-restarted (demo user + 45 expenses intact); tour driver recreated in scratchpad; writers resumed.
   Inputs: documenter drift (no "stamped" paid items; Mes 20pt margins + custom title vs 16pt + SliverAppBar.large; Material icons in Mes attention rows; unused navigationBarTheme/tabBarTheme), voseo in login/forms, raw "cash"/"debit" in savings_screen.dart:59, empty states/errors on remaining screens, Deudas body + Tarjetas/Me deben/Auto-pagos/chat/login to Billete.
-- T7 · S6 · pending
+- T7 · S6 · in progress. Done inline: Me deben form "Nuevo cobro"/"Editar cobro" 8aba53e (user: "Si"); one in-list add row 1fe8159. Re-critique snapshot .impeccable/critique/2026-11-18T12-03-18Z__lib-features.md: 29/40 (was 23), AI-generated: no, 0 P0, 2 P1.
+  - T7a · delegated: one row gesture model (tap = detail/edit, swipe-left = delete) in Tarjetas/Auto-pagos/Ahorros/Me deben, chat back button, Me deben row alignment, Ahorros duplicate name, Tarjetas add row in-list, empty catchError in those folders + wallet_shortcut · pending
+  - T7b · delegated: faster quick add (last-used account preselected, visible date chip, iOS date wheel, haptic + confirmation), empty catchError in expenses + home, Más "Cerrar sesión" under tab bar · pending
+  - T7c · delegated: debt semantics (owed in ink, red only for overdue; label what Deuda total includes), pace ring centre metric explicit, large-title offset, empty catchError in debts · pending
 
 ## Log
 
