@@ -71,6 +71,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       key: _scaffoldKey,
       backgroundColor: c.canvas,
       appBar: AppBar(
+        // Con el Drawer, el AppBar pondría una hamburguesa en lugar de «atrás».
+        // El historial se abre desde el ícono de lista del compositor.
+        automaticallyImplyLeading: false,
+        leading: (ModalRoute.of(context)?.canPop ?? false) ? const BackButton() : null,
         title: const Text('Asesor financiero'),
         actions: [
           if (state.activeConversation != null)
