@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:perfinance/data/repositories/receivable_repository.dart';
 import 'package:perfinance/features/receivables/receivable_form_screen.dart';
-import 'package:perfinance/features/receivables/receivables_provider.dart';
 
 import '../../helpers/db_helper.dart';
 
@@ -45,7 +44,7 @@ void main() {
       await tester.pumpWidget(buildScreen());
       await tester.tap(find.text('Guardar'));
       await tester.pump();
-      expect(find.text('Ingresa un nombre'), findsOneWidget);
+      expect(find.text('Ingresá un nombre'), findsOneWidget);
     });
 
     testWidgets('shows email validation error on invalid format', (tester) async {

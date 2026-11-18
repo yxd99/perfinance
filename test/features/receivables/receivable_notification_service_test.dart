@@ -70,7 +70,7 @@ void main() {
   late _FakeFunctions fakeFunctions;
   late ReceivableNotificationService service;
 
-  ReceivableNotificationPayload _payload({
+  ReceivableNotificationPayload payload({
     ReceivableNotificationEvent event = ReceivableNotificationEvent.created,
     String recipientEmail = 'debtor@example.com',
     String creditorEmail = 'creditor@example.com',
@@ -104,34 +104,34 @@ void main() {
 
   group('notify no-op', () {
     test('does nothing when recipientEmail is empty', () async {
-      await service.notify(_payload(recipientEmail: ''));
+      await service.notify(payload(recipientEmail: ''));
       expect(fakeFunctions.lastInvokedFunction, isNull);
     });
 
     test('does nothing when recipientEmail is whitespace', () async {
-      await service.notify(_payload(recipientEmail: '   '));
+      await service.notify(payload(recipientEmail: '   '));
       expect(fakeFunctions.lastInvokedFunction, isNull);
     });
   });
 
-  Map<String, dynamic> _body() => fakeFunctions.lastBody! as Map<String, dynamic>;
+  Map<String, dynamic> sentBody() => fakeFunctions.lastBody! as Map<String, dynamic>;
 
   group('notify invokes correct function', () {
     test('calls send-receivable-notification', () async {
-      await service.notify(_payload());
+      await service.notify(payload());
       expect(fakeFunctions.lastInvokedFunction, 'send-receivable-notification');
     });
   });
 
   group('notify payload: created event', () {
     test('sends event=created', () async {
-      await service.notify(_payload(event: ReceivableNotificationEvent.created));
-      expect(_body()['event'], 'created');
+      await service.notify(payload(event: ReceivableNotificationEvent.created));
+      expect(sentBody()['event'], 'created');
     });
 
     test('includes recipientEmail, debtorName, totalAmount, remainingBalance', () async {
-      await service.notify(_payload());
-      final body = _body();
+      await service.notify(payload());
+      final body = sentBody();
       expect(body['recipientEmail'], 'debtor@example.com');
       expect(body['debtorName'], 'Juan Pérez');
       expect(body['totalAmount'], 400000);
@@ -139,41 +139,41 @@ void main() {
     });
 
     test('does not include paymentAmount when null', () async {
-      await service.notify(_payload());
-      expect(_body().containsKey('paymentAmount'), isFalse);
+      await service.notify(payload());
+      expect(sentBody().containsKey('paymentAmount'), isFalse);
     });
   });
 
   group('notify payload: payment events', () {
     test('sends event=payment_recorded with amount and date', () async {
       final date = DateTime(2026, 6, 4);
-      await service.notify(_payload(
+      await service.notify(payload(
         event: ReceivableNotificationEvent.paymentRecorded,
         paymentAmount: 100000,
         paymentDate: date,
       ));
-      final body = _body();
+      final body = sentBody();
       expect(body['event'], 'payment_recorded');
       expect(body['paymentAmount'], 100000);
       expect(body.containsKey('paymentDate'), isTrue);
     });
 
     test('sends event=payment_edited', () async {
-      await service.notify(_payload(
+      await service.notify(payload(
         event: ReceivableNotificationEvent.paymentEdited,
         paymentAmount: 150000,
         paymentDate: DateTime(2026, 5, 1),
       ));
-      expect(_body()['event'], 'payment_edited');
+      expect(sentBody()['event'], 'payment_edited');
     });
 
     test('sends event=payment_deleted', () async {
-      await service.notify(_payload(
+      await service.notify(payload(
         event: ReceivableNotificationEvent.paymentDeleted,
         paymentAmount: 50000,
         paymentDate: DateTime(2026, 4, 15),
       ));
-      expect(_body()['event'], 'payment_deleted');
+      expect(sentBody()['event'], 'payment_deleted');
     });
   });
 
@@ -184,7 +184,7 @@ void main() {
       fakeFunctions.throwDetails = {'error': 'Internal error'};
 
       await expectLater(
-        () => service.notify(_payload()),
+        () => service.notify(payload()),
         throwsException,
       );
     });
@@ -192,29 +192,29 @@ void main() {
 
   group('creditorEmail in payload (spec S5)', () {
     test('registered debtor notification contains creditorEmail in payload', () async {
-      await service.notify(_payload(
+      await service.notify(payload(
         isRegistered: true,
         creditorEmail: 'acreedor@example.com',
       ));
-      final body = _body();
+      final body = sentBody();
       expect(body['creditorEmail'], 'acreedor@example.com');
     });
 
     test('registered debtor email body states debt visible in app', () async {
-      await service.notify(_payload(
+      await service.notify(payload(
         isRegistered: true,
         creditorEmail: 'acreedor@example.com',
       ));
-      final body = _body();
+      final body = sentBody();
       expect(body['isRegistered'], isTrue);
     });
 
     test('unregistered debtor notification follows existing template without app-visibility claim', () async {
-      await service.notify(_payload(
+      await service.notify(payload(
         isRegistered: false,
         creditorEmail: 'acreedor@example.com',
       ));
-      final body = _body();
+      final body = sentBody();
       // creditorEmail still present
       expect(body['creditorEmail'], 'acreedor@example.com');
       // but isRegistered is false or absent
@@ -222,8 +222,8 @@ void main() {
     });
 
     test('any notification payload always contains creditorEmail field', () async {
-      await service.notify(_payload(creditorEmail: 'cualquier@acreedor.com'));
-      expect(_body().containsKey('creditorEmail'), isTrue);
+      await service.notify(payload(creditorEmail: 'cualquier@acreedor.com'));
+      expect(sentBody().containsKey('creditorEmail'), isTrue);
     });
   });
 }

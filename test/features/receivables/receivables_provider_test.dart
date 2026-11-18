@@ -6,7 +6,6 @@ import 'package:perfinance/data/repositories/receivable_payment_repository.dart'
 import 'package:perfinance/data/repositories/receivable_repository.dart';
 import 'package:perfinance/features/auth/auth_provider.dart';
 import 'package:perfinance/features/receivables/receivables_provider.dart';
-import 'package:riverpod/riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../helpers/db_helper.dart';
@@ -19,7 +18,7 @@ void main() {
 
   const userId = 'user-test';
 
-  Receivable _makeReceivable({
+  Receivable makeReceivable({
     String id = 'r1',
     ReceivableStatus status = ReceivableStatus.active,
     double totalAmount = 1000,
@@ -34,7 +33,7 @@ void main() {
         syncStatus: 'synced',
       );
 
-  ReceivablePayment _makePayment({
+  ReceivablePayment makePayment({
     String id = 'p1',
     String receivableId = 'r1',
     double amount = 200,
@@ -72,23 +71,23 @@ void main() {
 
   group('ReceivableView', () {
     test('remainingBalance = totalAmount - totalPaid', () {
-      final r = _makeReceivable(totalAmount: 500);
-      final payments = [_makePayment(amount: 150), _makePayment(id: 'p2', amount: 100)];
+      final r = makeReceivable(totalAmount: 500);
+      final payments = [makePayment(amount: 150), makePayment(id: 'p2', amount: 100)];
       final view = ReceivableView(receivable: r, payments: payments);
       expect(view.totalPaid, 250);
       expect(view.remainingBalance, 250);
     });
 
     test('isFullyPaid true when remaining <= 0', () {
-      final r = _makeReceivable(totalAmount: 300);
-      final payments = [_makePayment(amount: 300)];
+      final r = makeReceivable(totalAmount: 300);
+      final payments = [makePayment(amount: 300)];
       final view = ReceivableView(receivable: r, payments: payments);
       expect(view.isFullyPaid, isTrue);
     });
 
     test('isFullyPaid false when remaining > 0', () {
-      final r = _makeReceivable(totalAmount: 300);
-      final payments = [_makePayment(amount: 100)];
+      final r = makeReceivable(totalAmount: 300);
+      final payments = [makePayment(amount: 100)];
       final view = ReceivableView(receivable: r, payments: payments);
       expect(view.isFullyPaid, isFalse);
     });
@@ -96,10 +95,10 @@ void main() {
 
   group('filteredReceivablesProvider', () {
     setUp(() async {
-      await repo.insert(_makeReceivable(id: 'r-active', status: ReceivableStatus.active));
-      await repo.upsertFromRemote(_makeReceivable(id: 'r-settled', status: ReceivableStatus.settled, totalAmount: 500));
-      await repo.upsertFromRemote(_makeReceivable(id: 'r-hidden', status: ReceivableStatus.hidden, totalAmount: 200));
-      await repo.upsertFromRemote(_makeReceivable(id: 'r-written', status: ReceivableStatus.writtenOff, totalAmount: 100));
+      await repo.insert(makeReceivable(id: 'r-active', status: ReceivableStatus.active));
+      await repo.upsertFromRemote(makeReceivable(id: 'r-settled', status: ReceivableStatus.settled, totalAmount: 500));
+      await repo.upsertFromRemote(makeReceivable(id: 'r-hidden', status: ReceivableStatus.hidden, totalAmount: 200));
+      await repo.upsertFromRemote(makeReceivable(id: 'r-written', status: ReceivableStatus.writtenOff, totalAmount: 100));
     });
 
     test('active filter returns only active receivables', () async {
@@ -131,9 +130,9 @@ void main() {
 
   group('receivablePaymentsProvider', () {
     test('returns payments for a receivable', () async {
-      await repo.insert(_makeReceivable(id: 'r1'));
-      await payRepo.insert(_makePayment(id: 'p1', receivableId: 'r1', amount: 100));
-      await payRepo.insert(_makePayment(id: 'p2', receivableId: 'r1', amount: 200));
+      await repo.insert(makeReceivable(id: 'r1'));
+      await payRepo.insert(makePayment(id: 'p1', receivableId: 'r1', amount: 100));
+      await payRepo.insert(makePayment(id: 'p2', receivableId: 'r1', amount: 200));
 
       final payments = await container.read(
         receivablePaymentsProvider('r1').future,
@@ -144,11 +143,11 @@ void main() {
 
   group('receivablesTotalOutstandingProvider', () {
     test('sums remaining for active receivables only', () async {
-      await repo.insert(_makeReceivable(id: 'r-a1', totalAmount: 1000, status: ReceivableStatus.active));
-      await repo.insert(_makeReceivable(id: 'r-a2', totalAmount: 500, status: ReceivableStatus.active));
-      await repo.upsertFromRemote(_makeReceivable(id: 'r-s', totalAmount: 800, status: ReceivableStatus.settled));
+      await repo.insert(makeReceivable(id: 'r-a1', totalAmount: 1000, status: ReceivableStatus.active));
+      await repo.insert(makeReceivable(id: 'r-a2', totalAmount: 500, status: ReceivableStatus.active));
+      await repo.upsertFromRemote(makeReceivable(id: 'r-s', totalAmount: 800, status: ReceivableStatus.settled));
 
-      await payRepo.insert(_makePayment(id: 'p1', receivableId: 'r-a1', amount: 300));
+      await payRepo.insert(makePayment(id: 'p1', receivableId: 'r-a1', amount: 300));
 
       final total = await container.read(receivablesTotalOutstandingProvider.future);
       expect(total, 1200); // (1000-300) + 500
