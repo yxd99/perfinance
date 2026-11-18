@@ -75,7 +75,13 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
     final hideValues = ref.watch(hideValuesProvider);
     return CustomScrollView(
       slivers: [
-        const SliverAppBar.large(title: Text('Más'), primary: false),
+        const SliverAppBar.large(
+          title: Text('Más'),
+          primary: false,
+          // Barra de navegación de iOS (44pt) + título grande, sin aire de más.
+          toolbarHeight: 44,
+          expandedHeight: 100,
+        ),
         SliverList.list(
           children: [
             InsetGroup(
