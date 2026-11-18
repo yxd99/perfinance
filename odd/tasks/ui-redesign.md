@@ -18,9 +18,15 @@ Branch: feat-impeccable-flutter-ui · Delivery: ask-on-risk · Test runner: `flu
 - T4 · S3 · inline · done (direction "Billete", contract in .impeccable/surfaces/lib-features-home-home-screen-dart.md; see L8)
 - T5 · S4 · in progress. Base: Billete tokens + system font 332a5e9; quick-add entry point dcfdc1b.
   - T5a · S4 · delegated (parallel, Writer trigger a): shell — bottom tab bar Mes · Egresos · + · Deudas · Más, "Más" hub, app bar actions moved · done (4f4f7a5; 4 widget tests; sync badge fix included; startup sync/logout untested, sim check pending)
-  - T5b · S4 · delegated (parallel): Mes screen (dashboard) to the Billete first viewport · pending
+  - T5b · S4 · delegated (parallel): Mes screen (dashboard) to the Billete first viewport · done (b3f6a0b; month_pace RED→GREEN, 19+4 tests)
+  - Seam: full suite +454 pass; analyze 7 warnings all in untouched files (pre-existing); sim light+dark tour OK. Tracking fix fccdccf.
+  - Fixed: note-hue collisions, hues by account creation order (e7441e3, assignHueSlots RED→GREEN, 5 tests; suite +459); large-title bars 44pt toolbar (12345ed + Egresos part in e7441e3).
+  - Open: Deudas/Tarjetas/Me deben/Auto-pagos/chat/login not yet in Billete layout.
+  - Finish review: delegated to a fresh general-purpose agent running degraded/finish-reviewer.md (impeccable-finish-reviewer agent type not installed). Screens in .impeccable/review/ (gitignored).
   - T5c · S4 · delegated (parallel): Egresos list + quick-add form · done (dd00983; 23 expense tests; helper RED→GREEN; sim check pending)
-- T6 · S5 · pending
+  - Finish review (fresh agent, degraded protocol): disposition fix → 6 material fixes c5534cb → verdict pass all resolved, disposition ship. Total mismatch (seed future-dated row) fixed ae57395 (RED→GREEN); placeholder weight c5470e0. Suite +461.
+  - DESIGN.md + .impeccable/design.json written by documenter (fresh agent, degraded protocol). T5 · done.
+- T6 · S5 · pending. Inputs: documenter drift (no "stamped" paid items; Mes 20pt margins + custom title vs 16pt + SliverAppBar.large; Material icons in Mes attention rows; unused navigationBarTheme/tabBarTheme), voseo in login/forms, raw "cash"/"debit" in savings_screen.dart:59, empty states/errors on remaining screens, Deudas body + Tarjetas/Me deben/Auto-pagos/chat/login to Billete.
 - T7 · S6 · pending
 
 ## Log
