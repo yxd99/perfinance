@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perfinance/core/providers/hide_values_provider.dart';
@@ -43,7 +44,7 @@ class DashboardAccountAutomaticPaymentsScreen extends ConsumerWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.autorenew, size: 64, color: Theme.of(context).colorScheme.outline),
+                  Icon(CupertinoIcons.arrow_2_circlepath, size: 64, color: Theme.of(context).colorScheme.outline),
                   const SizedBox(height: 16),
                   Text(
                     'Sin pagos automáticos en esta cuenta',
@@ -83,13 +84,13 @@ class DashboardAccountAutomaticPaymentsScreen extends ConsumerWidget {
                       child: ListTile(
                         leading: CircleAvatar(
                           backgroundColor: context.colors.accentSoft,
-                          child: Icon(Icons.autorenew, color: context.colors.accent, size: 22),
+                          child: Icon(CupertinoIcons.arrow_2_circlepath, color: context.colors.accent, size: 22),
                         ),
                         title: Text(p.description, style: const TextStyle(fontWeight: FontWeight.w600)),
                         subtitle: Text(
                           '\$${formatCurrencyDisplay(p.amount, hideValues)} · Día ${p.paymentDayOfMonth} · ${_capitalize(p.frequency)}',
                         ),
-                        trailing: const Icon(Icons.chevron_right),
+                        trailing: const Icon(CupertinoIcons.chevron_right),
                         onTap: () {
                           Navigator.push(
                             context,

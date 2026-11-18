@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perfinance/core/providers/hide_values_provider.dart';
@@ -59,7 +60,7 @@ class DashboardAccountExpensesScreen extends ConsumerWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.receipt_long_outlined, size: 64, color: Theme.of(context).colorScheme.outline),
+                  Icon(CupertinoIcons.doc_text, size: 64, color: Theme.of(context).colorScheme.outline),
                   const SizedBox(height: 16),
                   Text(
                     'Sin egresos en $monthLabel',
