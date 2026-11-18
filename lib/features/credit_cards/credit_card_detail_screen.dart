@@ -1,4 +1,6 @@
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
+import 'package:perfinance/core/observability/error_reporter.dart';
 import 'package:perfinance/core/theme/app_theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perfinance/core/providers/hide_values_provider.dart';
@@ -15,12 +17,14 @@ import 'package:perfinance/data/repositories/card_payment_repository.dart';
 import 'package:perfinance/data/repositories/credit_card_repository.dart';
 import 'package:perfinance/data/repositories/expense_repository.dart';
 import 'package:perfinance/data/repositories/min_payment_config_repository.dart';
+import 'package:perfinance/features/accounts/account_hue_provider.dart';
 import 'package:perfinance/features/auth/auth_provider.dart';
 import 'package:perfinance/features/credit_cards/card_payment_date_filter.dart';
 import 'package:perfinance/features/credit_cards/card_debt_validation_dialog.dart';
 import 'package:perfinance/features/credit_cards/credit_cards_provider.dart';
 import 'package:perfinance/features/credit_cards/credit_card_payments_provider.dart';
 import 'package:perfinance/features/dashboard/dashboard_provider.dart';
+import 'package:perfinance/features/credit_cards/widgets/card_inset_group.dart';
 import 'package:perfinance/features/expenses/expenses_provider.dart';
 import 'package:perfinance/services/card_debt_reconciliation_service.dart';
 import 'package:perfinance/services/credit_card_lifecycle_service.dart';
@@ -48,19 +52,23 @@ class _CreditCardDetailScreenState extends ConsumerState<CreditCardDetailScreen>
               orElse: () => null,
             );
         if (card == null) {
-          return const Scaffold(body: Center(child: Text('Tarjeta no encontrada')));
+          return Scaffold(
+            appBar: AppBar(),
+            body: const Center(child: Text('No encontramos esta tarjeta. Puede que se haya eliminado.')),
+          );
         }
         return _DetailContent(card: card);
       },
-      loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
+      loading: () => Scaffold(appBar: AppBar(), body: const Center(child: CircularProgressIndicator.adaptive())),
       error: (e, _) => Scaffold(
+        appBar: AppBar(),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.credit_card_off, size: 48, color: Theme.of(context).colorScheme.error),
+                Icon(CupertinoIcons.exclamationmark_triangle, size: 44, color: context.colors.danger),
                 const SizedBox(height: 16),
                 Text(
                   UserFriendlyErrors.fromAsyncError(e, UserFriendlyErrors.cardsLoadFailed),
@@ -120,6 +128,12 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
     );
   }
 
+  /// Avisa abajo que algo no se pudo guardar. El error ya se reportó.
+  void _showSaveError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
   Future<void> _toggleActive(BuildContext context, bool newValue) async {
     final isDeactivating = !newValue;
     if (isDeactivating) {
@@ -145,7 +159,13 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
     }
     final cardRepo = ref.read(creditCardRepositoryProvider);
     final autoPayRepo = ref.read(automaticPaymentRepositoryProvider);
-    await CreditCardLifecycleService.setActive(cardRepo, autoPayRepo, widget.card.id, newValue);
+    try {
+      await CreditCardLifecycleService.setActive(cardRepo, autoPayRepo, widget.card.id, newValue);
+    } catch (e, st) {
+      ErrorReporter.capture(e, st, operation: 'credit_cards.set_active', details: {'card_id': widget.card.id, 'active': newValue});
+      _showSaveError(newValue ? 'No pudimos reactivar la tarjeta. Probá de nuevo.' : 'No pudimos desactivar la tarjeta. Probá de nuevo.');
+      return;
+    }
     if (!mounted) return;
     ref.invalidate(creditCardsListProvider);
     ref.invalidate(activeCreditCardsListProvider);
@@ -159,212 +179,142 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.colors;
     final hideValues = ref.watch(hideValuesProvider).value ?? false;
     final asyncPayments = ref.watch(filteredCardPaymentsByCardProvider(widget.card.id));
     final selectedPaymentFilter = ref.watch(selectedCardPaymentDateFilterProvider(widget.card.id));
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.card.alias),
-        actions: [
-          Row(
-            children: [
-              Text(widget.card.isActive ? 'Activa' : 'Inactiva'),
-              Switch(
-                value: widget.card.isActive,
-                onChanged: (v) => _toggleActive(context, v),
-              ),
-            ],
-          ),
-        ],
-      ),
+      appBar: AppBar(title: Text(widget.card.alias)),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.only(top: 12, bottom: 24),
         children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Corte día ${widget.card.cutOffDay}', style: Theme.of(context).textTheme.titleSmall),
-                  Text('Cuota de manejo: \$${formatCurrencyDisplay(widget.card.managementFee, hideValues)}'),
-                  const SizedBox(height: 16),
-                  FutureBuilder<double>(
-                    future: _getCurrentDebt(),
-                    builder: (context, snapshot) {
-                      final debt = snapshot.data ?? 0;
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Deuda total', style: Theme.of(context).textTheme.titleSmall),
-                          const SizedBox(height: 4),
-                          if (snapshot.connectionState == ConnectionState.waiting)
-                            const LinearProgressIndicator()
-                          else
-                            Text(
-                              '\$${formatCurrencyDisplay(debt, hideValues)}',
-                              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                        ],
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
+          _CardSummary(
+            card: widget.card,
+            hue: ref.accountHue(context, widget.card.id),
+            hideValues: hideValues,
+            debtFuture: _getCurrentDebt(),
           ),
-          const SizedBox(height: 16),
           FutureBuilder<MinPaymentStatus?>(
             future: _minStatusFuture,
             builder: (context, snap) {
               final status = snap.data;
               final isLoading = snap.connectionState == ConnectionState.waiting;
-              return Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Pago mínimo', style: Theme.of(context).textTheme.titleMedium),
-                      const SizedBox(height: 8),
-                      if (isLoading)
-                        const SizedBox(height: 16, child: LinearProgressIndicator())
-                      else ...[
-                        // Task 5.4: dual display
-                        if (status != null) ...[
-                          Text(
-                            'Total pagado este mes: \$${formatCurrencyDisplay(status.totalPaidMonth, hideValues)}',
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Abonado al pago mínimo: \$${formatCurrencyDisplay(status.paid, hideValues)} / \$${formatCurrencyDisplay(status.configured, hideValues)}',
-                          ),
-                          const SizedBox(height: 8),
-                          if (status.isUpToDate)
-                            Text('Estás al día', style: TextStyle(color: context.colors.positive, fontWeight: FontWeight.bold))
-                          else
-                            Text('Pendiente: \$${formatCurrencyDisplay(status.pending, hideValues)}'),
-                        ] else
-                          const Text('Sin configurar'),
-                      ],
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          TextButton(
-                            onPressed: () => _setMinPayment(context),
-                            child: Text(status == null ? 'Configurar pago mínimo' : 'Editar pago mínimo'),
-                          ),
-                          TextButton(
-                            onPressed: () => _registerPayment(context),
-                            child: const Text('Registrar pago'),
-                          ),
-                        ],
+              return CardInsetGroup(
+                header: 'Pago mínimo',
+                children: [
+                  if (isLoading)
+                    const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: LinearProgressIndicator(),
+                    )
+                  else if (status != null) ...[
+                    CardInfoRow(
+                      label: 'Pagado este mes',
+                      value: '\$${formatCurrencyDisplay(status.totalPaidMonth, hideValues)}',
+                    ),
+                    CardInfoRow(
+                      label: 'Abonado al mínimo',
+                      value:
+                          '\$${formatCurrencyDisplay(status.paid, hideValues)} de \$${formatCurrencyDisplay(status.configured, hideValues)}',
+                    ),
+                    if (status.isUpToDate)
+                      CardInfoRow(label: 'Estado', value: 'Estás al día', valueColor: c.positive)
+                    else
+                      CardInfoRow(
+                        label: 'Te falta',
+                        value: '\$${formatCurrencyDisplay(status.pending, hideValues)}',
+                        valueColor: c.warning,
                       ),
-                      const SizedBox(height: 8),
-                      TextButton(
-                        onPressed: () => _validateCurrentDebt(context),
-                        child: const Text('Validar deuda actual'),
-                      ),
-                    ],
+                  ] else
+                    const CardInfoRow(label: 'Pago mínimo', value: 'Sin configurar'),
+                  CardActionRow(
+                    icon: CupertinoIcons.plus_circle,
+                    label: 'Registrar pago',
+                    onTap: () => _registerPayment(context),
                   ),
-                ),
+                  CardActionRow(
+                    icon: CupertinoIcons.slider_horizontal_3,
+                    label: status == null ? 'Configurar pago mínimo' : 'Editar pago mínimo',
+                    onTap: () => _setMinPayment(context),
+                  ),
+                  CardActionRow(
+                    icon: CupertinoIcons.checkmark_seal,
+                    label: 'Validar deuda actual',
+                    onTap: () => _validateCurrentDebt(context),
+                  ),
+                ],
               );
             },
           ),
-          const SizedBox(height: 16),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          CardInsetGroup(
+            children: [
+              SwitchListTile.adaptive(
+                title: const Text('Tarjeta activa'),
+                subtitle: Text(
+                  widget.card.isActive
+                      ? 'Aparece al registrar egresos.'
+                      : 'Desactivada: no aparece al registrar egresos, pero podés seguir pagándola.',
+                ),
+                activeTrackColor: c.accent,
+                value: widget.card.isActive,
+                onChanged: (v) => _toggleActive(context, v),
+              ),
+            ],
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(32, 0, 16, 8),
+            child: Semantics(
+              header: true,
+              child: Text(
+                'HISTORIAL DE PAGOS',
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: c.textMuted,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.8,
+                    ),
+              ),
+            ),
+          ),
+          _PaymentFilterBar(
+            selected: selectedPaymentFilter,
+            onSelected: (f) => ref.read(selectedCardPaymentDateFilterProvider(widget.card.id).notifier).state = f,
+            onPickCustomRange: () => _pickCustomPaymentRange(context),
+          ),
+          const SizedBox(height: 8),
+          asyncPayments.when(
+            data: (payments) {
+              final total = payments.fold<double>(0, (s, p) => s + p.amount);
+              return CardInsetGroup(
                 children: [
-                  Text('Historial de pagos', style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 12),
-                  _PaymentFilterBar(
-                    selected: selectedPaymentFilter,
-                    onSelected: (f) =>
-                        ref.read(selectedCardPaymentDateFilterProvider(widget.card.id).notifier).state = f,
-                    onPickCustomRange: () => _pickCustomPaymentRange(context),
-                  ),
-                  const SizedBox(height: 12),
-                  asyncPayments.when(
-                    data: (payments) {
-                      final total = payments.fold<double>(0, (s, p) => s + p.amount);
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Total del rango: \$${formatCurrencyDisplay(total, hideValues)}',
-                            style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
-                          ),
-                          const SizedBox(height: 12),
-                          if (payments.isEmpty)
-                            const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 16),
-                              child: Text('No hay pagos en este rango.'),
-                            )
-                          else
-                            ListView.builder(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              itemCount: payments.length,
-                              itemBuilder: (context, i) {
-                                final p = payments[i];
-                                final d = p.date.toLocal();
-                                return ListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  leading: const Icon(Icons.payments_outlined),
-                                  title: Text('\$${formatCurrencyDisplay(p.amount, hideValues)}'),
-                                  subtitle: Text(formatDisplayDate(d)),
-                                  trailing: PopupMenuButton<_PaymentAction>(
-                                    icon: const Icon(Icons.more_vert),
-                                    onSelected: (action) {
-                                      if (action == _PaymentAction.edit) {
-                                        _editPayment(context, p);
-                                      } else {
-                                        _deletePayment(context, p);
-                                      }
-                                    },
-                                    itemBuilder: (_) => const [
-                                      PopupMenuItem(
-                                        value: _PaymentAction.edit,
-                                        child: ListTile(
-                                          leading: Icon(Icons.edit_outlined),
-                                          title: Text('Editar'),
-                                          contentPadding: EdgeInsets.zero,
-                                        ),
-                                      ),
-                                      PopupMenuItem(
-                                        value: _PaymentAction.delete,
-                                        child: ListTile(
-                                          leading: Icon(Icons.delete_outline),
-                                          title: Text('Eliminar'),
-                                          contentPadding: EdgeInsets.zero,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            ),
-                        ],
-                      );
-                    },
-                    loading: () => const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 16),
-                      child: LinearProgressIndicator(),
-                    ),
-                    error: (e, _) => Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+                  CardInfoRow(label: 'Total del rango', value: '\$${formatCurrencyDisplay(total, hideValues)}'),
+                  if (payments.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.all(16),
                       child: Text(
-                        UserFriendlyErrors.fromAsyncError(e, 'No pudimos cargar el historial de pagos.'),
-                        style: TextStyle(color: Theme.of(context).colorScheme.error),
+                        'No hay pagos en este rango.',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: c.textMuted),
                       ),
-                    ),
-                  ),
+                    )
+                  else
+                    for (final p in payments)
+                      _PaymentRow(
+                        amount: '\$${formatCurrencyDisplay(p.amount, hideValues)}',
+                        date: formatDisplayDate(p.date.toLocal()),
+                        onEdit: () => _editPayment(context, p),
+                        onDelete: () => _deletePayment(context, p),
+                      ),
                 ],
+              );
+            },
+            loading: () => const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              child: LinearProgressIndicator(),
+            ),
+            error: (e, _) => Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+              child: Text(
+                UserFriendlyErrors.fromAsyncError(e, 'No pudimos cargar el historial de pagos.'),
+                style: TextStyle(color: c.danger),
               ),
             ),
           ),
@@ -415,7 +365,7 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
                 children: [
                   CurrencyTextField(
                     controller: c,
-                    decoration: const InputDecoration(labelText: 'Monto', border: OutlineInputBorder()),
+                    decoration: const InputDecoration(labelText: 'Monto'),
                   ),
                   const SizedBox(height: 12),
                   // Task 5.1: effectiveDay field — editable in create, disabled in edit
@@ -428,11 +378,8 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
                     children: [
                       Expanded(
                         child: DropdownButtonFormField<int>(
-                          value: selectedDay,
-                          decoration: InputDecoration(
-                            border: const OutlineInputBorder(),
-                            enabled: isCreateMode,
-                          ),
+                          initialValue: selectedDay,
+                          decoration: InputDecoration(enabled: isCreateMode),
                           onChanged: isCreateMode
                               ? (v) {
                                   if (v != null) {
@@ -453,7 +400,7 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
                     Padding(
                       padding: const EdgeInsets.only(top: 6),
                       child: Text(
-                        'Solo podés modificar el monto este mes. La fecha de referencia queda fija en el día ${existing!.effectiveDay}.',
+                        'Solo podés modificar el monto este mes. La fecha de referencia queda fija en el día ${existing.effectiveDay}.',
                         style: Theme.of(ctx).textTheme.bodySmall?.copyWith(color: ctx.colors.textMuted),
                       ),
                     ),
@@ -494,26 +441,32 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
     final amount = parseCurrency(c.text);
     if (amount == null || amount < 0) return;
 
-    if (existing != null) {
-      // Edit mode: update amount only
-      await repo.update(MinPaymentConfig(
-        id: existing.id,
-        cardId: widget.card.id,
-        amount: amount,
-        year: now.year,
-        month: now.month,
-        effectiveDay: existing.effectiveDay,
-      ));
-    } else {
-      // Create mode: insert with effectiveDay
-      await repo.insert(MinPaymentConfig(
-        id: const Uuid().v4(),
-        cardId: widget.card.id,
-        amount: amount,
-        year: now.year,
-        month: now.month,
-        effectiveDay: selectedDay,
-      ));
+    try {
+      if (existing != null) {
+        // Edit mode: update amount only
+        await repo.update(MinPaymentConfig(
+          id: existing.id,
+          cardId: widget.card.id,
+          amount: amount,
+          year: now.year,
+          month: now.month,
+          effectiveDay: existing.effectiveDay,
+        ));
+      } else {
+        // Create mode: insert with effectiveDay
+        await repo.insert(MinPaymentConfig(
+          id: const Uuid().v4(),
+          cardId: widget.card.id,
+          amount: amount,
+          year: now.year,
+          month: now.month,
+          effectiveDay: selectedDay,
+        ));
+      }
+    } catch (e, st) {
+      ErrorReporter.capture(e, st, operation: 'credit_cards.save_min_payment', details: {'card_id': widget.card.id});
+      _showSaveError('No pudimos guardar el pago mínimo. Probá de nuevo.');
+      return;
     }
 
     if (mounted) {
@@ -530,7 +483,7 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
         title: const Text('Registrar pago'),
         content: CurrencyTextField(
           controller: amountC,
-          decoration: const InputDecoration(labelText: 'Monto', border: OutlineInputBorder()),
+          decoration: const InputDecoration(labelText: 'Monto'),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
@@ -547,12 +500,18 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
     final amount = parseCurrency(amountC.text);
     if (amount == null || amount <= 0) return;
     final payRepo = ref.read(cardPaymentRepositoryProvider);
-    await payRepo.insert(CardPayment(
-      id: const Uuid().v4(),
-      cardId: widget.card.id,
-      amount: amount,
-      date: DateTime.now(),
-    ));
+    try {
+      await payRepo.insert(CardPayment(
+        id: const Uuid().v4(),
+        cardId: widget.card.id,
+        amount: amount,
+        date: DateTime.now(),
+      ));
+    } catch (e, st) {
+      ErrorReporter.capture(e, st, operation: 'credit_cards.register_payment', details: {'card_id': widget.card.id});
+      _showSaveError('No pudimos registrar el pago. Probá de nuevo.');
+      return;
+    }
     if (mounted) {
       _refreshMinStatus();
       ref.invalidate(dashboardDebtProvider);
@@ -584,27 +543,33 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
     );
     if (decision == null) return;
 
-    if (decision.reconciliation.action == CardDebtAdjustmentAction.missingExpense) {
-      await expenseRepo.insert(
-        Expense(
-          id: const Uuid().v4(),
-          userId: user.id,
-          amount: decision.reconciliation.delta,
-          date: DateTime.now(),
-          paymentType: 'credit_card',
-          paymentRef: widget.card.id,
-          description: 'Faltante de deuda',
-        ),
-      );
-    } else if (decision.reconciliation.action == CardDebtAdjustmentAction.cardPayment) {
-      await paymentRepo.insert(
-        CardPayment(
-          id: const Uuid().v4(),
-          cardId: widget.card.id,
-          amount: decision.reconciliation.delta,
-          date: DateTime.now(),
-        ),
-      );
+    try {
+      if (decision.reconciliation.action == CardDebtAdjustmentAction.missingExpense) {
+        await expenseRepo.insert(
+          Expense(
+            id: const Uuid().v4(),
+            userId: user.id,
+            amount: decision.reconciliation.delta,
+            date: DateTime.now(),
+            paymentType: 'credit_card',
+            paymentRef: widget.card.id,
+            description: 'Faltante de deuda',
+          ),
+        );
+      } else if (decision.reconciliation.action == CardDebtAdjustmentAction.cardPayment) {
+        await paymentRepo.insert(
+          CardPayment(
+            id: const Uuid().v4(),
+            cardId: widget.card.id,
+            amount: decision.reconciliation.delta,
+            date: DateTime.now(),
+          ),
+        );
+      }
+    } catch (e, st) {
+      ErrorReporter.capture(e, st, operation: 'credit_cards.validate_debt', details: {'card_id': widget.card.id});
+      _showSaveError('No pudimos guardar el ajuste de la deuda. Probá de nuevo.');
+      return;
     }
 
     if (!mounted) return;
@@ -637,11 +602,11 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
             children: [
               CurrencyTextField(
                 controller: amountC,
-                decoration: const InputDecoration(labelText: 'Monto', border: OutlineInputBorder()),
+                decoration: const InputDecoration(labelText: 'Monto'),
               ),
               const SizedBox(height: 12),
               OutlinedButton.icon(
-                icon: const Icon(Icons.calendar_today_outlined, size: 18),
+                icon: const Icon(CupertinoIcons.calendar, size: 18),
                 label: Text(formatDisplayDate(selectedDate)),
                 onPressed: () async {
                   final picked = await showDatePicker(
@@ -680,7 +645,7 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
       final cutoff = DateTime(now.year, now.month, clampedDay);
       final oldBeforeCutoff = payment.date.toLocal().isBefore(cutoff);
       final newBeforeCutoff = selectedDate.isBefore(cutoff);
-      if (oldBeforeCutoff != newBeforeCutoff && mounted) {
+      if (oldBeforeCutoff != newBeforeCutoff && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
@@ -692,12 +657,18 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
     }
 
     final payRepo = ref.read(cardPaymentRepositoryProvider);
-    await payRepo.update(CardPayment(
-      id: payment.id,
-      cardId: payment.cardId,
-      amount: amount,
-      date: selectedDate,
-    ));
+    try {
+      await payRepo.update(CardPayment(
+        id: payment.id,
+        cardId: payment.cardId,
+        amount: amount,
+        date: selectedDate,
+      ));
+    } catch (e, st) {
+      ErrorReporter.capture(e, st, operation: 'credit_cards.edit_payment', details: {'payment_id': payment.id});
+      _showSaveError('No pudimos guardar el pago. Probá de nuevo.');
+      return;
+    }
     if (!mounted) return;
     _refreshMinStatus();
     ref.invalidate(dashboardDebtProvider);
@@ -718,7 +689,8 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(ctx).colorScheme.error,
+              backgroundColor: ctx.colors.danger,
+              foregroundColor: ctx.colors.onDanger,
             ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Eliminar'),
@@ -728,7 +700,13 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
     );
     if (ok != true) return;
     final payRepo = ref.read(cardPaymentRepositoryProvider);
-    await payRepo.markPendingDelete(payment.id);
+    try {
+      await payRepo.markPendingDelete(payment.id);
+    } catch (e, st) {
+      ErrorReporter.capture(e, st, operation: 'credit_cards.delete_payment', details: {'payment_id': payment.id});
+      _showSaveError('No pudimos eliminar el pago. Probá de nuevo.');
+      return;
+    }
     if (!mounted) return;
     _refreshMinStatus();
     ref.invalidate(dashboardDebtProvider);
@@ -739,6 +717,161 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
 }
 
 enum _PaymentAction { edit, delete }
+
+/// Resumen de la tarjeta sobre papel limpio: franja con el tono del billete
+/// de la cuenta (identidad), deuda en rojo cuando hay (estado) y los datos fijos.
+class _CardSummary extends StatelessWidget {
+  const _CardSummary({
+    required this.card,
+    required this.hue,
+    required this.hideValues,
+    required this.debtFuture,
+  });
+
+  final CreditCard card;
+  final Color hue;
+  final bool hideValues;
+  final Future<double> debtFuture;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final t = Theme.of(context).textTheme;
+    final labelStyle = t.labelLarge?.copyWith(color: c.textMuted, fontWeight: FontWeight.w600);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: ColoredBox(
+          color: c.surface,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ExcludeSemantics(
+                child: Container(
+                  key: const ValueKey('card-summary-hue'),
+                  height: 6,
+                  color: card.isActive ? hue : hue.withValues(alpha: 0.35),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (!card.isActive) ...[
+                      Text('Desactivada', style: labelStyle),
+                      const SizedBox(height: 8),
+                    ],
+                    Text('Deuda total', style: labelStyle),
+                    const SizedBox(height: 4),
+                    FutureBuilder<double>(
+                      future: debtFuture,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 12),
+                            child: LinearProgressIndicator(),
+                          );
+                        }
+                        final debt = snapshot.data ?? 0;
+                        return FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            '\$${formatCurrencyDisplay(debt, hideValues)}',
+                            maxLines: 1,
+                            style: t.headlineSmall?.copyWith(
+                              color: debt > 0 ? c.danger : c.ink,
+                              fontWeight: FontWeight.w800,
+                              fontFeatures: kTabularFigures,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Corte el día ${card.cutOffDay} · Cuota de manejo \$${formatCurrencyDisplay(card.managementFee, hideValues)}',
+                      style: t.bodySmall?.copyWith(color: c.textMuted, fontFeatures: kTabularFigures),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Fila de un pago con su menú de editar y eliminar.
+class _PaymentRow extends StatelessWidget {
+  const _PaymentRow({
+    required this.amount,
+    required this.date,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final String amount;
+  final String date;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final t = Theme.of(context).textTheme;
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 56),
+      child: Padding(
+        padding: const EdgeInsets.only(left: 16, right: 4),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    amount,
+                    style: t.titleSmall?.copyWith(color: c.ink, fontWeight: FontWeight.w700, fontFeatures: kTabularFigures),
+                  ),
+                  Text(date, style: t.bodySmall?.copyWith(color: c.textMuted)),
+                ],
+              ),
+            ),
+            PopupMenuButton<_PaymentAction>(
+              tooltip: 'Opciones del pago',
+              icon: Icon(CupertinoIcons.ellipsis, color: c.textMuted),
+              onSelected: (action) => action == _PaymentAction.edit ? onEdit() : onDelete(),
+              itemBuilder: (_) => [
+                const PopupMenuItem(
+                  value: _PaymentAction.edit,
+                  child: ListTile(
+                    leading: Icon(CupertinoIcons.pencil),
+                    title: Text('Editar'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+                PopupMenuItem(
+                  value: _PaymentAction.delete,
+                  child: ListTile(
+                    leading: Icon(CupertinoIcons.delete, color: c.danger),
+                    title: Text('Eliminar', style: TextStyle(color: c.danger)),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _PaymentFilterBar extends StatelessWidget {
   const _PaymentFilterBar({
@@ -762,6 +895,7 @@ class _PaymentFilterBar extends StatelessWidget {
     ];
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
           ...filters.map((f) => Padding(

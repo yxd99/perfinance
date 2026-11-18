@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:perfinance/core/utils/date_utils.dart';
 
@@ -6,6 +5,9 @@ import 'package:perfinance/core/utils/date_utils.dart';
 // These test the LOGIC extracted from the UI — not full widget pump —
 // since the full screen requires Riverpod/DB/Auth setup.
 // Widget-level integration tests for the dialog exist in the integration test suite.
+
+/// Mirrors the create/edit decision in the min payment dialog.
+bool _isCreateMode(Object? existing) => existing == null;
 
 void main() {
   group('effectiveDay picker logic', () {
@@ -19,15 +21,11 @@ void main() {
     });
 
     test('create mode: effectiveDay picker should be enabled (existing == null)', () {
-      const existing = null; // no existing config
-      final isCreateMode = existing == null;
-      expect(isCreateMode, isTrue);
+      expect(_isCreateMode(null), isTrue); // no existing config
     });
 
     test('edit mode: effectiveDay picker should be disabled (existing != null)', () {
-      const existing = 'cfg-1'; // existing config id
-      final isCreateMode = existing == null;
-      expect(isCreateMode, isFalse);
+      expect(_isCreateMode('cfg-1'), isFalse); // existing config id
     });
 
     test('edit mode caption contains the locked effectiveDay', () {

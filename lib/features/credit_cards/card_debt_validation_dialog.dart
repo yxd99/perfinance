@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:perfinance/core/theme/app_theme.dart';
 import 'package:perfinance/core/widgets/currency_input.dart';
@@ -32,7 +33,13 @@ Future<CardDebtValidationDecision?> showCardDebtValidationDialog({
           final deltaColor = switch (reconciliation.action) {
             CardDebtAdjustmentAction.missingExpense => context.colors.warning,
             CardDebtAdjustmentAction.cardPayment => context.colors.positive,
-            CardDebtAdjustmentAction.none => Theme.of(context).colorScheme.primary,
+            CardDebtAdjustmentAction.none => context.colors.accent,
+          };
+          // Fondo suave del mismo estado: los pares de tokens ya cumplen AA.
+          final deltaSoft = switch (reconciliation.action) {
+            CardDebtAdjustmentAction.missingExpense => context.colors.warningSoft,
+            CardDebtAdjustmentAction.cardPayment => context.colors.positiveSoft,
+            CardDebtAdjustmentAction.none => context.colors.accentSoft,
           };
           final deltaLabel = switch (reconciliation.action) {
             CardDebtAdjustmentAction.missingExpense => 'Faltante detectado',
@@ -59,7 +66,7 @@ Future<CardDebtValidationDecision?> showCardDebtValidationDialog({
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Confirma si el saldo real de la tarjeta coincide con el cálculo actual.',
+                  'Confirmá si el saldo real de la tarjeta coincide con el cálculo actual.',
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
                 const SizedBox(height: 12),
@@ -69,7 +76,7 @@ Future<CardDebtValidationDecision?> showCardDebtValidationDialog({
                       child: _DebtSummaryCard(
                         label: 'Calculada',
                         value: '\$${formatCurrency(expectedDebt)}',
-                        icon: Icons.calculate_outlined,
+                        icon: CupertinoIcons.function,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -80,10 +87,10 @@ Future<CardDebtValidationDecision?> showCardDebtValidationDialog({
                             ? 'Sin ajuste'
                             : '\$${formatCurrency(reconciliation.delta)}',
                         icon: reconciliation.action == CardDebtAdjustmentAction.cardPayment
-                            ? Icons.arrow_downward_rounded
+                            ? CupertinoIcons.arrow_down
                             : reconciliation.action == CardDebtAdjustmentAction.missingExpense
-                                ? Icons.arrow_upward_rounded
-                                : Icons.check_circle_outline,
+                                ? CupertinoIcons.arrow_up
+                                : CupertinoIcons.checkmark_circle,
                         valueColor: deltaColor,
                       ),
                     ),
@@ -94,12 +101,11 @@ Future<CardDebtValidationDecision?> showCardDebtValidationDialog({
                   controller: controller,
                   decoration: const InputDecoration(
                     labelText: 'Deuda real actual',
-                    helperText: 'Puedes dejar el valor calculado si ya está correcto.',
-                    border: OutlineInputBorder(),
+                    helperText: 'Podés dejar el valor calculado si ya está bien.',
                   ),
                   validator: (value) {
                     final parsed = parseCurrency(value ?? '');
-                    if (parsed == null || parsed < 0) return 'Monto inválido';
+                    if (parsed == null || parsed < 0) return 'Escribí un monto válido';
                     return null;
                   },
                 ),
@@ -108,9 +114,8 @@ Future<CardDebtValidationDecision?> showCardDebtValidationDialog({
                   width: double.infinity,
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: deltaColor.withValues(alpha: 0.08),
+                    color: deltaSoft,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: deltaColor.withValues(alpha: 0.2)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -176,25 +181,26 @@ class _DebtSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final c = context.colors;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
+        color: c.track,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: colorScheme.primary),
+          Icon(icon, size: 18, color: c.textMuted),
           const SizedBox(height: 8),
-          Text(label, style: Theme.of(context).textTheme.labelMedium),
+          Text(label, style: Theme.of(context).textTheme.labelMedium?.copyWith(color: c.textMuted)),
           const SizedBox(height: 4),
           Text(
             value,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w700,
-              color: valueColor,
+              color: valueColor ?? c.ink,
+              fontFeatures: kTabularFigures,
             ),
           ),
         ],
