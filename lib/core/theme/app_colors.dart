@@ -28,6 +28,10 @@ class AppColors extends ThemeExtension<AppColors> {
     required this.onHero,
     required this.onHeroMuted,
     required this.onHeroSoft,
+    required this.canvas,
+    required this.surface,
+    required this.ink,
+    required this.noteHues,
   });
 
   /// Acción principal, selección e íconos/textos de acento.
@@ -75,10 +79,31 @@ class AppColors extends ThemeExtension<AppColors> {
   /// Chips y círculos translúcidos sobre los gradientes hero.
   final Color onHeroSoft;
 
+  /// Fondo de la app (papel moneda) y superficie elevada (tarjetas, hojas).
+  final Color canvas;
+  final Color surface;
+
+  /// Texto principal.
+  final Color ink;
+
+  /// Tonos de los billetes colombianos (serie 2016) para identificar cuentas.
+  /// Son identidad, no estado: nunca comunican éxito, alerta o error.
+  final List<Color> noteHues;
+
+  /// Color estable de una cuenta (tarjeta o medio de pago) según su id.
+  Color accountColor(String id) {
+    var hash = 0;
+    for (final unit in id.codeUnits) {
+      hash = (hash * 31 + unit) & 0x7fffffff;
+    }
+    return noteHues[hash % noteHues.length];
+  }
+
+  /// Billete de 50.000: tarjeta del mes y bloques destacados.
   static const _heroGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFF18784A), Color(0xFF125C36)],
+    colors: [Color(0xFF5B3A7A), Color(0xFF432A5C)],
   );
 
   static const _heroDebtGradient = LinearGradient(
@@ -88,9 +113,9 @@ class AppColors extends ThemeExtension<AppColors> {
   );
 
   static const light = AppColors(
-    accent: Color(0xFF18784A),
+    accent: Color(0xFF5B3A7A),
     onAccent: Colors.white,
-    accentSoft: Color(0xFFE3F3EA),
+    accentSoft: Color(0xFFECE4F2),
     positive: Color(0xFF18784A),
     positiveSoft: Color(0xFFE3F3EA),
     warning: Color(0xFF8A5300),
@@ -100,21 +125,31 @@ class AppColors extends ThemeExtension<AppColors> {
     dangerSoft: Color(0xFFFCE9E9),
     info: Color(0xFF1F5F99),
     infoSoft: Color(0xFFE6EFF8),
-    textMuted: Color(0xFF5B6660),
-    divider: Color(0xFFDDE5E0),
-    track: Color(0xFFE1E8E4),
-    shadow: Color(0x14000000),
+    textMuted: Color(0xFF5E574C),
+    divider: Color(0xFFDCD3C1),
+    track: Color(0xFFE6DECD),
+    shadow: Color(0x141E1B18),
     heroGradient: _heroGradient,
     heroDebtGradient: _heroDebtGradient,
     onHero: Colors.white,
     onHeroMuted: Color(0xE6FFFFFF),
     onHeroSoft: Color(0x33FFFFFF),
+    canvas: Color(0xFFF4EFE3),
+    surface: Color(0xFFFBF8F1),
+    ink: Color(0xFF1E1B18),
+    noteHues: [
+      Color(0xFF2F6B4F), // 100.000 verde
+      Color(0xFF2C5A8C), // 20.000 azul
+      Color(0xFFA85A1C), // 2.000 naranja
+      Color(0xFF7A4A2E), // 5.000 café
+      Color(0xFF8A3B6E), // 10.000 rosa
+    ],
   );
 
   static const dark = AppColors(
-    accent: Color(0xFF2ECC71),
-    onAccent: Color(0xFF06210F),
-    accentSoft: Color(0xFF16301F),
+    accent: Color(0xFFC7A6E8),
+    onAccent: Color(0xFF24123A),
+    accentSoft: Color(0xFF2D2338),
     positive: Color(0xFF4ADE80),
     positiveSoft: Color(0xFF16301F),
     warning: Color(0xFFF5B544),
@@ -124,15 +159,25 @@ class AppColors extends ThemeExtension<AppColors> {
     dangerSoft: Color(0xFF3B1717),
     info: Color(0xFF7FB8F0),
     infoSoft: Color(0xFF15263A),
-    textMuted: Color(0xFFA3ADA8),
-    divider: Color(0xFF2E3330),
-    track: Color(0xFF2E3330),
+    textMuted: Color(0xFFA89F8F),
+    divider: Color(0xFF38322A),
+    track: Color(0xFF38322A),
     shadow: Color(0x4D000000),
     heroGradient: _heroGradient,
     heroDebtGradient: _heroDebtGradient,
     onHero: Colors.white,
     onHeroMuted: Color(0xE6FFFFFF),
     onHeroSoft: Color(0x33FFFFFF),
+    canvas: Color(0xFF14120F),
+    surface: Color(0xFF221E19),
+    ink: Color(0xFFEDE6D6),
+    noteHues: [
+      Color(0xFF6FBF94),
+      Color(0xFF7FA8DB),
+      Color(0xFFE39A5B),
+      Color(0xFFC49170),
+      Color(0xFFD08AB8),
+    ],
   );
 
   @override
