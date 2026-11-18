@@ -50,7 +50,7 @@ class _ReceivableFormScreenState extends ConsumerState<ReceivableFormScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(_isEdit ? 'Editar deuda' : 'Nueva deuda')),
+      appBar: AppBar(title: Text(_isEdit ? 'Editar cobro' : 'Nuevo cobro')),
       body: Form(
         key: _formKey,
         child: ListView(

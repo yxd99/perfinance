@@ -35,9 +35,9 @@ void main() {
       expect(find.text('Monto total adeudado'), findsOneWidget);
     });
 
-    testWidgets('AppBar shows "Nueva deuda" for create mode', (tester) async {
+    testWidgets('AppBar shows "Nuevo cobro" for create mode', (tester) async {
       await tester.pumpWidget(buildScreen());
-      expect(find.text('Nueva deuda'), findsOneWidget);
+      expect(find.text('Nuevo cobro'), findsOneWidget);
     });
 
     testWidgets('shows validation error when name is empty on submit', (tester) async {
