@@ -10,10 +10,15 @@ import 'package:perfinance/features/savings/savings_provider.dart';
 final accountHueSlotsProvider = FutureProvider<Map<String, int>>((ref) async {
   final cards = await ref.watch(creditCardsListProvider.future);
   final methods = await ref.watch(paymentMethodsListProvider.future);
-  return assignHueSlots([
+  final auto = assignHueSlots([
     for (final card in cards) (id: card.id, createdAt: card.createdAt),
     for (final method in methods) (id: method.id, createdAt: method.createdAt),
   ]);
+  // El color que eligió el usuario gana sobre el automático.
+  return applyChosenHueSlots(auto, {
+    for (final card in cards) card.id: card.colorSlot,
+    for (final method in methods) method.id: method.colorSlot,
+  });
 });
 
 extension AccountHueRef on WidgetRef {

@@ -183,7 +183,7 @@ void main() {
     );
     addTearDown(() => db.close());
 
-    expect(await db.getVersion(), 15);
+    expect(await db.getVersion(), appSchemaVersion);
     expect(await db.query(tableSyncCursors), isEmpty);
   });
 }
