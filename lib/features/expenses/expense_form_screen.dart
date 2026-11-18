@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:perfinance/features/accounts/account_hue_provider.dart';
 import 'package:perfinance/core/theme/app_theme.dart';
 import 'package:perfinance/services/sync_service.dart';
 import 'package:perfinance/core/widgets/currency_input.dart';
@@ -243,7 +244,7 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
               children: [
                 for (final o in options)
                   ChoiceChip(
-                    avatar: AccountNoteChip(color: c.accountColor(o.id)),
+                    avatar: AccountNoteChip(color: ref.accountHue(context, o.id)),
                     label: Text(o.label),
                     showCheckmark: false,
                     selected: o.isCard == _isCreditCard && o.id == _selectedId,

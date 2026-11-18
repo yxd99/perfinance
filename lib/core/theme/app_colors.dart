@@ -90,6 +90,13 @@ class AppColors extends ThemeExtension<AppColors> {
   /// Son identidad, no estado: nunca comunican éxito, alerta o error.
   final List<Color> noteHues;
 
+  /// Color de una cuenta según su posición (ver `assignHueSlots`). Si la cuenta
+  /// no tiene posición (todavía no cargó, o fue borrada) cae al tono por id.
+  Color accountColorFor(String id, Map<String, int> slots) {
+    final slot = slots[id];
+    return slot == null ? accountColor(id) : noteHues[slot % noteHues.length];
+  }
+
   /// Color estable de una cuenta (tarjeta o medio de pago) según su id.
   Color accountColor(String id) {
     var hash = 0;

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:perfinance/features/accounts/account_hue_provider.dart';
 import 'package:perfinance/core/config/supabase_config.dart';
 import 'package:perfinance/core/observability/error_reporter.dart';
 import 'package:perfinance/core/providers/hide_values_provider.dart';
@@ -58,6 +59,8 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
       slivers: [
         SliverAppBar.large(
           title: const Text('Egresos'),
+          toolbarHeight: 44,
+          expandedHeight: 100,
           actions: [
             IconButton(
               icon: const Icon(Icons.mail_outline),
@@ -266,7 +269,7 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                               onChanged: (v) => toggle(card.id, v),
                               controlAffinity: ListTileControlAffinity.leading,
                               title: Text(card.alias),
-                              secondary: AccountNoteChip(color: c.accountColor(card.id)),
+                              secondary: AccountNoteChip(color: ref.accountHue(context, card.id)),
                             ),
                         ],
                         if (methods.isNotEmpty) ...[
@@ -277,7 +280,7 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                               onChanged: (v) => toggle(m.id, v),
                               controlAffinity: ListTileControlAffinity.leading,
                               title: Text(m.name),
-                              secondary: AccountNoteChip(color: c.accountColor(m.id)),
+                              secondary: AccountNoteChip(color: ref.accountHue(context, m.id)),
                             ),
                         ],
                       ],
@@ -527,7 +530,7 @@ class _DayHeader extends StatelessWidget {
   }
 }
 
-class _ExpenseRow extends StatelessWidget {
+class _ExpenseRow extends ConsumerWidget {
   const _ExpenseRow({
     super.key,
     required this.expense,
@@ -546,7 +549,7 @@ class _ExpenseRow extends StatelessWidget {
   final VoidCallback onDeleted;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final c = context.colors;
     final t = Theme.of(context).textTheme;
     final text = expenseRowText(expense.description, accountAlias);
@@ -579,7 +582,7 @@ class _ExpenseRow extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 child: Row(
                   children: [
-                    AccountNoteChip(color: c.accountColor(expense.paymentRef)),
+                    AccountNoteChip(color: ref.accountHue(context, expense.paymentRef)),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(

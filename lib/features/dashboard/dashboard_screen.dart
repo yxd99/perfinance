@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:perfinance/features/accounts/account_hue_provider.dart';
 import 'package:perfinance/core/providers/hide_values_provider.dart';
 import 'package:perfinance/core/theme/app_theme.dart';
 import 'package:perfinance/core/widgets/currency_input.dart';
@@ -887,7 +888,7 @@ class _Group extends StatelessWidget {
 }
 
 /// Fila de cuenta: ficha con el tono del billete, nombre, una línea de estado y monto.
-class _AccountRow extends StatelessWidget {
+class _AccountRow extends ConsumerWidget {
   const _AccountRow({
     required this.id,
     required this.name,
@@ -905,7 +906,7 @@ class _AccountRow extends StatelessWidget {
   final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final c = context.colors;
     final t = Theme.of(context).textTheme;
     return InkWell(
@@ -920,7 +921,7 @@ class _AccountRow extends StatelessWidget {
                 width: 34,
                 height: 22,
                 decoration: BoxDecoration(
-                  color: c.accountColor(id),
+                  color: ref.accountHue(context, id),
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
