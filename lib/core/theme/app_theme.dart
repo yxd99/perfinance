@@ -84,23 +84,6 @@ class AppTheme {
         textColor: c.ink,
         minVerticalPadding: 10,
       ),
-      navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: c.canvas,
-        surfaceTintColor: Colors.transparent,
-        indicatorColor: c.accentSoft,
-        height: 64,
-        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-        iconTheme: WidgetStateProperty.resolveWith(
-          (s) => IconThemeData(color: s.contains(WidgetState.selected) ? c.accent : c.textMuted),
-        ),
-        labelTextStyle: WidgetStateProperty.resolveWith(
-          (s) => TextStyle(
-            fontSize: 11,
-            fontWeight: s.contains(WidgetState.selected) ? FontWeight.w600 : FontWeight.w500,
-            color: s.contains(WidgetState.selected) ? c.accent : c.textMuted,
-          ),
-        ),
-      ),
       tabBarTheme: TabBarThemeData(
         indicator: BoxDecoration(borderRadius: BorderRadius.circular(10), color: c.accent),
         indicatorSize: TabBarIndicatorSize.tab,

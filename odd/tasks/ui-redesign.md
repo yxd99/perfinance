@@ -26,7 +26,14 @@ Branch: feat-impeccable-flutter-ui · Delivery: ask-on-risk · Test runner: `flu
   - T5c · S4 · delegated (parallel): Egresos list + quick-add form · done (dd00983; 23 expense tests; helper RED→GREEN; sim check pending)
   - Finish review (fresh agent, degraded protocol): disposition fix → 6 material fixes c5534cb → verdict pass all resolved, disposition ship. Total mismatch (seed future-dated row) fixed ae57395 (RED→GREEN); placeholder weight c5470e0. Suite +461.
   - DESIGN.md + .impeccable/design.json written by documenter (fresh agent, degraded protocol). T5 · done.
-- T6 · S5 · pending. Inputs: documenter drift (no "stamped" paid items; Mes 20pt margins + custom title vs 16pt + SliverAppBar.large; Material icons in Mes attention rows; unused navigationBarTheme/tabBarTheme), voseo in login/forms, raw "cash"/"debit" in savings_screen.dart:59, empty states/errors on remaining screens, Deudas body + Tarjetas/Me deben/Auto-pagos/chat/login to Billete.
+- T6 · S5 · in progress. Base: PaidStamp 43d68ed. Route: Writer trigger (a), 4 disjoint units in parallel; T6e inline after.
+  - T6a · delegated: Deudas list + detail (lib/features/debts/**) · pending
+  - T6b · delegated: Tarjetas (lib/features/credit_cards/**) · pending
+  - T6c · delegated: Me deben + Auto-pagos (lib/features/receivables/**, lib/features/automatic_payments/**) · pending
+  - T6d · delegated: Ahorros, login, onboarding, chat, Wallet (lib/features/{savings,auth,onboarding,chat,wallet_shortcut}/**) · pending
+  - T6e · inline: Mes drift (16pt gutter + Cupertino icons 6da072c), unused navigationBarTheme removed (tabBarTheme kept: chat uses TabBar) · done
+  - 2026-11-18: writers T6a–d stopped by the 5h rate limit with no edits landed; user restarted the machine; local Supabase containers auto-restarted (demo user + 45 expenses intact); tour driver recreated in scratchpad; writers resumed.
+  Inputs: documenter drift (no "stamped" paid items; Mes 20pt margins + custom title vs 16pt + SliverAppBar.large; Material icons in Mes attention rows; unused navigationBarTheme/tabBarTheme), voseo in login/forms, raw "cash"/"debit" in savings_screen.dart:59, empty states/errors on remaining screens, Deudas body + Tarjetas/Me deben/Auto-pagos/chat/login to Billete.
 - T7 · S6 · pending
 
 ## Log
