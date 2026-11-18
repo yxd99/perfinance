@@ -1,224 +1,215 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perfinance/core/config/supabase_config.dart';
-import 'package:perfinance/services/sync_service.dart';
+import 'package:perfinance/core/observability/error_reporter.dart';
 import 'package:perfinance/core/providers/hide_values_provider.dart';
 import 'package:perfinance/core/theme/app_theme.dart';
 import 'package:perfinance/core/utils/user_friendly_errors.dart';
-import 'package:perfinance/core/widgets/app_empty_state.dart';
 import 'package:perfinance/core/widgets/app_error_state.dart';
 import 'package:perfinance/core/widgets/currency_input.dart';
-import 'package:perfinance/core/widgets/summary_total_bar.dart';
 import 'package:perfinance/data/models/credit_card.dart';
 import 'package:perfinance/data/models/expense.dart';
 import 'package:perfinance/data/models/payment_method.dart';
 import 'package:perfinance/data/repositories/expense_repository.dart';
-import 'package:perfinance/features/expenses/expenses_provider.dart';
+import 'package:perfinance/features/credit_cards/credit_cards_provider.dart';
 import 'package:perfinance/features/expenses/expense_date_filter.dart';
 import 'package:perfinance/features/expenses/expense_export_service.dart';
-import 'package:perfinance/features/credit_cards/credit_cards_provider.dart';
 import 'package:perfinance/features/expenses/expense_export_window.dart';
-import 'package:perfinance/features/savings/savings_provider.dart';
-import 'package:perfinance/core/utils/date_format_utils.dart';
 import 'package:perfinance/features/expenses/expense_form_screen.dart';
+import 'package:perfinance/features/expenses/expense_list_formatting.dart';
+import 'package:perfinance/features/expenses/expenses_provider.dart';
+import 'package:perfinance/features/expenses/quick_add_expense.dart';
+import 'package:perfinance/features/expenses/widgets/account_note_chip.dart';
+import 'package:perfinance/features/savings/savings_provider.dart';
+import 'package:perfinance/services/sync_service.dart';
 
-class ExpensesScreen extends ConsumerWidget {
+/// Pestaña «Egresos»: lista agrupada por día con filtros de fecha y cuenta.
+/// El registro nuevo entra por el «+» de la barra inferior.
+class ExpensesScreen extends ConsumerStatefulWidget {
   const ExpensesScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ExpensesScreen> createState() => _ExpensesScreenState();
+}
+
+class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
+  /// Filas ya deslizadas para borrar: se ocultan de inmediato, antes de que
+  /// el provider recargue, para que el `Dismissible` no siga en el árbol.
+  final Set<String> _removed = {};
+
+  static const _primaryFilters = [
+    ExpenseDateFilter.today,
+    ExpenseDateFilter.yesterday,
+    ExpenseDateFilter.thisWeek,
+    ExpenseDateFilter.currentMonth,
+    ExpenseDateFilter.last30Days,
+  ];
+
+  @override
+  Widget build(BuildContext context) {
     final asyncList = ref.watch(filteredExpensesListProvider);
-    final asyncDisplay = ref.watch(expensePaymentDisplayProvider);
+    final display = ref.watch(expensePaymentDisplayProvider).valueOrNull ??
+        const ExpensePaymentDisplay(cardAliases: {}, methodNames: {});
     final hideValues = ref.watch(hideValuesProvider).value ?? false;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _buildFilterBar(context, ref),
-        Expanded(
-          child: asyncList.when(
-            data: (list) {
-              final total = list.fold<double>(0, (s, e) => s + e.amount);
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                    child: SummaryTotalBar(
-                      label: 'Total egresos',
-                      amount: '\$${formatCurrencyDisplay(total, hideValues)}',
-                    ),
-                  ),
-                  Expanded(
-                    child: _buildList(context, ref, list, asyncDisplay, hideValues),
-                  ),
-                ],
-              );
-            },
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => AppErrorState(
-              message: UserFriendlyErrors.fromAsyncError(e, UserFriendlyErrors.expensesLoadFailed),
+    final visible = asyncList.valueOrNull?.where((e) => !_removed.contains(e.id)).toList();
+
+    return CustomScrollView(
+      slivers: [
+        SliverAppBar.large(
+          title: const Text('Egresos'),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.mail_outline),
+              tooltip: 'Enviar exportación por correo',
+              onPressed: () => _sendExpenseExportEmail(context),
             ),
-          ),
+          ],
+        ),
+        SliverToBoxAdapter(child: _TotalLine(expenses: visible, hideValues: hideValues)),
+        SliverToBoxAdapter(child: _buildFilterBar(context)),
+        ...asyncList.when(
+          skipLoadingOnReload: true,
+          data: (_) => _buildList(context, visible ?? const [], display, hideValues),
+          loading: () => const [
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(child: CircularProgressIndicator.adaptive()),
+            ),
+          ],
+          error: (e, _) => [
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: AppErrorState(
+                message: UserFriendlyErrors.fromAsyncError(e, UserFriendlyErrors.expensesLoadFailed),
+              ),
+            ),
+          ],
         ),
       ],
     );
   }
 
-  Widget _buildList(
+  List<Widget> _buildList(
     BuildContext context,
-    WidgetRef ref,
     List<Expense> list,
-    AsyncValue<ExpensePaymentDisplay> asyncDisplay,
+    ExpensePaymentDisplay display,
     bool hideValues,
   ) {
     if (list.isEmpty) {
-      return AppEmptyState(
-        icon: Icons.payments_outlined,
-        message: 'No hay egresos registrados',
-        actionLabel: 'Registrar egreso',
-        onAction: () => _openForm(context, ref),
+      final copy = expenseEmptyCopy(
+        hasAnyExpenses: ref.watch(expensesListProvider).valueOrNull?.isNotEmpty ?? true,
+        filter: ref.watch(selectedExpenseDateFilterProvider).type,
+        hasPaymentFilter: ref.watch(selectedExpensePaymentIdsFilterProvider).isNotEmpty,
       );
+      return [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: _EmptyExpenses(copy: copy, onAction: () => _runEmptyAction(copy.action)),
+        ),
+      ];
     }
-    return asyncDisplay.when(
-      data: (display) => ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: list.length + 1,
-        itemBuilder: (context, i) {
-          if (i == 0) {
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 16),
-              child: FilledButton.icon(
-                onPressed: () => _openForm(context, ref),
-                icon: const Icon(Icons.add),
-                label: const Text('Registrar egreso'),
-              ),
+
+    final now = DateTime.now();
+    // Encabezados de día y filas en una sola lista plana para un único builder.
+    final items = <Object>[];
+    for (final g in groupExpensesByDay(list)) {
+      items.add(g);
+      items.addAll(g.expenses);
+    }
+    return [
+      SliverPadding(
+        padding: const EdgeInsets.only(bottom: 24),
+        sliver: SliverList.builder(
+          itemCount: items.length,
+          itemBuilder: (context, i) {
+            final item = items[i];
+            if (item is ExpenseDayGroup) {
+              return _DayHeader(
+                label: expenseDayLabel(item.day, now: now),
+                total: formatCurrencyDisplay(item.total, hideValues),
+              );
+            }
+            final e = item as Expense;
+            return _ExpenseRow(
+              key: ValueKey(e.id),
+              expense: e,
+              accountAlias: display.aliasFor(e),
+              hideValues: hideValues,
+              onTap: () => _openForm(context, edit: e),
+              confirmDelete: () => _confirmDelete(context),
+              onDeleted: () => _delete(e),
             );
-          }
-          final e = list[i - 1];
-          final alias = display.aliasFor(e);
-          final isCreditCard = e.paymentType == 'credit_card';
-          return Card(
-            margin: const EdgeInsets.only(bottom: 8),
-            child: ListTile(
-              title: Text('\$${formatCurrencyDisplay(e.amount, hideValues)}'),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    [
-                      if (e.description != null && e.description!.isNotEmpty) e.description!,
-                      formatDisplayDate(e.date.toLocal()),
-                      alias,
-                    ].join(' · '),
-                  ),
-                  if (isCreditCard) ...[
-                    const SizedBox(height: 6),
-                    _CreditCardBadge(),
-                  ],
-                ],
-              ),
-              trailing: IconButton(
-                icon: const Icon(Icons.delete_outline),
-                onPressed: () => _delete(context, ref, e),
-              ),
-              onTap: () => _openForm(context, ref, edit: e),
-            ),
-          );
-        },
+          },
+        ),
       ),
-      loading: () => ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: list.length + 1,
-        itemBuilder: (context, i) {
-          if (i == 0) {
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 16),
-              child: FilledButton.icon(
-                onPressed: () => _openForm(context, ref),
-                icon: const Icon(Icons.add),
-                label: const Text('Registrar egreso'),
-              ),
-            );
-          }
-          final e = list[i - 1];
-          return Card(
-            margin: const EdgeInsets.only(bottom: 8),
-            child: ListTile(
-              title: Text('\$${formatCurrencyDisplay(e.amount, hideValues)}'),
-              subtitle: Text(formatDisplayDate(e.date.toLocal())),
-              onTap: () => _openForm(context, ref, edit: e),
-              trailing: IconButton(
-                icon: const Icon(Icons.delete_outline),
-                onPressed: () => _delete(context, ref, e),
-              ),
-            ),
-          );
-        },
-      ),
-      error: (_, __) => const SizedBox.shrink(),
-    );
+    ];
   }
 
-  Widget _buildFilterBar(BuildContext context, WidgetRef ref) {
+  void _runEmptyAction(ExpenseEmptyAction action) {
+    switch (action) {
+      case ExpenseEmptyAction.logExpense:
+        showQuickAddExpense(context, ref);
+      case ExpenseEmptyAction.showCurrentMonth:
+        ref.read(selectedExpenseDateFilterProvider.notifier).state = ExpenseDateFilter.currentMonth;
+      case ExpenseEmptyAction.showLast30Days:
+        ref.read(selectedExpenseDateFilterProvider.notifier).state = ExpenseDateFilter.last30Days;
+      case ExpenseEmptyAction.clearPaymentFilter:
+        ref.read(selectedExpensePaymentIdsFilterProvider.notifier).state = {};
+    }
+  }
+
+  Widget _buildFilterBar(BuildContext context) {
+    final c = context.colors;
     final selected = ref.watch(selectedExpenseDateFilterProvider);
     final paymentFilter = ref.watch(selectedExpensePaymentIdsFilterProvider);
-    final asyncCards = ref.watch(creditCardsListProvider);
-    final asyncMethods = ref.watch(paymentMethodsListProvider);
-    const filters = [
-      ExpenseDateFilter.today,
-      ExpenseDateFilter.yesterday,
-      ExpenseDateFilter.thisWeek,
-      ExpenseDateFilter.last30Days,
-      ExpenseDateFilter.currentMonth,
-    ];
+    final cards = ref.watch(creditCardsListProvider).valueOrNull ?? const <CreditCard>[];
+    final methods = ref.watch(paymentMethodsListProvider).valueOrNull ?? const <PaymentMethod>[];
+    final isCustom = selected.type == ExpenseDateFilterType.custom;
+    final now = DateTime.now();
+    final customLabel = isCustom
+        ? '${expenseShortDate(selected.range!.start, now: now)} – ${expenseShortDate(selected.range!.end, now: now)}'
+        : 'Rango personalizado';
+    final n = paymentFilter.length;
+
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
       child: Row(
         children: [
-          ...filters.map((f) => Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: FilterChip(
-                  label: Text(f.label),
-                  selected: selected.type == f.type,
-                  onSelected: (_) => ref.read(selectedExpenseDateFilterProvider.notifier).state = f,
+          for (final f in _primaryFilters)
+            Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: ChoiceChip(
+                label: Text(f.label),
+                showCheckmark: false,
+                selected: selected.type == f.type,
+                selectedColor: c.accent,
+                labelStyle: TextStyle(
+                  color: selected.type == f.type ? c.onAccent : c.ink,
+                  fontWeight: selected.type == f.type ? FontWeight.w600 : FontWeight.w500,
                 ),
-              )),
+                side: BorderSide(color: selected.type == f.type ? c.accent : c.divider),
+                onSelected: (_) => ref.read(selectedExpenseDateFilterProvider.notifier).state = f,
+              ),
+            ),
           Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: FilterChip(
-              label: const Text('Rango personalizado'),
-              selected: selected.type == ExpenseDateFilterType.custom,
-              onSelected: (_) => _pickCustomRange(context, ref),
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: SizedBox(height: 24, child: VerticalDivider(width: 1, color: c.divider)),
+          ),
+          _SecondaryChip(
+            icon: Icons.date_range,
+            label: customLabel,
+            active: isCustom,
+            onPressed: () => _pickCustomRange(context),
+          ),
+          if (cards.isNotEmpty || methods.isNotEmpty)
+            _SecondaryChip(
+              icon: Icons.account_balance_wallet_outlined,
+              label: n == 0 ? 'Tarjetas y cuentas' : 'Cuentas ($n)',
+              active: n > 0,
+              onPressed: () => _openPaymentFilterSheet(context, cards, methods),
             ),
-          ),
-          asyncCards.when(
-            data: (cards) => asyncMethods.when(
-              data: (methods) {
-                if (cards.isEmpty && methods.isEmpty) return const SizedBox.shrink();
-                final n = paymentFilter.length;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: FilterChip(
-                    avatar: const Icon(Icons.account_balance_wallet_outlined, size: 18),
-                    label: Text(n == 0 ? 'Tarjetas y cuentas' : 'Medios ($n)'),
-                    selected: n > 0,
-                    onSelected: (_) => _openPaymentFilterSheet(context, ref, cards, methods),
-                  ),
-                );
-              },
-              loading: () => const SizedBox.shrink(),
-              error: (_, __) => const SizedBox.shrink(),
-            ),
-            loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
-          ),
-          IconButton(
-            icon: const Icon(Icons.outgoing_mail),
-            tooltip: 'Enviar exportación por correo',
-            onPressed: () => _sendExpenseExportEmail(context, ref),
-          ),
         ],
       ),
     );
@@ -226,7 +217,6 @@ class ExpensesScreen extends ConsumerWidget {
 
   void _openPaymentFilterSheet(
     BuildContext context,
-    WidgetRef ref,
     List<CreditCard> cards,
     List<PaymentMethod> methods,
   ) {
@@ -234,120 +224,92 @@ class ExpensesScreen extends ConsumerWidget {
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
+      useSafeArea: true,
       builder: (ctx) {
         final maxH = MediaQuery.sizeOf(ctx).height * 0.55;
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Filtrar por tarjeta o cuenta',
-                  style: Theme.of(ctx).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Sin selección se muestran todos los egresos del periodo. Si marcas opciones, solo verás los cargados a esas tarjetas o cuentas.',
-                  style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(ctx).colorScheme.onSurface.withValues(alpha: 0.7),
-                      ),
-                ),
-                const SizedBox(height: 8),
-                Consumer(
-                  builder: (context, sheetRef, _) {
-                    final selected = sheetRef.watch(selectedExpensePaymentIdsFilterProvider);
-                    return ConstrainedBox(
-                      constraints: BoxConstraints(maxHeight: maxH),
-                      child: ListView(
-                        shrinkWrap: true,
-                        children: [
-                          if (cards.isNotEmpty) ...[
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 4, top: 4),
-                              child: Text(
-                                'Tarjetas de crédito',
-                                style: Theme.of(ctx).textTheme.titleSmall?.copyWith(
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                              ),
+        final c = ctx.colors;
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Filtrar por tarjeta o cuenta',
+                style: Theme.of(ctx).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Sin selección ves todos los egresos del período. Si marcás opciones, solo vas a ver los cargados a esas tarjetas o cuentas.',
+                style: Theme.of(ctx).textTheme.bodySmall?.copyWith(color: c.textMuted),
+              ),
+              const SizedBox(height: 8),
+              Consumer(
+                builder: (context, sheetRef, _) {
+                  final selected = sheetRef.watch(selectedExpensePaymentIdsFilterProvider);
+                  void toggle(String id, bool? v) {
+                    final next = Set<String>.from(selected);
+                    v == true ? next.add(id) : next.remove(id);
+                    sheetRef.read(selectedExpensePaymentIdsFilterProvider.notifier).state = next;
+                  }
+
+                  return ConstrainedBox(
+                    constraints: BoxConstraints(maxHeight: maxH),
+                    child: ListView(
+                      shrinkWrap: true,
+                      children: [
+                        if (cards.isNotEmpty) ...[
+                          _SheetSectionTitle('Tarjetas de crédito', top: 4),
+                          for (final card in cards)
+                            CheckboxListTile(
+                              value: selected.contains(card.id),
+                              onChanged: (v) => toggle(card.id, v),
+                              controlAffinity: ListTileControlAffinity.leading,
+                              title: Text(card.alias),
+                              secondary: AccountNoteChip(color: c.accountColor(card.id)),
                             ),
-                            for (final c in cards)
-                              CheckboxListTile(
-                                value: selected.contains(c.id),
-                                onChanged: (v) {
-                                  final next = Set<String>.from(selected);
-                                  if (v == true) {
-                                    next.add(c.id);
-                                  } else {
-                                    next.remove(c.id);
-                                  }
-                                  sheetRef.read(selectedExpensePaymentIdsFilterProvider.notifier).state = next;
-                                },
-                                controlAffinity: ListTileControlAffinity.leading,
-                                title: Text(c.alias),
-                                secondary: const Icon(Icons.credit_card_outlined, size: 20),
-                              ),
-                          ],
-                          if (methods.isNotEmpty) ...[
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 4, top: 12),
-                              child: Text(
-                                'Cuentas de ahorro',
-                                style: Theme.of(ctx).textTheme.titleSmall?.copyWith(
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                              ),
-                            ),
-                            for (final m in methods)
-                              CheckboxListTile(
-                                value: selected.contains(m.id),
-                                onChanged: (v) {
-                                  final next = Set<String>.from(selected);
-                                  if (v == true) {
-                                    next.add(m.id);
-                                  } else {
-                                    next.remove(m.id);
-                                  }
-                                  sheetRef.read(selectedExpensePaymentIdsFilterProvider.notifier).state = next;
-                                },
-                                controlAffinity: ListTileControlAffinity.leading,
-                                title: Text(m.name),
-                                secondary: const Icon(Icons.savings_outlined, size: 20),
-                              ),
-                          ],
                         ],
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    TextButton(
-                      onPressed: () {
-                        ref.read(selectedExpensePaymentIdsFilterProvider.notifier).state = {};
-                        Navigator.of(ctx).pop();
-                      },
-                      child: const Text('Quitar filtro'),
+                        if (methods.isNotEmpty) ...[
+                          _SheetSectionTitle('Cuentas de ahorro', top: 12),
+                          for (final m in methods)
+                            CheckboxListTile(
+                              value: selected.contains(m.id),
+                              onChanged: (v) => toggle(m.id, v),
+                              controlAffinity: ListTileControlAffinity.leading,
+                              title: Text(m.name),
+                              secondary: AccountNoteChip(color: c.accountColor(m.id)),
+                            ),
+                        ],
+                      ],
                     ),
-                    const Spacer(),
-                    FilledButton(
-                      onPressed: () => Navigator.of(ctx).pop(),
-                      child: const Text('Listo'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+                  );
+                },
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  TextButton(
+                    onPressed: () {
+                      ref.read(selectedExpensePaymentIdsFilterProvider.notifier).state = {};
+                      Navigator.of(ctx).pop();
+                    },
+                    child: const Text('Quitar filtro'),
+                  ),
+                  const Spacer(),
+                  FilledButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    child: const Text('Listo'),
+                  ),
+                ],
+              ),
+            ],
           ),
         );
       },
     );
   }
 
-  Future<void> _sendExpenseExportEmail(BuildContext context, WidgetRef ref) async {
+  Future<void> _sendExpenseExportEmail(BuildContext context) async {
     if (!SupabaseConfig.isConfigured) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -379,7 +341,7 @@ class ExpensesScreen extends ConsumerWidget {
         loadingDialogContext = dialogContext;
         return const PopScope(
           canPop: false,
-          child: Center(child: CircularProgressIndicator()),
+          child: Center(child: CircularProgressIndicator.adaptive()),
         );
       },
     );
@@ -390,7 +352,7 @@ class ExpensesScreen extends ConsumerWidget {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Te enviamos el archivo por correo.')),
       );
-    } catch (e, _) {
+    } catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -406,29 +368,31 @@ class ExpensesScreen extends ConsumerWidget {
     }
   }
 
-  Future<void> _pickCustomRange(BuildContext context, WidgetRef ref) async {
+  Future<void> _pickCustomRange(BuildContext context) async {
     final now = DateTime.now();
+    final current = ref.read(selectedExpenseDateFilterProvider);
     final range = await showDateRangePicker(
       context: context,
       firstDate: DateTime(2020),
       lastDate: now,
-      initialDateRange: DateTimeRange(start: now.subtract(const Duration(days: 30)), end: now),
+      initialDateRange: current.type == ExpenseDateFilterType.custom
+          ? current.range
+          : DateTimeRange(start: now.subtract(const Duration(days: 30)), end: now),
     );
     if (range != null) {
       ref.read(selectedExpenseDateFilterProvider.notifier).state = ExpenseDateFilter.custom(range);
     }
   }
 
-  void _openForm(BuildContext context, WidgetRef ref, {Expense? edit}) {
+  void _openForm(BuildContext context, {Expense? edit}) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => ExpenseFormScreen(edit: edit),
-      ),
+      MaterialPageRoute(builder: (_) => ExpenseFormScreen(edit: edit)),
     ).then((_) => ref.invalidate(expensesListProvider));
   }
 
-  Future<void> _delete(BuildContext context, WidgetRef ref, Expense e) async {
+  Future<bool> _confirmDelete(BuildContext context) async {
+    final c = context.colors;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -436,45 +400,293 @@ class ExpensesScreen extends ConsumerWidget {
         content: const Text('¿Eliminar este egreso?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Eliminar')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: c.danger, foregroundColor: c.onDanger),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Eliminar'),
+          ),
         ],
       ),
     );
-    if (ok != true) return;
-    await ref.read(expenseRepositoryProvider).delete(e.id);
+    return ok == true;
+  }
+
+  Future<void> _delete(Expense e) async {
+    setState(() => _removed.add(e.id));
+    try {
+      await ref.read(expenseRepositoryProvider).delete(e.id);
+    } catch (err, st) {
+      ErrorReporter.capture(err, st, operation: 'expenses.delete', details: {'expense_id': e.id});
+      if (!mounted) return;
+      setState(() => _removed.remove(e.id));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('No pudimos eliminar el egreso. Probá de nuevo.'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+      return;
+    }
     ref.invalidate(expensesListProvider);
     ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
   }
 }
 
-class _CreditCardBadge extends StatelessWidget {
+/// «Total: $1.284.300» del filtro activo, discreto bajo el título.
+class _TotalLine extends StatelessWidget {
+  const _TotalLine({required this.expenses, required this.hideValues});
+
+  final List<Expense>? expenses;
+  final bool hideValues;
+
   @override
   Widget build(BuildContext context) {
+    final list = expenses;
+    if (list == null || list.isEmpty) return const SizedBox(height: 4);
     final c = context.colors;
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: c.accentSoft,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: c.accent.withValues(alpha: 0.5), width: 1),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
+    final total = list.fold<double>(0, (s, e) => s + e.amount);
+    final style = Theme.of(context).textTheme.bodyMedium;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Text.rich(
+        TextSpan(
           children: [
-            Icon(Icons.credit_card, size: 14, color: c.accent),
-            const SizedBox(width: 4),
-            Text(
-              'Crédito',
-              style: TextStyle(
-                fontSize: 11,
+            TextSpan(text: 'Total: ', style: style?.copyWith(color: c.textMuted)),
+            TextSpan(
+              text: '\$${formatCurrencyDisplay(total, hideValues)}',
+              style: style?.copyWith(
+                color: c.ink,
                 fontWeight: FontWeight.w600,
-                color: c.accent,
+                fontFeatures: kTabularFigures,
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Filtro secundario (rango, cuentas): sin relleno salvo que esté activo.
+class _SecondaryChip extends StatelessWidget {
+  const _SecondaryChip({
+    required this.icon,
+    required this.label,
+    required this.active,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool active;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final fg = active ? c.accent : c.textMuted;
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: ActionChip(
+        avatar: Icon(icon, size: 18, color: fg),
+        label: Text(label),
+        labelStyle: TextStyle(color: fg, fontWeight: active ? FontWeight.w600 : FontWeight.w500),
+        backgroundColor: active ? c.accentSoft : Colors.transparent,
+        side: BorderSide(color: active ? c.accent : c.divider),
+        onPressed: onPressed,
+      ),
+    );
+  }
+}
+
+class _DayHeader extends StatelessWidget {
+  const _DayHeader({required this.label, required this.total});
+
+  final String label;
+  final String total;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final t = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 6),
+      child: Semantics(
+        header: true,
+        child: Row(
+          children: [
+            Expanded(child: Text(label, style: t.titleSmall?.copyWith(color: c.ink))),
+            Text(
+              '\$$total',
+              style: t.bodySmall?.copyWith(color: c.textMuted, fontFeatures: kTabularFigures),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ExpenseRow extends StatelessWidget {
+  const _ExpenseRow({
+    super.key,
+    required this.expense,
+    required this.accountAlias,
+    required this.hideValues,
+    required this.onTap,
+    required this.confirmDelete,
+    required this.onDeleted,
+  });
+
+  final Expense expense;
+  final String accountAlias;
+  final bool hideValues;
+  final VoidCallback onTap;
+  final Future<bool> Function() confirmDelete;
+  final VoidCallback onDeleted;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final t = Theme.of(context).textTheme;
+    final text = expenseRowText(expense.description, accountAlias);
+    final amount = '\$${formatCurrencyDisplay(expense.amount, hideValues)}';
+
+    return Semantics(
+      customSemanticsActions: {
+        const CustomSemanticsAction(label: 'Eliminar egreso'): () async {
+          if (await confirmDelete()) onDeleted();
+        },
+      },
+      child: Dismissible(
+        key: ValueKey('dismiss-${expense.id}'),
+        direction: DismissDirection.endToStart,
+        confirmDismiss: (_) => confirmDelete(),
+        onDismissed: (_) => onDeleted(),
+        background: Container(
+          color: c.danger,
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Icon(Icons.delete, color: c.onDanger, semanticLabel: 'Eliminar'),
+        ),
+        child: Material(
+          color: c.canvas,
+          child: InkWell(
+            onTap: onTap,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 56),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                child: Row(
+                  children: [
+                    AccountNoteChip(color: c.accountColor(expense.paymentRef)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            text.title,
+                            style: t.bodyLarge,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              if (text.fromWallet) ...[
+                                const _WalletMarker(),
+                                const SizedBox(width: 6),
+                              ],
+                              Flexible(
+                                child: Text(
+                                  accountAlias,
+                                  style: t.bodySmall?.copyWith(color: c.textMuted),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      amount,
+                      style: t.bodyLarge?.copyWith(fontWeight: FontWeight.w600, fontFeatures: kTabularFigures),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WalletMarker extends StatelessWidget {
+  const _WalletMarker();
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: c.divider),
+      ),
+      child: Text(
+        'Wallet',
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(color: c.textMuted),
+      ),
+    );
+  }
+}
+
+class _SheetSectionTitle extends StatelessWidget {
+  const _SheetSectionTitle(this.text, {required this.top});
+
+  final String text;
+  final double top;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(top: top, bottom: 4),
+      child: Text(text, style: Theme.of(context).textTheme.titleSmall),
+    );
+  }
+}
+
+class _EmptyExpenses extends StatelessWidget {
+  const _EmptyExpenses({required this.copy, required this.onAction});
+
+  final ExpenseEmptyCopy copy;
+  final VoidCallback onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final isLog = copy.action == ExpenseEmptyAction.logExpense;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(32, 32, 32, 64),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.receipt_long_outlined, size: 40, color: c.textMuted),
+          const SizedBox(height: 12),
+          Text(copy.message, style: Theme.of(context).textTheme.bodyLarge, textAlign: TextAlign.center),
+          const SizedBox(height: 16),
+          if (isLog)
+            FilledButton.icon(onPressed: onAction, icon: const Icon(Icons.add), label: Text(copy.actionLabel))
+          else
+            FilledButton.tonal(onPressed: onAction, child: Text(copy.actionLabel)),
+        ],
       ),
     );
   }

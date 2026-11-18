@@ -5,14 +5,16 @@ import 'package:perfinance/features/expenses/expenses_provider.dart';
 
 /// Registro rápido de un egreso desde el «+» de la barra inferior.
 ///
-/// Es el único punto de entrada que usa el shell; cómo se presenta el
-/// formulario (hoja o pantalla) es decisión de esta feature.
+/// Es el único punto de entrada que usa el shell. El formulario se presenta
+/// como hoja de iOS (tarea corta y descartable): crece con el contenido y con
+/// el teclado, y si no entra hace scroll por dentro.
 Future<void> showQuickAddExpense(BuildContext context, WidgetRef ref) async {
-  await Navigator.of(context, rootNavigator: true).push(
-    MaterialPageRoute<void>(
-      fullscreenDialog: true,
-      builder: (_) => const ExpenseFormScreen(),
-    ),
+  await showModalBottomSheet<void>(
+    context: context,
+    useRootNavigator: true,
+    isScrollControlled: true,
+    useSafeArea: true,
+    builder: (_) => const ExpenseFormScreen(asSheet: true),
   );
-  ref.invalidate(expensesListProvider);
+  if (context.mounted) ref.invalidate(expensesListProvider);
 }
