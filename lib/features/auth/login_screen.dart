@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:perfinance/core/widgets/brand_logo.dart';
 import 'package:perfinance/core/observability/error_reporter.dart';
 import 'package:perfinance/core/theme/app_theme.dart';
 import 'package:perfinance/features/auth/auth_copy.dart';
@@ -79,14 +80,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Center(
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(16),
-                            child: Image.asset(
-                              AppAssets.logo,
-                              height: 88,
-                              fit: BoxFit.contain,
-                              semanticLabel: 'PerFinance',
-                            ),
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: BrandLogo(height: 52),
                           ),
                         ),
                         const SizedBox(height: 28),

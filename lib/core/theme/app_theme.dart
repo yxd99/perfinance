@@ -4,11 +4,6 @@ import 'package:perfinance/core/theme/app_colors.dart';
 
 export 'package:perfinance/core/theme/app_colors.dart';
 
-/// Rutas de assets de la app.
-abstract class AppAssets {
-  static const String logo = 'assets/images/perfinance-logo.png';
-}
-
 /// Fondos decorativos que todavía no tienen rol semántico (login y onboarding).
 /// Los colores de interfaz van en [AppColors].
 abstract class AppThemeColors {
