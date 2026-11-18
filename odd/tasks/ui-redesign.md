@@ -54,3 +54,4 @@ Branch: feat-impeccable-flutter-ui · Delivery: ask-on-risk · Test runner: `flu
 
 - L9 (2026-11-18, user): "Si" to renaming the Me deben form to "Nuevo cobro"/"Editar cobro".
 - L10: T7 seam: suite +549, analyze 8 issues all pre-existing, 0 empty catchError in lib. Sim light: ring centre "61% de octubre" + "Día 18 de 30", titles aligned. DESIGN.md gains Shared patterns; not-yet list reduced to logo + card history chips. Remaining: logo decision (user).
+- L11 (2026-11-18, user): "Agrega la confirmación de eliminar y rediseña el logo". Logo redrawn as painted BrandLogo/BrandNote 941c0fd (sim light+dark checked). Delete confirmation already exists on every delete path (e.g. credit_card_delete.dart dialog); asked the user what to add.
