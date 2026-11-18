@@ -129,6 +129,9 @@ class UserFriendlyErrors {
   /// Mensaje cuando falla cargar el dashboard.
   static const String dashboardLoadFailed = 'No se pudo cargar el resumen. Tira a actualizar para reintentar.';
 
+  /// Mensaje cuando falla calcular la deuda total del dashboard.
+  static const String dashboardDebtLoadFailed = 'No se pudo calcular tu deuda. Tocá Reintentar.';
+
   /// Mensaje cuando falla cargar tarjetas.
   static const String cardsLoadFailed = 'No se pudieron cargar las tarjetas. Tira a actualizar para reintentar.';
 

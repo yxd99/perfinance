@@ -91,16 +91,16 @@ class DashboardScreen extends ConsumerWidget {
                   ),
                 ),
                 loading: () => const SizedBox.shrink(),
-                error: (_, __) => const SizedBox.shrink(),
+                error: (_, __) => _DebtLoadError(isDark: isDark),
               );
             },
             loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
+            error: (_, __) => _DebtLoadError(isDark: isDark),
           ),
           ref.watch(hasActiveDebtSourcesProvider).when(
             data: (hasActive) => hasActive ? const SizedBox(height: 12) : const SizedBox.shrink(),
             loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox(height: 12),
           ),
           ref.watch(overdueAutomaticPaymentsProvider).when(
             data: (overdue) {
@@ -766,6 +766,51 @@ class _SectionHeader extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Reemplaza el cuadro de deuda cuando no se pudo calcular: antes se ocultaba
+/// sin avisar. El error ya lo reporta ErrorReporterProviderObserver.
+class _DebtLoadError extends ConsumerWidget {
+  const _DebtLoadError({required this.isDark});
+
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _SectionHeader(
+              icon: Icons.account_balance_wallet_rounded,
+              title: 'Deuda total',
+              isDark: isDark,
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Icon(Icons.error_outline, color: Theme.of(context).colorScheme.error),
+                const SizedBox(width: 8),
+                Expanded(child: Text(UserFriendlyErrors.dashboardDebtLoadFailed)),
+              ],
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () {
+                  ref.invalidate(hasActiveDebtSourcesProvider);
+                  ref.invalidate(dashboardDebtProvider);
+                },
+                child: const Text('Reintentar'),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
