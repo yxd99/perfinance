@@ -27,6 +27,18 @@ void main() {
       expect(s.lastMonthTotal, 70);
     });
 
+    test('no cuenta egresos con fecha posterior a ahora, igual que Egresos «Mes»', () {
+      final s = computeMonthSpend([
+        _e('1', 100, DateTime(2026, 11, 17, 9)),
+        _e('2', 18500, DateTime(2026, 11, 17, 19, 25)),
+        _e('3', 40, DateTime(2026, 11, 25)),
+      ], DateTime(2026, 11, 1), today);
+
+      expect(s.total, 100);
+      expect(s.count, 1);
+      expect(s.byAccount.single.total, 100);
+    });
+
     test('mes en curso: compara hasta el mismo día del mes anterior', () {
       final s = computeMonthSpend([
         _e('1', 120, DateTime(2026, 11, 10)),

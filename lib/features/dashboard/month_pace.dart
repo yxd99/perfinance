@@ -98,9 +98,12 @@ MonthSpend computeMonthSpend(List<Expense> expenses, DateTime month, DateTime to
   final counts = <String, int>{};
   final types = <String, String>{};
 
+  // «Gastado» es hasta ahora: un egreso con fecha futura no cuenta todavía,
+  // igual que en Egresos con el filtro «Mes».
+  final spentEnd = end.isAfter(today) ? today : end;
   for (final e in expenses) {
     final d = e.date;
-    if (!d.isBefore(start) && d.isBefore(end)) {
+    if (!d.isBefore(start) && !d.isAfter(spentEnd) && d.isBefore(end)) {
       total += e.amount;
       count++;
       if (d.isBefore(sameDayEnd)) toSameDay += e.amount;
