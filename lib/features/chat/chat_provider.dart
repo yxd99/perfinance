@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:perfinance/core/observability/error_reporter.dart';
 import 'package:perfinance/features/chat/chat_agent.dart';
 import 'package:perfinance/features/chat/chat_agent_configs.dart';
 import 'package:perfinance/features/chat/chat_types.dart';
@@ -93,9 +94,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
     try {
       final convos = await _repo.getConversations(agent.name);
       state = state.copyWith(conversations: convos);
-    } catch (e) {
-      // ignore: avoid_print
-      print('[ChatProvider] _loadConversations error: $e');
+    } catch (e, st) {
+      ErrorReporter.capture(e, st, operation: 'chat.load_conversations', details: {'agent': agent.name});
     }
   }
 
@@ -132,15 +132,28 @@ class ChatNotifier extends StateNotifier<ChatState> {
     await _loadConversations(state.activeAgent);
   }
 
-  Future<void> sendMessage(String text) async {
-    print('[Chat] sendMessage: "$text"');
+  /// Reenvía el último mensaje del usuario después de un error, sin
+  /// duplicarlo en la conversación ni en la base.
+  Future<void> retryLastMessage() async {
+    if (state.status != ChatStatus.error) return;
+    ChatMessage? lastUser;
+    for (final m in state.messages.reversed) {
+      if (m.role == ChatMessageRole.user) {
+        lastUser = m;
+        break;
+      }
+    }
+    if (lastUser == null) return;
+    await sendMessage(lastUser.content, isRetry: true);
+  }
+
+  Future<void> sendMessage(String text, {bool isRetry = false}) async {
     if (text.trim().isEmpty || state.status == ChatStatus.loading || state.status == ChatStatus.streaming) return;
 
     final userMessage = ChatMessage(role: ChatMessageRole.user, content: text, createdAt: DateTime.now());
 
-    final updatedMessages = [...state.messages, userMessage];
     state = state.copyWith(
-      messages: updatedMessages,
+      messages: isRetry ? state.messages : [...state.messages, userMessage],
       status: ChatStatus.loading,
       clearCurrentResponse: true,
       clearError: true,
@@ -148,23 +161,25 @@ class ChatNotifier extends StateNotifier<ChatState> {
     );
 
     // Auto-create conversation on first message (persistent agents)
-    if (state.activeConversation == null && !state.isEphemeral) {
+    if (!isRetry && state.activeConversation == null && !state.isEphemeral) {
       try {
         final title = text.length > 40 ? '${text.substring(0, 40)}...' : text;
         final convo = await _repo.createConversation(state.activeAgent.name, title);
         state = state.copyWith(activeConversation: convo);
         await _loadConversations(state.activeAgent);
-      } catch (e) {
-        // DB failed — continue ephemeral for this session
+      } catch (e, st) {
+        // Sin conversación guardada: sigue en memoria por esta sesión.
+        ErrorReporter.capture(e, st, operation: 'chat.create_conversation');
       }
     }
 
     // Save user message to DB if persistent
-    if (state.activeConversation != null && !state.isEphemeral) {
+    if (!isRetry && state.activeConversation != null && !state.isEphemeral) {
       try {
         await _repo.saveMessage(state.activeConversation!.id, userMessage);
-      } catch (e) {
-        // Message saved in memory, DB sync failed
+      } catch (e, st) {
+        // El mensaje queda en memoria aunque no se haya guardado.
+        ErrorReporter.capture(e, st, operation: 'chat.save_message');
       }
     }
 
@@ -188,7 +203,6 @@ class ChatNotifier extends StateNotifier<ChatState> {
         )
         .listen(
       (event) {
-        print('[Chat] event: ${event.type}, data: ${event.data}');
         switch (event.type) {
           case 'content':
             final done = event.data['done'] as bool? ?? false;
@@ -231,6 +245,12 @@ class ChatNotifier extends StateNotifier<ChatState> {
             );
             break;
           case 'error':
+            ErrorReporter.capture(
+              StateError('chat server error'),
+              StackTrace.current,
+              operation: 'chat.server_error',
+              details: {'text': event.data['text'], 'agent': state.activeAgent.name},
+            );
             state = state.copyWith(
               status: ChatStatus.error,
               error: event.data['text'] as String? ?? 'Error desconocido',
@@ -238,8 +258,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
             break;
         }
       },
-      onError: (e) {
-        print('[Chat] onError: $e');
+      onError: (Object e, StackTrace st) {
+        ErrorReporter.capture(e, st, operation: 'chat.stream', details: {'agent': state.activeAgent.name});
         _streamDone = true;
         state = state.copyWith(
           status: ChatStatus.error,
@@ -247,7 +267,6 @@ class ChatNotifier extends StateNotifier<ChatState> {
         );
       },
       onDone: () {
-        print('[Chat] onDone, status=${state.status}, buffer="${responseBuffer.toString().length}"');
         _streamDone = true;
         if (state.status == ChatStatus.streaming || state.status == ChatStatus.loading) {
           final finalContent = responseBuffer.toString();
