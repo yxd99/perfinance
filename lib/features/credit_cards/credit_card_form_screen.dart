@@ -1,20 +1,25 @@
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
+import 'package:perfinance/core/observability/error_reporter.dart';
+import 'package:perfinance/core/theme/app_theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perfinance/core/widgets/currency_input.dart';
 import 'package:perfinance/services/sync_service.dart';
 import 'package:perfinance/data/models/credit_card.dart';
 import 'package:perfinance/features/auth/auth_provider.dart';
 import 'package:perfinance/data/repositories/credit_card_repository.dart';
-import 'package:perfinance/features/automatic_payments/automatic_payments_provider.dart';
+import 'package:perfinance/features/credit_cards/credit_card_delete.dart';
 import 'package:perfinance/features/credit_cards/credit_cards_provider.dart';
-import 'package:perfinance/features/dashboard/dashboard_provider.dart';
-import 'package:perfinance/features/expenses/expenses_provider.dart';
 import 'package:uuid/uuid.dart';
 
 class CreditCardFormScreen extends ConsumerStatefulWidget {
   final CreditCard? editCard;
 
   const CreditCardFormScreen({super.key, this.editCard});
+
+  /// Lo que devuelve la ruta cuando la tarjeta se eliminó desde el formulario,
+  /// para que el detalle que lo abrió también se cierre.
+  static const deletedResult = 'deleted';
 
   @override
   ConsumerState<CreditCardFormScreen> createState() => _CreditCardFormScreenState();
@@ -56,50 +61,44 @@ class _CreditCardFormScreenState extends ConsumerState<CreditCardFormScreen> {
             TextFormField(
               controller: _aliasController,
               textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(labelText: 'Alias', border: OutlineInputBorder()),
-              validator: (v) => v == null || v.trim().isEmpty ? 'Ingresa un alias' : null,
+              decoration: const InputDecoration(labelText: 'Alias', hintText: 'Ej.: Visa Bancolombia'),
+              validator: (v) => v == null || v.trim().isEmpty ? 'Escribí un alias' : null,
             ),
             const SizedBox(height: 16),
             TextFormField(
               controller: _cutOffController,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Día de corte (1-31)',
-                border: OutlineInputBorder(),
-              ),
+              decoration: const InputDecoration(labelText: 'Día de corte (1-31)'),
               validator: (v) {
-                if (v == null || v.isEmpty) return 'Ingresa el día de corte';
+                if (v == null || v.isEmpty) return 'Escribí el día de corte';
                 final n = int.tryParse(v);
-                if (n == null || n < 1 || n > 31) return 'Entre 1 y 31';
+                if (n == null || n < 1 || n > 31) return 'Tiene que ser un día entre 1 y 31';
                 return null;
               },
             ),
             const SizedBox(height: 16),
             CurrencyTextField(
               controller: _feeController,
-              decoration: const InputDecoration(
-                labelText: 'Cuota de manejo',
-                border: OutlineInputBorder(),
-              ),
+              decoration: const InputDecoration(labelText: 'Cuota de manejo', helperText: 'Escribí 0 si no cobra cuota.'),
               validator: (v) {
-                if (v == null || v.trim().isEmpty) return 'Ingresa la cuota';
+                if (v == null || v.trim().isEmpty) return 'Escribí la cuota (0 si no tiene)';
                 final val = parseCurrency(v);
-                if (val == null || val < 0) return 'Monto inválido';
+                if (val == null || val < 0) return 'Escribí un monto válido';
                 return null;
               },
             ),
             const SizedBox(height: 24),
             FilledButton(
               onPressed: _save,
-              child: const Text('Guardar'),
+              child: const Text('Guardar tarjeta'),
             ),
             if (widget.editCard != null) ...[
               const SizedBox(height: 24),
               TextButton.icon(
                 onPressed: _confirmDelete,
-                icon: const Icon(Icons.delete_outline),
+                icon: const Icon(CupertinoIcons.delete),
                 label: const Text('Eliminar tarjeta'),
-                style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
+                style: TextButton.styleFrom(foregroundColor: context.colors.danger, minimumSize: const Size(44, 48)),
               ),
             ],
           ],
@@ -111,30 +110,15 @@ class _CreditCardFormScreenState extends ConsumerState<CreditCardFormScreen> {
   Future<void> _confirmDelete() async {
     final card = widget.editCard;
     if (card == null) return;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Eliminar tarjeta'),
-        content: Text('¿Eliminar "${card.alias}"? Los pagos de esta tarjeta se quitarán al sincronizar.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.error),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Eliminar'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true || !mounted) return;
-    await ref.read(creditCardRepositoryProvider).delete(card.id);
+    final deleted = await confirmAndDeleteCard(context, card);
+    if (!deleted || !mounted) return;
+    Navigator.of(context).pop(CreditCardFormScreen.deletedResult);
+  }
+
+  /// Avisa abajo que algo no se pudo guardar. El error ya se reportó.
+  void _showSaveError(String message) {
     if (!mounted) return;
-    ref.invalidate(creditCardsListProvider);
-    ref.invalidate(dashboardDebtProvider);
-    ref.invalidate(expensesListProvider);
-    ref.invalidate(automaticPaymentsListProvider);
-    ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
-    Navigator.of(context).pop();
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _save() async {
@@ -149,7 +133,13 @@ class _CreditCardFormScreenState extends ConsumerState<CreditCardFormScreen> {
 
     if (widget.editCard != null) {
       final updated = widget.editCard!.copyWith(alias: alias, cutOffDay: cutOff, managementFee: fee);
-      await repo.update(updated);
+      try {
+        await repo.update(updated);
+      } catch (e, st) {
+        ErrorReporter.capture(e, st, operation: 'credit_cards.update', details: {'card_id': updated.id});
+        _showSaveError('No pudimos guardar los cambios. Probá de nuevo.');
+        return;
+      }
     } else {
       final card = CreditCard(
         id: const Uuid().v4(),
@@ -158,17 +148,27 @@ class _CreditCardFormScreenState extends ConsumerState<CreditCardFormScreen> {
         cutOffDay: cutOff,
         managementFee: fee,
       );
-      await repo.insert(card);
+      try {
+        await repo.insert(card);
+      } catch (e, st) {
+        ErrorReporter.capture(e, st, operation: 'credit_cards.create', details: {'card_id': card.id});
+        _showSaveError('No pudimos guardar la tarjeta. Probá de nuevo.');
+        return;
+      }
       if (mounted) {
         ref.invalidate(creditCardsListProvider);
-        ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
+        ref.read(syncServiceProvider).pushPendingIfOnline().catchError(
+              (Object e, StackTrace st) => ErrorReporter.capture(e, st, operation: 'credit_cards.push'),
+            );
         Navigator.of(context).pop(card.id);
         return;
       }
     }
     if (mounted) {
       ref.invalidate(creditCardsListProvider);
-      ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
+      ref.read(syncServiceProvider).pushPendingIfOnline().catchError(
+            (Object e, StackTrace st) => ErrorReporter.capture(e, st, operation: 'credit_cards.push'),
+          );
       Navigator.of(context).pop();
     }
   }

@@ -1,8 +1,10 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perfinance/core/config/supabase_config.dart';
 import 'package:perfinance/core/observability/error_reporter.dart';
+import 'package:perfinance/core/theme/app_theme.dart';
 import 'package:perfinance/features/credit_cards/credit_cards_provider.dart';
 import 'package:perfinance/features/savings/savings_provider.dart';
 import 'package:perfinance/services/sync_service.dart';
@@ -48,7 +50,7 @@ class _WalletShortcutScreenState extends ConsumerState<WalletShortcutScreen> {
     } catch (e, st) {
       ErrorReporter.capture(e, st, operation: 'wallet_shortcut.load_cards');
       if (!mounted) return;
-      setState(() => _walletCardsError = 'No se pudieron cargar las tarjetas de Wallet.');
+      setState(() => _walletCardsError = 'No se pudieron cargar las tarjetas de Wallet. Revisá la conexión.');
     }
   }
 
@@ -66,7 +68,9 @@ class _WalletShortcutScreenState extends ConsumerState<WalletShortcutScreen> {
       ) as int;
       await _loadWalletCards();
       // Baja los egresos que la nube acaba de mover a la tarjeta correcta.
-      ref.read(syncServiceProvider).syncNow(silent: true).catchError((_) {});
+      ref.read(syncServiceProvider).syncNow(silent: true).catchError(
+            (Object e, StackTrace st) => ErrorReporter.capture(e, st, operation: 'wallet_shortcut.sync'),
+          );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -98,9 +102,11 @@ class _WalletShortcutScreenState extends ConsumerState<WalletShortcutScreen> {
         'create_shortcut_token',
         params: {'p_utc_offset_minutes': DateTime.now().timeZoneOffset.inMinutes},
       );
+      if (!mounted) return;
       setState(() => _token = token as String);
     } catch (e, st) {
       ErrorReporter.capture(e, st, operation: 'wallet_shortcut.create_token');
+      if (!mounted) return;
       setState(() => _error = 'No se pudo generar el token. Revisá la conexión e intentá de nuevo.');
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -115,7 +121,8 @@ class _WalletShortcutScreenState extends ConsumerState<WalletShortcutScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final c = context.colors;
+    final t = Theme.of(context).textTheme;
     final cards = ref.watch(activeCreditCardsListProvider).valueOrNull ?? const [];
     final methods = ref.watch(paymentMethodsListProvider).valueOrNull ?? const [];
     final targets = <DropdownMenuItem<String>>[
@@ -127,137 +134,311 @@ class _WalletShortcutScreenState extends ConsumerState<WalletShortcutScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Apple Wallet')),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
         children: [
-          Text(
-            'Registrá un egreso automáticamente cada vez que pagás con Apple Wallet, sin abrir la app. '
-            'Aparece en Egresos como "[Wallet]: comercio" en la siguiente sincronización.',
-            style: theme.textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 16),
-          _CopyTile(label: 'URL', value: _url, onCopy: () => _copy('URL', _url)),
-          const SizedBox(height: 8),
-          if (_token != null) ...[
-            _CopyTile(
-              label: 'Token',
-              value: _token!,
-              onCopy: () => _copy('Token', _token!),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              'Registrá un egreso automáticamente cada vez que pagás con Apple Wallet, sin abrir la app. '
+              'Aparece en Egresos como "[Wallet]: comercio" en la siguiente sincronización.',
+              style: t.bodyMedium?.copyWith(color: c.textMuted),
             ),
-            const SizedBox(height: 4),
-            Text(
-              'Copialo ahora: no se vuelve a mostrar.',
-              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
-            ),
-          ],
-          if (_error != null)
-            Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
-          const SizedBox(height: 8),
-          FilledButton.icon(
-            onPressed: _loading ? null : _generate,
-            icon: const Icon(Icons.key),
-            label: Text(_token == null ? 'Generar token' : 'Generar otro token'),
           ),
-          const SizedBox(height: 4),
-          Text(
-            'Generar un token nuevo deja sin efecto el anterior.',
-            style: theme.textTheme.bodySmall,
-          ),
-          const SizedBox(height: 24),
-          Row(
+          const _SectionHeader('Conexión del atajo'),
+          _Group(
             children: [
-              Expanded(child: Text('Tarjetas de Wallet', style: theme.textTheme.titleMedium)),
-              IconButton(
-                icon: const Icon(Icons.refresh),
-                tooltip: 'Actualizar',
-                onPressed: _loadWalletCards,
+              _CopyRow(label: 'URL', value: _url, onCopy: () => _copy('URL', _url)),
+              if (_token != null)
+                _CopyRow(label: 'Token', value: _token!, onCopy: () => _copy('Token', _token!)),
+              _ActionRow(
+                icon: CupertinoIcons.lock,
+                label: _token == null ? 'Generar token' : 'Generar otro token',
+                loading: _loading,
+                onTap: _loading ? null : _generate,
               ),
             ],
           ),
+          _Footnote(
+            _token != null
+                ? 'Copialo ahora: no se vuelve a mostrar. Generar uno nuevo deja sin efecto el anterior.'
+                : 'Generar un token nuevo deja sin efecto el anterior.',
+            color: _token != null ? c.warning : null,
+          ),
+          if (_error != null) _InlineError(message: _error!, onRetry: _generate),
+          _SectionHeader(
+            'Tarjetas de Wallet',
+            trailing: IconButton(
+              icon: Icon(CupertinoIcons.arrow_clockwise, size: 20, color: c.accent),
+              tooltip: 'Actualizar tarjetas de Wallet',
+              constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+              onPressed: _loadWalletCards,
+            ),
+          ),
           if (_walletCardsError != null)
-            Text(_walletCardsError!, style: TextStyle(color: theme.colorScheme.error))
+            _InlineError(message: _walletCardsError!, onRetry: _loadWalletCards)
           else if (_walletCards == null)
             const Padding(
-              padding: EdgeInsets.all(8),
-              child: Center(child: CircularProgressIndicator()),
+              padding: EdgeInsets.all(16),
+              child: Center(child: CircularProgressIndicator.adaptive()),
             )
           else if (_walletCards!.isEmpty)
-            Text(
-              'Cuando llegue un pago con una tarjeta de Wallet que no se reconozca por nombre, '
+            _Footnote(
+              'Todavía no hay tarjetas para asignar. Cuando llegue un pago con una tarjeta de Wallet que no se reconozca por nombre, '
               'va a aparecer acá para que la asignes una sola vez.',
-              style: theme.textTheme.bodySmall,
             )
           else
-            for (final card in _walletCards!)
-              _WalletCardTile(card: card, targets: targets, onAssign: (t) => _assign(card, t)),
-          const SizedBox(height: 24),
-          Text('Configurar el atajo', style: theme.textTheme.titleMedium),
-          const SizedBox(height: 8),
-          const _Step(1, 'En Atajos → Automatización, abrí la automatización "Transaction" de Wallet y elegí "Run Immediately".'),
-          const _Step(2, 'Borrá la acción "Open URL" y agregá "Get Contents of URL" con la URL de arriba.'),
-          const _Step(3, 'Method: POST. En Headers agregá "Authorization" con valor "Bearer " seguido del token.'),
-          const _Step(4, 'Request Body: JSON, con tres campos de texto: amount, merchant y card.'),
-          const _Step(5, 'En cada campo tocá el valor, elegí "Shortcut Input" y seleccioná Amount, Merchant y Card respectivamente.'),
-          const _Step(6, 'Si el nombre de la tarjeta en Wallet no se parece al de Perfinance, el primer pago la deja en "Tarjetas de Wallet" para que la asignes.'),
+            _Group(
+              children: [
+                for (final card in _walletCards!)
+                  _WalletCardRow(card: card, targets: targets, onAssign: (t) => _assign(card, t)),
+              ],
+            ),
+          const _SectionHeader('Configurar el atajo'),
+          const _Group(
+            children: [
+              _Step(1, 'En Atajos → Automatización, abrí la automatización "Transaction" de Wallet y elegí "Run Immediately".'),
+              _Step(2, 'Borrá la acción "Open URL" y agregá "Get Contents of URL" con la URL de arriba.'),
+              _Step(3, 'Method: POST. En Headers agregá "Authorization" con valor "Bearer " seguido del token.'),
+              _Step(4, 'Request Body: JSON, con tres campos de texto: amount, merchant y card.'),
+              _Step(5, 'En cada campo tocá el valor, elegí "Shortcut Input" y seleccioná Amount, Merchant y Card respectivamente.'),
+              _Step(6, 'Si el nombre de la tarjeta en Wallet no se parece al de Perfinance, el primer pago la deja en "Tarjetas de Wallet" para que la asignes.'),
+            ],
+          ),
         ],
       ),
     );
   }
 }
 
-class _WalletCardTile extends StatelessWidget {
-  const _WalletCardTile({required this.card, required this.targets, required this.onAssign});
-  final Map<String, dynamic> card;
-  final List<DropdownMenuItem<String>> targets;
-  final ValueChanged<String> onAssign;
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader(this.title, {this.trailing});
+
+  final String title;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
-    final assigned = card['payment_type'] == null
-        ? null
-        : '${card['payment_type']}|${card['payment_ref']}';
-    // El medio asignado pudo borrarse o desactivarse: sin selección en ese caso.
-    final value = targets.any((t) => t.value == assigned) ? assigned : null;
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(card['wallet_name'] as String, style: Theme.of(context).textTheme.titleSmall),
-            DropdownButton<String>(
-              isExpanded: true,
-              value: value,
-              hint: const Text('Sin asignar: elegí a qué corresponde'),
-              items: targets,
-              onChanged: (t) {
-                if (t != null && t != value) onAssign(t);
-              },
+    final c = context.colors;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(4, trailing == null ? 28 : 16, 0, trailing == null ? 8 : 0),
+      child: Row(
+        children: [
+          Expanded(
+            child: Semantics(
+              header: true,
+              child: Text(
+                title.toUpperCase(),
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: c.textMuted,
+                      letterSpacing: 0.8,
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
             ),
+          ),
+          ?trailing,
+        ],
+      ),
+    );
+  }
+}
+
+/// Lista agrupada al estilo iOS: filas sobre `surface` con separadores finos.
+class _Group extends StatelessWidget {
+  const _Group({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Material(
+      color: c.surface,
+      borderRadius: BorderRadius.circular(12),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < children.length; i++) ...[
+            if (i > 0) Divider(height: 1, thickness: 0.5, indent: 16, color: c.divider),
+            children[i],
           ],
+        ],
+      ),
+    );
+  }
+}
+
+class _Footnote extends StatelessWidget {
+  const _Footnote(this.text, {this.color});
+
+  final String text;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 8, 4, 0),
+      child: Text(
+        text,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: color ?? context.colors.textMuted),
+      ),
+    );
+  }
+}
+
+class _InlineError extends StatelessWidget {
+  const _InlineError({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Semantics(
+        liveRegion: true,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(14, 4, 4, 4),
+          decoration: BoxDecoration(color: c.dangerSoft, borderRadius: BorderRadius.circular(12)),
+          child: Row(
+            children: [
+              Icon(CupertinoIcons.exclamationmark_circle, size: 18, color: c.danger),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(message, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: c.danger)),
+              ),
+              TextButton(
+                onPressed: onRetry,
+                style: TextButton.styleFrom(minimumSize: const Size(44, 44), foregroundColor: c.danger),
+                child: const Text('Reintentar'),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _CopyTile extends StatelessWidget {
-  const _CopyTile({required this.label, required this.value, required this.onCopy});
+class _WalletCardRow extends StatelessWidget {
+  const _WalletCardRow({required this.card, required this.targets, required this.onAssign});
+  final Map<String, dynamic> card;
+  final List<DropdownMenuItem<String>> targets;
+  final ValueChanged<String> onAssign;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final assigned = card['payment_type'] == null
+        ? null
+        : '${card['payment_type']}|${card['payment_ref']}';
+    // El medio asignado pudo borrarse o desactivarse: sin selección en ese caso.
+    final value = targets.any((t) => t.value == assigned) ? assigned : null;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 12, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(card['wallet_name'] as String, style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: c.ink)),
+          DropdownButton<String>(
+            isExpanded: true,
+            value: value,
+            underline: const SizedBox.shrink(),
+            dropdownColor: c.surface,
+            icon: Icon(CupertinoIcons.chevron_up_chevron_down, size: 16, color: c.textMuted),
+            hint: Text('Sin asignar: elegí a qué corresponde', style: TextStyle(color: c.warning)),
+            items: targets,
+            onChanged: (t) {
+              if (t != null && t != value) onAssign(t);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CopyRow extends StatelessWidget {
+  const _CopyRow({required this.label, required this.value, required this.onCopy});
   final String label;
   final String value;
   final VoidCallback onCopy;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      child: ListTile(
-        title: Text(label),
-        subtitle: Text(value, style: const TextStyle(fontFamily: 'monospace')),
-        trailing: IconButton(
-          icon: const Icon(Icons.copy),
-          tooltip: 'Copiar $label',
-          onPressed: onCopy,
+    final c = context.colors;
+    final t = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 4, 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: t.labelLarge?.copyWith(color: c.ink)),
+                const SizedBox(height: 2),
+                SelectableText(
+                  value,
+                  style: t.bodySmall?.copyWith(
+                    color: c.textMuted,
+                    fontFamily: 'Menlo',
+                    fontFamilyFallback: const ['Courier', 'monospace'],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: Icon(CupertinoIcons.doc_on_doc, color: c.accent),
+            tooltip: 'Copiar $label',
+            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+            onPressed: onCopy,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionRow extends StatelessWidget {
+  const _ActionRow({required this.icon, required this.label, required this.loading, required this.onTap});
+  final IconData icon;
+  final String label;
+  final bool loading;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Semantics(
+      button: true,
+      enabled: onTap != null,
+      child: InkWell(
+        onTap: onTap,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 48),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                if (loading)
+                  const SizedBox(width: 20, height: 20, child: CircularProgressIndicator.adaptive(strokeWidth: 2))
+                else
+                  Icon(icon, size: 20, color: c.accent),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: c.accent, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -271,13 +452,18 @@ class _Step extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.colors;
+    final t = Theme.of(context).textTheme;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 24, child: Text('$number.')),
-          Expanded(child: Text(text)),
+          SizedBox(
+            width: 24,
+            child: Text('$number.', style: t.bodyMedium?.copyWith(color: c.textMuted, fontFeatures: kTabularFigures)),
+          ),
+          Expanded(child: Text(text, style: t.bodyMedium?.copyWith(color: c.ink))),
         ],
       ),
     );

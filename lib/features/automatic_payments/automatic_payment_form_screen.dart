@@ -1,4 +1,7 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:perfinance/core/observability/error_reporter.dart';
+import 'package:perfinance/core/theme/app_theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perfinance/core/utils/date_format_utils.dart';
 import 'package:perfinance/services/sync_service.dart';
@@ -7,19 +10,12 @@ import 'package:perfinance/data/models/automatic_payment.dart';
 import 'package:perfinance/data/repositories/automatic_payment_repository.dart';
 import 'package:perfinance/features/auth/auth_provider.dart';
 import 'package:perfinance/features/credit_cards/credit_cards_provider.dart';
+import 'package:perfinance/features/automatic_payments/automatic_payment_copy.dart';
 import 'package:perfinance/features/automatic_payments/automatic_payments_provider.dart';
 import 'package:perfinance/features/expenses/expenses_provider.dart';
 import 'package:perfinance/features/savings/savings_provider.dart';
 import 'package:perfinance/services/process_automatic_payments_service.dart';
 import 'package:uuid/uuid.dart';
-
-const _frequencies = <String>['mensual', 'trimestral', 'semestral', 'anual'];
-const _frequencyLabels = <String, String>{
-  'mensual': 'Mensual',
-  'trimestral': 'Trimestral',
-  'semestral': 'Semestral',
-  'anual': 'Anual',
-};
 
 class AutomaticPaymentFormScreen extends ConsumerStatefulWidget {
   final AutomaticPayment? edit;
@@ -46,11 +42,7 @@ class _AutomaticPaymentFormScreenState extends ConsumerState<AutomaticPaymentFor
   DateTime? get _computedNextDate {
     final day = int.tryParse(_dayController.text.trim());
     if (day == null || day < 1 || day > 31) return null;
-    return nextRunDateFor(
-      frequency: _frequency,
-      dayOfMonth: day,
-      from: DateTime.now(),
-    );
+    return nextRunDateFor(frequency: _frequency, dayOfMonth: day, from: DateTime.now());
   }
 
   DateTime? get _nextDate => _nextRunDateOverride ?? _computedNextDate;
@@ -98,9 +90,7 @@ class _AutomaticPaymentFormScreenState extends ConsumerState<AutomaticPaymentFor
     final cards = ref.watch(activeCreditCardsListProvider).valueOrNull ?? [];
     final methods = ref.watch(paymentMethodsListProvider).valueOrNull ?? [];
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.edit != null ? 'Editar pago automático' : 'Nuevo pago automático'),
-      ),
+      appBar: AppBar(title: Text(widget.edit != null ? 'Editar pago automático' : 'Nuevo pago automático')),
       body: Form(
         key: _formKey,
         child: ListView(
@@ -111,96 +101,95 @@ class _AutomaticPaymentFormScreenState extends ConsumerState<AutomaticPaymentFor
                 padding: const EdgeInsets.only(bottom: 12),
                 child: InkWell(
                   onTap: _pickNextRunDate,
-                  child: Row(
-                    children: [
-                      const Icon(Icons.event, color: Colors.green, size: 20),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Próximo pago: ${formatDisplayDate(_nextDate!)}',
-                          style: const TextStyle(
-                            color: Colors.green,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 16,
+                  borderRadius: BorderRadius.circular(8),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(minHeight: 44),
+                    child: Row(
+                      children: [
+                        Icon(CupertinoIcons.calendar, color: context.colors.accent, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Próximo pago: ${formatDisplayDate(_nextDate!)}',
+                            style: Theme.of(
+                              context,
+                            ).textTheme.bodyLarge?.copyWith(color: context.colors.accent, fontWeight: FontWeight.w600),
                           ),
                         ),
-                      ),
-                      const Icon(Icons.edit, color: Colors.green, size: 18),
-                      if (_nextRunDateOverride != null)
-                        TextButton(
-                          onPressed: () => setState(() => _nextRunDateOverride = null),
-                          child: const Text('Restablecer'),
+                        Semantics(
+                          label: 'Cambiar fecha',
+                          child: Icon(CupertinoIcons.pencil, color: context.colors.accent, size: 18),
                         ),
-                    ],
+                        if (_nextRunDateOverride != null)
+                          TextButton(
+                            onPressed: () => setState(() => _nextRunDateOverride = null),
+                            child: const Text('Restablecer'),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               ),
             TextFormField(
               controller: _descriptionController,
               textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(
-                labelText: 'Descripción',
-                border: OutlineInputBorder(),
-                hintText: 'Ej: Netflix, gym, suscripción...',
-              ),
+              decoration: const InputDecoration(labelText: 'Descripción', hintText: 'Ej: Netflix, gym, suscripción...'),
               validator: (v) {
-                if (v == null || v.trim().isEmpty) return 'Ingresa una descripción';
+                if (v == null || v.trim().isEmpty) return 'Ingresá una descripción';
                 return null;
               },
             ),
             const SizedBox(height: 16),
             CurrencyTextField(
               controller: _amountController,
-              decoration: const InputDecoration(
-                labelText: 'Monto',
-                border: OutlineInputBorder(),
-              ),
+              decoration: const InputDecoration(labelText: 'Monto'),
             ),
             const SizedBox(height: 16),
             TextFormField(
               controller: _dayController,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Día del mes (1–31)',
-                border: OutlineInputBorder(),
-                hintText: 'Ej: 15',
-              ),
+              decoration: const InputDecoration(labelText: 'Día del mes (1–31)', hintText: 'Ej: 15'),
               validator: (v) {
-                if (v == null || v.trim().isEmpty) return 'Ingresa un día entre 1 y 31';
+                if (v == null || v.trim().isEmpty) return 'Ingresá un día entre 1 y 31';
                 final day = int.tryParse(v.trim());
-                if (day == null || day < 1 || day > 31) return 'Ingresa un día entre 1 y 31';
+                if (day == null || day < 1 || day > 31) return 'Ingresá un día entre 1 y 31';
                 return null;
               },
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              value: _frequency,
-              decoration: const InputDecoration(
-                labelText: 'Frecuencia',
-                border: OutlineInputBorder(),
-              ),
-              items: _frequencies
-                  .map(
-                    (f) => DropdownMenuItem(
-                      value: f,
-                      child: Text(_frequencyLabels[f]!),
-                    ),
-                  )
+              initialValue: _frequency,
+              decoration: const InputDecoration(labelText: 'Frecuencia'),
+              items: automaticPaymentFrequencies
+                  .map((f) => DropdownMenuItem(value: f, child: Text(frequencyLabel(f))))
                   .toList(),
               onChanged: (v) {
                 if (v != null) setState(() => _frequency = v);
               },
-              validator: (v) => (v == null || v.isEmpty) ? 'Selecciona una frecuencia' : null,
+              validator: (v) => (v == null || v.isEmpty) ? 'Elegí una frecuencia' : null,
             ),
             const SizedBox(height: 8),
-            SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(value: true, label: Text('Tarjeta crédito'), icon: Icon(Icons.credit_card)),
-                ButtonSegment(value: false, label: Text('Ahorro/efectivo'), icon: Icon(Icons.savings)),
-              ],
-              selected: {_isCreditCard},
-              onSelectionChanged: (s) => setState(() {
-                _isCreditCard = s.first;
+            const SizedBox(height: 8),
+            CupertinoSlidingSegmentedControl<bool>(
+              groupValue: _isCreditCard,
+              backgroundColor: context.colors.track,
+              thumbColor: context.colors.surface,
+              children: {
+                for (final e in const {true: 'Tarjeta de crédito', false: 'Ahorro o efectivo'}.entries)
+                  e.key: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Text(
+                      e.value,
+                      style: TextStyle(
+                        color: context.colors.ink,
+                        fontWeight: _isCreditCard == e.key ? FontWeight.w600 : FontWeight.w500,
+                      ),
+                    ),
+                  ),
+              },
+              onValueChanged: (v) => setState(() {
+                if (v == null) return;
+                _isCreditCard = v;
                 if (_isCreditCard) {
                   _selectedMethodId = null;
                 } else {
@@ -212,38 +201,31 @@ class _AutomaticPaymentFormScreenState extends ConsumerState<AutomaticPaymentFor
             if (_isCreditCard) ...[
               DropdownButtonFormField<String>(
                 // Guard: solo preseleccionar si el item está en la lista cargada
-                value: cards.any((c) => c.id == _selectedCardId) ? _selectedCardId : null,
-                decoration: const InputDecoration(
-                  labelText: 'Tarjeta',
-                  border: OutlineInputBorder(),
-                ),
+                initialValue: cards.any((c) => c.id == _selectedCardId) ? _selectedCardId : null,
+                decoration: const InputDecoration(labelText: 'Tarjeta'),
                 items: [
-                  const DropdownMenuItem(value: null, child: Text('Selecciona tarjeta')),
+                  const DropdownMenuItem(value: null, child: Text('Elegí una tarjeta')),
                   ...cards.map((c) => DropdownMenuItem(value: c.id, child: Text(c.alias))),
                 ],
                 onChanged: (v) => setState(() => _selectedCardId = v),
-                validator: (v) =>
-                    _isCreditCard && (v == null || v.isEmpty) ? 'Selecciona una tarjeta' : null,
+                validator: (v) => _isCreditCard && (v == null || v.isEmpty) ? 'Elegí una tarjeta' : null,
               ),
             ] else ...[
               DropdownButtonFormField<String>(
                 // Guard: solo preseleccionar si el item está en la lista cargada
-                value: methods.any((m) => m.id == _selectedMethodId) ? _selectedMethodId : null,
-                decoration: const InputDecoration(
-                  labelText: 'Medio de pago',
-                  border: OutlineInputBorder(),
-                ),
+                initialValue: methods.any((m) => m.id == _selectedMethodId) ? _selectedMethodId : null,
+                decoration: const InputDecoration(labelText: 'Medio de pago'),
                 items: [
-                  const DropdownMenuItem(value: null, child: Text('Selecciona medio')),
+                  const DropdownMenuItem(value: null, child: Text('Elegí un medio de pago')),
                   ...methods.map((m) => DropdownMenuItem(value: m.id, child: Text(m.name))),
                 ],
                 onChanged: (v) => setState(() => _selectedMethodId = v),
-                validator: (v) =>
-                    !_isCreditCard && (v == null || v.isEmpty) ? 'Selecciona un medio' : null,
+                validator: (v) => !_isCreditCard && (v == null || v.isEmpty) ? 'Elegí un medio de pago' : null,
               ),
             ],
             const SizedBox(height: 24),
             FilledButton(
+              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
               onPressed: _save,
               child: Text(widget.edit != null ? 'Guardar cambios' : 'Crear pago automático'),
             ),
@@ -256,12 +238,15 @@ class _AutomaticPaymentFormScreenState extends ConsumerState<AutomaticPaymentFor
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     final user = await ref.read(authStateProvider.future);
-    if (user == null) return;
+    if (user == null || !mounted) return;
     final paymentType = _isCreditCard ? 'credit_card' : 'payment_method';
     final paymentRef = _isCreditCard ? _selectedCardId : _selectedMethodId;
     if (paymentRef == null || paymentRef.isEmpty) return;
     final amount = parseCurrency(_amountController.text);
-    if (amount == null || amount <= 0) return;
+    if (amount == null || amount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('El monto debe ser mayor a cero.')));
+      return;
+    }
     final description = _descriptionController.text.trim();
     final dayOfMonth = int.parse(_dayController.text.trim());
 
@@ -269,49 +254,68 @@ class _AutomaticPaymentFormScreenState extends ConsumerState<AutomaticPaymentFor
     // proceso automático lo ejecute y avance la fecha. Llamar a nextRunDateFor aquí
     // saltaría un período sin crear el egreso correspondiente. Si el usuario ajustó
     // la fecha manualmente (_nextRunDateOverride), esa tiene prioridad siempre.
-    final nextRun = _nextRunDateOverride ??
+    final nextRun =
+        _nextRunDateOverride ??
         (widget.edit != null
             ? widget.edit!.nextRunDate
-            : nextRunDateFor(
-                frequency: _frequency,
-                dayOfMonth: dayOfMonth,
-                from: DateTime.now(),
-              ));
+            : nextRunDateFor(frequency: _frequency, dayOfMonth: dayOfMonth, from: DateTime.now()));
 
     final repo = ref.read(automaticPaymentRepositoryProvider);
 
-    if (widget.edit != null) {
-      await repo.update(AutomaticPayment(
-        id: widget.edit!.id,
-        userId: user.id,
-        paymentType: paymentType,
-        paymentRef: paymentRef,
-        amount: amount,
-        description: description,
-        nextRunDate: nextRun,
-        paymentDayOfMonth: dayOfMonth,
-        frequency: _frequency,
-        syncStatus: widget.edit!.syncStatus,
-        updatedAt: widget.edit!.updatedAt,
-        createdAt: widget.edit!.createdAt,
-      ));
-    } else {
-      await repo.insert(AutomaticPayment(
-        id: const Uuid().v4(),
-        userId: user.id,
-        paymentType: paymentType,
-        paymentRef: paymentRef,
-        amount: amount,
-        description: description,
-        nextRunDate: nextRun,
-        paymentDayOfMonth: dayOfMonth,
-        frequency: _frequency,
-      ));
+    try {
+      if (widget.edit != null) {
+        await repo.update(
+          AutomaticPayment(
+            id: widget.edit!.id,
+            userId: user.id,
+            paymentType: paymentType,
+            paymentRef: paymentRef,
+            amount: amount,
+            description: description,
+            nextRunDate: nextRun,
+            paymentDayOfMonth: dayOfMonth,
+            frequency: _frequency,
+            syncStatus: widget.edit!.syncStatus,
+            updatedAt: widget.edit!.updatedAt,
+            createdAt: widget.edit!.createdAt,
+          ),
+        );
+      } else {
+        await repo.insert(
+          AutomaticPayment(
+            id: const Uuid().v4(),
+            userId: user.id,
+            paymentType: paymentType,
+            paymentRef: paymentRef,
+            amount: amount,
+            description: description,
+            nextRunDate: nextRun,
+            paymentDayOfMonth: dayOfMonth,
+            frequency: _frequency,
+          ),
+        );
+      }
+    } catch (e, st) {
+      ErrorReporter.capture(e, st, operation: 'automatic_payments.save', details: {'editing': widget.edit != null});
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'No se pudo guardar el pago automático. Probá de nuevo.',
+              style: TextStyle(color: context.colors.onDanger),
+            ),
+            backgroundColor: context.colors.danger,
+          ),
+        );
+      }
+      return;
     }
     if (mounted) {
       ref.invalidate(automaticPaymentsListProvider);
       ref.invalidate(expensesListProvider);
-      ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
+      ref.read(syncServiceProvider).pushPendingIfOnline().catchError(
+            (Object e, StackTrace st) => ErrorReporter.capture(e, st, operation: 'automatic_payments.push'),
+          );
       Navigator.pop(context);
     }
   }

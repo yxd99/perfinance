@@ -54,7 +54,7 @@ void main() {
       await tester.tap(find.byType(FilledButton));
       await tester.pumpAndSettle();
 
-      expect(find.text('Ingresa un día entre 1 y 31'), findsOneWidget);
+      expect(find.text('Ingresá un día entre 1 y 31'), findsOneWidget);
     });
 
     testWidgets('validación: día 32 falla', (tester) async {
@@ -68,7 +68,7 @@ void main() {
       await tester.tap(find.byType(FilledButton));
       await tester.pumpAndSettle();
 
-      expect(find.text('Ingresa un día entre 1 y 31'), findsOneWidget);
+      expect(find.text('Ingresá un día entre 1 y 31'), findsOneWidget);
     });
 
     testWidgets('validación: día 1 pasa', (tester) async {
@@ -83,7 +83,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // No debe aparecer el mensaje de error del día
-      expect(find.text('Ingresa un día entre 1 y 31'), findsNothing);
+      expect(find.text('Ingresá un día entre 1 y 31'), findsNothing);
     });
 
     testWidgets('validación: día 31 pasa', (tester) async {
@@ -97,7 +97,7 @@ void main() {
       await tester.tap(find.byType(FilledButton));
       await tester.pumpAndSettle();
 
-      expect(find.text('Ingresa un día entre 1 y 31'), findsNothing);
+      expect(find.text('Ingresá un día entre 1 y 31'), findsNothing);
     });
 
     testWidgets('dropdown muestra exactamente 4 opciones de frecuencia', (tester) async {
@@ -138,6 +138,8 @@ void main() {
       expect(find.widgetWithText(TextFormField, '28'), findsOneWidget);
       // El dropdown de frecuencia debe mostrar 'Trimestral'
       expect(find.text('Trimestral'), findsOneWidget);
+      // El medio de pago se preselecciona aunque la lista cargue después del primer frame.
+      expect(find.text('Efectivo'), findsOneWidget);
     });
 
     // --- Tests para label "Próximo pago" (TDD RED phase) ---

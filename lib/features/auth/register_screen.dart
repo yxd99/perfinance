@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:perfinance/core/widgets/brand_logo.dart';
+import 'package:perfinance/core/observability/error_reporter.dart';
 import 'package:perfinance/core/theme/app_theme.dart';
-import 'package:perfinance/core/utils/user_friendly_errors.dart';
+import 'package:perfinance/features/auth/auth_copy.dart';
 import 'package:perfinance/features/auth/auth_service.dart';
+import 'package:perfinance/features/auth/auth_widgets.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -18,8 +21,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
   bool _isLoading = false;
-  bool _obscurePassword = true;
-  bool _obscureConfirm = true;
   String? _errorMessage;
 
   @override
@@ -31,6 +32,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   }
 
   Future<void> _submit() async {
+    if (_isLoading || !_formKey.currentState!.validate()) return;
     setState(() {
       _errorMessage = null;
       _isLoading = true;
@@ -45,14 +47,15 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     } on Exception catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = UserFriendlyErrors.authMessage(e, isLogin: false);
+          _errorMessage = AuthCopy.errorMessage(e, isLogin: false);
           _isLoading = false;
         });
       }
-    } catch (_) {
+    } catch (e, st) {
+      ErrorReporter.capture(e, st, operation: 'auth.sign_up');
       if (mounted) {
         setState(() {
-          _errorMessage = UserFriendlyErrors.registerFailed;
+          _errorMessage = AuthCopy.registerFailed;
           _isLoading = false;
         });
       }
@@ -61,105 +64,93 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.colors;
+    final t = Theme.of(context).textTheme;
     return Scaffold(
-      appBar: AppBar(title: const Text('Registro')),
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: Image.asset(
-                      AppAssets.logo,
-                      height: 80,
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: const InputDecoration(
-                      labelText: 'Correo',
-                    ),
-                    validator: (v) {
-                      if (v == null || v.trim().isEmpty) return 'Ingresa tu correo';
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _passwordController,
-                    obscureText: _obscurePassword,
-                    decoration: InputDecoration(
-                      labelText: 'Contraseña',
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+      backgroundColor: c.canvas,
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(backgroundColor: Colors.transparent, title: const Text('Crear cuenta')),
+      body: AuthCanvas(
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: AutofillGroup(
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Center(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: BrandLogo(height: 44),
+                          ),
                         ),
-                        onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                      ),
-                    ),
-                    validator: (v) {
-                      if (v == null || v.isEmpty) return 'Ingresa una contraseña';
-                      if (v.length < 6) return 'Mínimo 6 caracteres';
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _confirmController,
-                    obscureText: _obscureConfirm,
-                    decoration: InputDecoration(
-                      labelText: 'Confirmar contraseña',
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscureConfirm ? Icons.visibility_off : Icons.visibility,
-                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                        const SizedBox(height: 24),
+                        TextFormField(
+                          controller: _emailController,
+                          keyboardType: TextInputType.emailAddress,
+                          autocorrect: false,
+                          textInputAction: TextInputAction.next,
+                          autofillHints: const [AutofillHints.email],
+                          decoration: const InputDecoration(labelText: 'Correo'),
+                          validator: AuthCopy.validateEmail,
                         ),
-                        onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
-                      ),
-                    ),
-                    validator: (v) {
-                      if (v != _passwordController.text) return 'No coincide';
-                      return null;
-                    },
-                  ),
-                  if (_errorMessage != null) ...[
-                    const SizedBox(height: 16),
-                    Text(
-                      _errorMessage!,
-                      style: TextStyle(color: Theme.of(context).colorScheme.error),
-                    ),
-                  ],
-                  const SizedBox(height: 24),
-                  FilledButton(
-                    onPressed: _isLoading
-                        ? null
-                        : () {
-                            if (_formKey.currentState!.validate()) _submit();
+                        const SizedBox(height: 12),
+                        PasswordField(
+                          controller: _passwordController,
+                          label: 'Contraseña',
+                          textInputAction: TextInputAction.next,
+                          autofillHints: const [AutofillHints.newPassword],
+                          validator: (v) {
+                            if (v == null || v.isEmpty) return AuthCopy.newPasswordRequired;
+                            if (v.length < 6) return AuthCopy.passwordTooShort;
+                            return null;
                           },
-                    child: _isLoading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Registrarse'),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(4, 6, 4, 0),
+                          child: Text('Al menos 6 caracteres.', style: t.bodySmall?.copyWith(color: c.textMuted)),
+                        ),
+                        const SizedBox(height: 12),
+                        PasswordField(
+                          controller: _confirmController,
+                          label: 'Repetí la contraseña',
+                          autofillHints: const [AutofillHints.newPassword],
+                          onSubmitted: _submit,
+                          validator: (v) => v != _passwordController.text ? AuthCopy.passwordMismatch : null,
+                        ),
+                        if (_errorMessage != null) ...[
+                          const SizedBox(height: 16),
+                          AuthErrorText(_errorMessage!),
+                        ],
+                        const SizedBox(height: 24),
+                        AuthPrimaryButton(label: 'Crear cuenta', loading: _isLoading, onPressed: _submit),
+                        const SizedBox(height: 8),
+                        TextButton(
+                          onPressed: _isLoading ? null : () => context.pop(),
+                          style: TextButton.styleFrom(minimumSize: const Size.fromHeight(44)),
+                          child: Text.rich(
+                            TextSpan(
+                              text: '¿Ya tenés cuenta? ',
+                              style: TextStyle(color: c.textMuted),
+                              children: [
+                                TextSpan(
+                                  text: 'Iniciá sesión',
+                                  style: TextStyle(color: c.accent, fontWeight: FontWeight.w600),
+                                ),
+                              ],
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 16),
-                  TextButton(
-                    onPressed: () => context.pop(),
-                    child: const Text('Ya tengo cuenta. Iniciar sesión'),
-                  ),
-                ],
+                ),
               ),
             ),
           ),

@@ -1,14 +1,15 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import 'package:perfinance/core/theme/app_theme.dart';
-import 'package:perfinance/core/theme/app_tokens.dart';
 import 'package:perfinance/features/chat/chat_agent.dart';
 import 'package:perfinance/features/chat/chat_agent_configs.dart';
+import 'package:perfinance/features/chat/chat_copy.dart';
 import 'package:perfinance/features/chat/chat_provider.dart';
 import 'package:perfinance/features/chat/chat_types.dart';
-import 'package:intl/intl.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({super.key});
@@ -17,27 +18,18 @@ class ChatScreen extends ConsumerStatefulWidget {
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends ConsumerState<ChatScreen> with SingleTickerProviderStateMixin {
+class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _textController = TextEditingController();
   final _scrollController = ScrollController();
   final _scaffoldKey = GlobalKey<ScaffoldState>();
-  late TabController _agentTabController;
 
   @override
   void initState() {
     super.initState();
-    _agentTabController = TabController(length: ChatAgent.values.length, vsync: this);
-    _agentTabController.addListener(_onAgentTabChanged);
-
+    _textController.addListener(() => setState(() {}));
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(chatProvider.notifier).loadConversations();
     });
-  }
-
-  void _onAgentTabChanged() {
-    if (_agentTabController.indexIsChanging) return;
-    final agent = ChatAgent.values[_agentTabController.index];
-    ref.read(chatProvider.notifier).switchAgent(agent);
   }
 
   void _sendMessage() {
@@ -48,18 +40,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with SingleTickerProvid
     _scrollToBottom();
   }
 
-  void _resolveAction(String value) {
-    ref.read(chatProvider.notifier).resolveAction(value);
-  }
-
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 100),
-          curve: Curves.easeOut,
-        );
+      if (!_scrollController.hasClients) return;
+      final target = _scrollController.position.maxScrollExtent;
+      if (MediaQuery.disableAnimationsOf(context)) {
+        _scrollController.jumpTo(target);
+      } else {
+        _scrollController.animateTo(target, duration: const Duration(milliseconds: 150), curve: Curves.easeOut);
       }
     });
   }
@@ -68,123 +56,113 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with SingleTickerProvid
   void dispose() {
     _textController.dispose();
     _scrollController.dispose();
-    _agentTabController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     ref.listen<ChatState>(chatProvider, (_, state) {
-      if (state.status == ChatStatus.streaming || state.status == ChatStatus.idle) {
-        _scrollToBottom();
-      }
+      if (state.status != ChatStatus.loading) _scrollToBottom();
     });
     final state = ref.watch(chatProvider);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final agentConfig = state.agentConfig;
+    final c = context.colors;
 
     return Scaffold(
       key: _scaffoldKey,
+      backgroundColor: c.canvas,
       appBar: AppBar(
-        title: Text(agentConfig.label),
+        // Con el Drawer, el AppBar pondría una hamburguesa en lugar de «atrás».
+        // El historial se abre desde el ícono de lista del compositor.
+        automaticallyImplyLeading: false,
+        leading: (ModalRoute.of(context)?.canPop ?? false) ? const BackButton() : null,
+        title: const Text('Asesor financiero'),
         actions: [
           if (state.activeConversation != null)
             IconButton(
-              icon: const Icon(Icons.delete_outline),
-              onPressed: () => _showDeleteConversationDialog(state),
+              icon: const Icon(CupertinoIcons.trash),
+              onPressed: () => _confirmDeleteConversation(state),
               tooltip: 'Eliminar conversación',
             ),
           if (!state.isEphemeral)
             IconButton(
-              icon: const Icon(Icons.add_comment_outlined),
+              icon: const Icon(CupertinoIcons.square_pencil),
               onPressed: () => ref.read(chatProvider.notifier).newConversation(),
               tooltip: 'Nueva conversación',
             ),
         ],
-        bottom: TabBar(
-          controller: _agentTabController,
-          isScrollable: false,
-          tabAlignment: TabAlignment.fill,
-          tabs: ChatAgent.values.map((agent) {
-            final config = ChatAgentConfigs.forAgent(agent);
-            return Tab(
-              icon: Icon(config.icon, size: 20),
-              text: config.label,
-            );
-          }).toList(),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(52),
+          child: _AgentPicker(
+            selected: state.activeAgent,
+            onChanged: (agent) => ref.read(chatProvider.notifier).switchAgent(agent),
+          ),
         ),
       ),
       drawer: state.isEphemeral ? null : _buildConversationDrawer(state),
       body: Column(
         children: [
-          Expanded(
-            child: Column(
-              children: [
-                Expanded(child: _buildChatList(state, isDark)),
-                if (state.pendingAction != null) _buildActionPrompt(state.pendingAction!),
-              ],
+          Expanded(child: _buildChatList(state)),
+          if (state.status == ChatStatus.error)
+            _ChatErrorBar(
+              message: chatErrorMessage(state.error),
+              onRetry: () => ref.read(chatProvider.notifier).retryLastMessage(),
             ),
-          ),
-          _buildInputBar(state, agentConfig),
+          if (state.pendingAction != null) _buildActionPrompt(state.pendingAction!),
+          _buildInputBar(state),
         ],
       ),
     );
   }
 
   Widget _buildConversationDrawer(ChatState state) {
+    final c = context.colors;
+    final t = Theme.of(context).textTheme;
     return Drawer(
+      backgroundColor: c.canvas,
       child: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-              padding: const EdgeInsets.all(AppTokens.spaceLG),
-              child: Text(
-                'Conversaciones',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Semantics(header: true, child: Text('Conversaciones', style: t.titleLarge?.copyWith(color: c.ink))),
             ),
-            const Divider(height: 1),
             Expanded(
               child: state.conversations.isEmpty
                   ? Center(
                       child: Padding(
-                        padding: const EdgeInsets.all(AppTokens.spaceXL),
+                        padding: const EdgeInsets.all(24),
                         child: Text(
-                          'Sin conversaciones aún.\nEscribí para empezar una.',
+                          'Todavía no hay conversaciones.\nEscribí para empezar una.',
                           textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.grey.shade500),
+                          style: t.bodyMedium?.copyWith(color: c.textMuted),
                         ),
                       ),
                     )
-                  : ListView.builder(
+                  : ListView.separated(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
                       itemCount: state.conversations.length,
+                      separatorBuilder: (_, _) => Divider(height: 1, thickness: 0.5, indent: 16, color: c.divider),
                       itemBuilder: (context, index) {
                         final convo = state.conversations[index];
                         final isActive = state.activeConversation?.id == convo.id;
                         return ListTile(
                           selected: isActive,
-                          selectedTileColor: AppThemeColors.primaryGreen.withValues(alpha: 0.1),
-                          leading: Icon(
-                            state.agentConfig.icon,
-                            size: 20,
-                            color: isActive ? AppThemeColors.primaryGreen : Colors.grey,
-                          ),
+                          selectedTileColor: c.accentSoft,
+                          selectedColor: c.ink,
                           title: Text(
                             convo.title,
-                            maxLines: 1,
+                            maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-                              fontSize: 14,
-                            ),
+                            style: t.bodyLarge?.copyWith(fontWeight: isActive ? FontWeight.w600 : null),
                           ),
                           subtitle: Text(
                             DateFormat('dd MMM, HH:mm').format(convo.updatedAt),
-                            style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                            style: t.bodySmall?.copyWith(color: c.textMuted, fontFeatures: kTabularFigures),
                           ),
                           trailing: IconButton(
-                            icon: Icon(Icons.close, size: 16, color: Colors.grey.shade400),
+                            icon: Icon(CupertinoIcons.xmark, size: 16, color: c.textMuted),
+                            tooltip: 'Eliminar conversación',
                             onPressed: () => ref.read(chatProvider.notifier).deleteConversation(convo),
                           ),
                           onTap: () {
@@ -201,74 +179,60 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with SingleTickerProvid
     );
   }
 
-  Widget _buildChatList(ChatState state, bool isDark) {
-    if (state.messages.isEmpty && state.status == ChatStatus.idle) {
-      return _buildEmptyState(state, isDark);
+  Widget _buildChatList(ChatState state) {
+    if (state.messages.isEmpty && state.currentResponse.isEmpty && state.status != ChatStatus.loading) {
+      return _buildEmptyState(state);
     }
 
     final showThinking = state.status == ChatStatus.loading && state.currentResponse.isEmpty;
-    final itemCount = state.messages.length +
-        (showThinking ? 1 : 0) +
-        (state.currentResponse.isNotEmpty ? 1 : 0);
+    final itemCount = state.messages.length + (showThinking ? 1 : 0) + (state.currentResponse.isNotEmpty ? 1 : 0);
 
     return ListView.builder(
       controller: _scrollController,
-      padding: const EdgeInsets.all(AppTokens.spaceMD),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
       itemCount: itemCount,
       itemBuilder: (context, index) {
         if (index == state.messages.length && showThinking) {
-          return _buildThinkingBubble(isDark);
+          return _ThinkingBubble(tone: state.agentConfig.tone);
         }
         if (index == state.messages.length + (showThinking ? 1 : 0) && state.currentResponse.isNotEmpty) {
-          return _buildMessageBubble(
-            ChatMessage(role: ChatMessageRole.assistant, content: state.currentResponse),
-            isDark,
+          return _MessageBubble(
+            message: ChatMessage(role: ChatMessageRole.assistant, content: state.currentResponse),
+            tone: state.agentConfig.tone,
             isStreaming: true,
           );
         }
-        return _buildMessageBubble(state.messages[index], isDark);
+        return _MessageBubble(message: state.messages[index], tone: state.agentConfig.tone);
       },
     );
   }
 
-  Widget _buildEmptyState(ChatState state, bool isDark) {
+  Widget _buildEmptyState(ChatState state) {
     final config = state.agentConfig;
+    final c = context.colors;
+    final t = Theme.of(context).textTheme;
+    final count = state.conversations.length;
     return Center(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppTokens.spaceXL),
+        padding: const EdgeInsets.fromLTRB(32, 24, 32, 24),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(config.icon, size: 64, color: config.color.withValues(alpha: 0.5)),
-            const SizedBox(height: AppTokens.spaceLG),
+            ExcludeSemantics(child: Icon(config.icon, size: 40, color: agentColor(context, config.tone))),
+            const SizedBox(height: 12),
+            Text(config.description, textAlign: TextAlign.center, style: t.bodyLarge?.copyWith(color: c.ink)),
+            const SizedBox(height: 16),
             Text(
-              config.label,
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: AppTokens.spaceSM),
-            Text(
-              config.description,
+              _hintForAgent(state.activeAgent),
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey),
+              style: t.bodyMedium?.copyWith(color: c.textMuted),
             ),
-            const SizedBox(height: AppTokens.spaceXL),
-            if (state.isEphemeral)
-              Text(
-                'Los mensajes no se guardan.',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade400, fontStyle: FontStyle.italic),
-              )
-            else ...[
-              if (state.conversations.isNotEmpty) ...[
-                Text(
-                  '${state.conversations.length} conversación${state.conversations.length > 1 ? 'es' : ''}',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
-                ),
-                const SizedBox(height: AppTokens.spaceSM),
-              ],
-              Text(
-                _getHintForAgent(state.activeAgent),
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey),
+            if (!state.isEphemeral && count > 0) ...[
+              const SizedBox(height: 16),
+              TextButton.icon(
+                onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+                icon: const Icon(CupertinoIcons.list_bullet, size: 18),
+                label: Text(count == 1 ? 'Ver 1 conversación' : 'Ver $count conversaciones'),
               ),
             ],
           ],
@@ -277,314 +241,395 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with SingleTickerProvid
     );
   }
 
-  String _getHintForAgent(ChatAgent agent) {
+  String _hintForAgent(ChatAgent agent) {
     switch (agent) {
       case ChatAgent.financialAdvisor:
-        return 'Preguntame sobre tus gastos, deudas, o pedime un análisis.\n\n'
-            'Ej: "¿Cómo van mis finanzas este mes?"\n'
+        return 'Preguntame sobre tus gastos y deudas, o pedime un análisis.\n\n'
+            '"¿Cómo van mis finanzas este mes?"\n'
             '"¿Cuánto gasté en enero?"\n'
-            '"Compará mis gastos de enero vs febrero"';
+            '"Compará enero con febrero"';
       case ChatAgent.appAssistant:
-        return 'Ayudarte a registrar datos en la app.\n\n'
-            'Ej: "Hice una compra de 50 mil en el super"\n'
+        return 'Contame qué pagaste y lo registro por vos.\n\n'
+            '"Gasté 50 mil en el súper"\n'
             '"Registrá un pago de 200 mil a la deuda del celular"\n'
             '"Pagué la tarjeta Visa"';
       case ChatAgent.ephemeralChat:
-        return 'Chat rápido sin persistencia.\n\n'
-            'Ej: "¿Qué es el interés compuesto?"\n'
-            '"Dame tips para ahorrar"';
+        return 'Preguntas rápidas, sin tus datos. Los mensajes no se guardan.\n\n'
+            '"¿Qué es el interés compuesto?"\n'
+            '"Dame ideas para ahorrar"';
     }
   }
 
-  Widget _buildThinkingBubble(bool isDark) {
-    final agentConfig = ref.read(chatProvider).agentConfig;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceXS),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          CircleAvatar(
-            radius: 14,
-            backgroundColor: agentConfig.color.withValues(alpha: 0.2),
-            child: Icon(agentConfig.icon, size: 16, color: agentConfig.color),
-          ),
-          const SizedBox(width: AppTokens.spaceSM),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceLG, vertical: AppTokens.spaceMD),
-            decoration: BoxDecoration(
-              color: isDark ? AppThemeColors.surfaceDark : Colors.white,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(AppTokens.radiusLG),
-                topRight: Radius.circular(AppTokens.radiusLG),
-                bottomRight: Radius.circular(AppTokens.radiusLG),
-              ),
-              boxShadow: isDark
-                  ? null
-                  : [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4, offset: const Offset(0, 2))],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: agentConfig.color,
-                  ),
-                ),
-                const SizedBox(width: AppTokens.spaceSM),
-                Text(
-                  'Pensando...',
-                  style: TextStyle(
-                    color: Colors.grey.shade500,
-                    fontSize: 13,
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMessageBubble(ChatMessage message, bool isDark, {bool isStreaming = false}) {
-    final isUser = message.role == ChatMessageRole.user;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppTokens.spaceXS),
-      child: Row(
-        mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          if (!isUser) ...[
-            CircleAvatar(
-              radius: 14,
-              backgroundColor: ref.read(chatProvider).agentConfig.color.withValues(alpha: 0.2),
-              child: Icon(ref.read(chatProvider).agentConfig.icon, size: 16, color: ref.read(chatProvider).agentConfig.color),
-            ),
-            const SizedBox(width: AppTokens.spaceSM),
-          ],
-          Flexible(
-            child: GestureDetector(
-              onLongPress: isUser
-                  ? null
-                  : () {
-                      Clipboard.setData(ClipboardData(text: message.content));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Mensaje copiado'),
-                          duration: Duration(seconds: 1),
-                        ),
-                      );
-                    },
-              child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceLG, vertical: AppTokens.spaceMD),
-              decoration: BoxDecoration(
-                color: isUser
-                    ? (isDark ? AppThemeColors.primaryGreenDark : AppThemeColors.primaryGreen)
-                    : (isDark ? AppThemeColors.surfaceDark : Colors.white),
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(AppTokens.radiusLG),
-                  topRight: const Radius.circular(AppTokens.radiusLG),
-                  bottomLeft: isUser ? const Radius.circular(AppTokens.radiusLG) : Radius.zero,
-                  bottomRight: isUser ? Radius.zero : const Radius.circular(AppTokens.radiusLG),
-                ),
-                boxShadow: isDark
-                    ? null
-                    : [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4, offset: const Offset(0, 2))],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (isUser)
-                    Text(
-                      message.content,
-                      style: TextStyle(
-                        color: isUser ? Colors.white : (isDark ? Colors.white : Colors.black87),
-                        fontSize: 14,
-                        height: 1.4,
-                      ),
-                    )
-                  else
-                    MarkdownBody(
-                      data: message.content,
-                      styleSheet: MarkdownStyleSheet(
-                        p: TextStyle(
-                          color: isDark ? Colors.white : Colors.black87,
-                          fontSize: 14,
-                          height: 1.4,
-                        ),
-                        strong: TextStyle(
-                          color: isDark ? Colors.white : Colors.black87,
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        code: TextStyle(
-                          backgroundColor: isDark ? Colors.white12 : Colors.grey.shade100,
-                          fontSize: 13,
-                          color: ref.read(chatProvider).agentConfig.color,
-                        ),
-                        codeblockDecoration: BoxDecoration(
-                          color: isDark ? Colors.white12 : Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        blockquoteDecoration: BoxDecoration(
-                          border: Border(left: BorderSide(color: ref.read(chatProvider).agentConfig.color, width: 3)),
-                        ),
-                      ),
-                    ),
-                  if (isStreaming)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: SizedBox(
-                        width: 12,
-                        height: 12,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: isUser ? Colors.white70 : ref.read(chatProvider).agentConfig.color,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            ),
-          ),
-          if (isUser) const SizedBox(width: AppTokens.spaceSM),
-        ],
-      ),
-    );
-  }
-
   Widget _buildActionPrompt(ActionRequired action) {
+    final c = context.colors;
+    final t = Theme.of(context).textTheme;
     return Container(
-      padding: const EdgeInsets.all(AppTokens.spaceLG),
+      constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.35),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        border: Border(top: BorderSide(color: Colors.grey.shade200)),
+        color: c.surface,
+        border: Border(top: BorderSide(color: c.divider, width: 0.5)),
       ),
       child: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(action.prompt, style: Theme.of(context).textTheme.bodyMedium),
-            const SizedBox(height: AppTokens.spaceMD),
+            Text(action.prompt, style: t.bodyMedium?.copyWith(color: c.ink)),
+            const SizedBox(height: 10),
             Wrap(
-              spacing: AppTokens.spaceSM,
-              runSpacing: AppTokens.spaceSM,
-              children: action.options.map((opt) {
-                return ActionChip(
-                  label: Text(opt.label, style: const TextStyle(fontSize: 13)),
-                  onPressed: () => _resolveAction(opt.value),
-                  backgroundColor: AppThemeColors.primaryGreen.withValues(alpha: 0.1),
-                side: BorderSide(color: AppThemeColors.primaryGreen.withValues(alpha: 0.3)),
-              );
-            }).toList(),
-          ),
-        ],
-       ),
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final opt in action.options)
+                  ActionChip(
+                    label: Text(opt.label),
+                    labelStyle: t.labelLarge?.copyWith(color: c.ink),
+                    onPressed: () => ref.read(chatProvider.notifier).resolveAction(opt.value),
+                    backgroundColor: c.accentSoft,
+                    side: BorderSide(color: c.divider, width: 0.5),
+                    materialTapTargetSize: MaterialTapTargetSize.padded,
+                  ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildInputBar(ChatState state, ChatAgentConfig agentConfig) {
-    final isLoading = state.status == ChatStatus.loading || state.status == ChatStatus.streaming;
+  Widget _buildInputBar(ChatState state) {
+    final isBusy = state.status == ChatStatus.loading || state.status == ChatStatus.streaming;
+    final canSend = !isBusy && _textController.text.trim().isNotEmpty;
+    final c = context.colors;
+    final t = Theme.of(context).textTheme;
     return Container(
-      padding: const EdgeInsets.fromLTRB(AppTokens.spaceMD, AppTokens.spaceSM, AppTokens.spaceSM, AppTokens.spaceMD),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        border: Border(top: BorderSide(color: Colors.grey.shade200)),
+        color: c.canvas,
+        border: Border(top: BorderSide(color: c.divider, width: 0.5)),
       ),
-      child: Row(
-        children: [
-          if (!state.isEphemeral)
-            Padding(
-              padding: const EdgeInsets.only(right: AppTokens.spaceSM),
-              child: IconButton(
-                icon: const Icon(Icons.menu_rounded, size: 22),
-                onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-                tooltip: 'Conversaciones',
-              ),
-            ),
-          Expanded(
-            child: TextField(
-              controller: _textController,
-              enabled: !isLoading,
-              decoration: InputDecoration(
-                hintText: _getHintForInput(state.activeAgent),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppTokens.radiusLG),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(4, 6, 6, 6),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              if (!state.isEphemeral)
+                IconButton(
+                  icon: Icon(CupertinoIcons.list_bullet, color: c.accent),
+                  onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+                  tooltip: 'Conversaciones',
+                )
+              else
+                const SizedBox(width: 8),
+              Expanded(
+                child: TextField(
+                  controller: _textController,
+                  enabled: !isBusy,
+                  style: t.bodyLarge?.copyWith(color: c.ink),
+                  decoration: InputDecoration(
+                    hintText: _hintForInput(state.activeAgent),
+                    hintStyle: t.bodyLarge?.copyWith(color: c.textMuted),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(20)),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: BorderSide(color: c.divider),
+                    ),
+                    disabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: BorderSide(color: c.divider),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: BorderSide(color: c.accent, width: 1.5),
+                    ),
+                  ),
+                  maxLines: 5,
+                  minLines: 1,
+                  textCapitalization: TextCapitalization.sentences,
+                  textInputAction: TextInputAction.send,
+                  onSubmitted: (_) => _sendMessage(),
                 ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceLG, vertical: AppTokens.spaceSM),
-                isDense: true,
               ),
-              maxLines: 3,
-              minLines: 1,
-              textInputAction: TextInputAction.send,
-              onSubmitted: (_) => _sendMessage(),
-            ),
+              const SizedBox(width: 4),
+              SizedBox(
+                width: 44,
+                height: 44,
+                child: Center(
+                  child: isBusy
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator.adaptive(strokeWidth: 2))
+                      : Semantics(
+                          button: true,
+                          enabled: canSend,
+                          label: 'Enviar',
+                          child: GestureDetector(
+                            onTap: canSend ? _sendMessage : null,
+                            behavior: HitTestBehavior.opaque,
+                            child: SizedBox(
+                              width: 44,
+                              height: 44,
+                              child: Center(
+                                child: Container(
+                                  width: 32,
+                                  height: 32,
+                                  decoration: BoxDecoration(
+                                    color: canSend ? c.accent : c.track,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    CupertinoIcons.arrow_up,
+                                    size: 18,
+                                    color: canSend ? c.onAccent : c.textMuted,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: AppTokens.spaceSM),
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [agentConfig.color, agentConfig.color.withValues(alpha: 0.7)],
-              ),
-              shape: BoxShape.circle,
-            ),
-            child: IconButton(
-              icon: isLoading
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                    )
-                  : const Icon(Icons.arrow_upward, color: Colors.white),
-              onPressed: isLoading ? null : _sendMessage,
-              style: IconButton.styleFrom(
-                foregroundColor: Colors.white,
-                backgroundColor: Colors.transparent,
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  String _getHintForInput(ChatAgent agent) {
+  String _hintForInput(ChatAgent agent) {
     switch (agent) {
       case ChatAgent.financialAdvisor:
-        return 'Preguntá sobre tus finanzas...';
+        return 'Preguntá sobre tus finanzas';
       case ChatAgent.appAssistant:
-        return 'Registrá algo o consultá datos...';
+        return 'Registrá algo o consultá datos';
       case ChatAgent.ephemeralChat:
-        return 'Escribí rápido...';
+        return 'Escribí tu pregunta';
     }
   }
 
-  void _showDeleteConversationDialog(ChatState state) {
-    showDialog(
+  Future<void> _confirmDeleteConversation(ChatState state) async {
+    final convo = state.activeConversation;
+    if (convo == null) return;
+    final platform = Theme.of(context).platform;
+    final isCupertino = platform == TargetPlatform.iOS || platform == TargetPlatform.macOS;
+    final ok = await showAdaptiveDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Eliminar conversación'),
-        content: const Text('¿Seguro? Esta acción no se puede deshacer.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              if (state.activeConversation != null) {
-                ref.read(chatProvider.notifier).deleteConversation(state.activeConversation!);
-              }
-            },
-            style: FilledButton.styleFrom(backgroundColor: AppThemeColors.errorRed),
-            child: const Text('Eliminar'),
+      builder: (ctx) => AlertDialog.adaptive(
+        title: const Text('¿Eliminar esta conversación?'),
+        content: const Text('Se borran todos sus mensajes. No se puede deshacer.'),
+        actions: isCupertino
+            ? [
+                CupertinoDialogAction(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+                CupertinoDialogAction(
+                  isDestructiveAction: true,
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Eliminar'),
+                ),
+              ]
+            : [
+                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  style: TextButton.styleFrom(foregroundColor: context.colors.danger),
+                  child: const Text('Eliminar'),
+                ),
+              ],
+      ),
+    );
+    if (ok == true) await ref.read(chatProvider.notifier).deleteConversation(convo);
+  }
+}
+
+/// Selector de agente: control segmentado nativo bajo la barra.
+class _AgentPicker extends StatelessWidget {
+  const _AgentPicker({required this.selected, required this.onChanged});
+
+  final ChatAgent selected;
+  final ValueChanged<ChatAgent> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+      child: SizedBox(
+        width: double.infinity,
+        child: CupertinoSlidingSegmentedControl<ChatAgent>(
+          groupValue: selected,
+          backgroundColor: c.track,
+          thumbColor: c.surface,
+          children: {
+            for (final agent in ChatAgent.values)
+              agent: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text(
+                  ChatAgentConfigs.forAgent(agent).label,
+                  style: TextStyle(color: c.ink, fontWeight: agent == selected ? FontWeight.w600 : FontWeight.w500),
+                ),
+              ),
+          },
+          onValueChanged: (agent) {
+            if (agent != null) onChanged(agent);
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _ChatErrorBar extends StatelessWidget {
+  const _ChatErrorBar({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Semantics(
+      liveRegion: true,
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+        padding: const EdgeInsets.fromLTRB(14, 4, 4, 4),
+        decoration: BoxDecoration(color: c.dangerSoft, borderRadius: BorderRadius.circular(12)),
+        child: Row(
+          children: [
+            Icon(CupertinoIcons.exclamationmark_circle, size: 18, color: c.danger),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(message, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: c.danger)),
+            ),
+            TextButton(
+              onPressed: onRetry,
+              style: TextButton.styleFrom(minimumSize: const Size(44, 44), foregroundColor: c.danger),
+              child: const Text('Reintentar'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ThinkingBubble extends StatelessWidget {
+  const _ThinkingBubble({required this.tone});
+
+  final AgentTone tone;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Semantics(
+        liveRegion: true,
+        label: 'Pensando',
+        child: Container(
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(color: c.surface, borderRadius: _bubbleRadius(isUser: false)),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(strokeWidth: 2, color: agentColor(context, tone)),
+              ),
+              const SizedBox(width: 8),
+              Text('Pensando…', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: c.textMuted)),
+            ],
           ),
-        ],
+        ),
+      ),
+    );
+  }
+}
+
+BorderRadius _bubbleRadius({required bool isUser}) => BorderRadius.only(
+      topLeft: const Radius.circular(18),
+      topRight: const Radius.circular(18),
+      bottomLeft: Radius.circular(isUser ? 18 : 6),
+      bottomRight: Radius.circular(isUser ? 6 : 18),
+    );
+
+class _MessageBubble extends StatelessWidget {
+  const _MessageBubble({required this.message, required this.tone, this.isStreaming = false});
+
+  final ChatMessage message;
+  final AgentTone tone;
+  final bool isStreaming;
+
+  @override
+  Widget build(BuildContext context) {
+    final isUser = message.role == ChatMessageRole.user;
+    final c = context.colors;
+    final t = Theme.of(context).textTheme;
+    final toneColor = agentColor(context, tone);
+    final body = t.bodyLarge?.copyWith(color: isUser ? c.onAccent : c.ink, height: 1.4);
+    return Align(
+      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * (isUser ? 0.78 : 0.88)),
+        child: GestureDetector(
+          onLongPress: isUser
+              ? null
+              : () {
+                  Clipboard.setData(ClipboardData(text: message.content));
+                  HapticFeedback.selectionClick();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Mensaje copiado'), duration: Duration(seconds: 1)),
+                  );
+                },
+          child: Container(
+            margin: const EdgeInsets.symmetric(vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: isUser ? c.accent : c.surface,
+              borderRadius: _bubbleRadius(isUser: isUser),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (isUser)
+                  Text(message.content, style: body)
+                else
+                  MarkdownBody(
+                    data: message.content,
+                    styleSheet: MarkdownStyleSheet(
+                      p: body,
+                      listBullet: body,
+                      strong: body?.copyWith(fontWeight: FontWeight.w700),
+                      h1: t.titleLarge?.copyWith(color: c.ink),
+                      h2: t.titleMedium?.copyWith(color: c.ink),
+                      h3: t.titleSmall?.copyWith(color: c.ink),
+                      tableBody: t.bodyMedium?.copyWith(color: c.ink, fontFeatures: kTabularFigures),
+                      tableHead: t.bodyMedium?.copyWith(color: c.ink, fontWeight: FontWeight.w600),
+                      code: t.bodyMedium?.copyWith(backgroundColor: c.track, color: toneColor),
+                      codeblockDecoration: BoxDecoration(color: c.track, borderRadius: BorderRadius.circular(8)),
+                      blockquote: body?.copyWith(color: c.textMuted),
+                      blockquoteDecoration: BoxDecoration(
+                        color: c.track,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                if (isStreaming)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: toneColor),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

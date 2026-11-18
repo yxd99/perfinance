@@ -1,0 +1,160 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-17T00:00:00Z",
+  "title": "Design System: PerFinance",
+  "extensions": {
+    "colorMeta": {
+      "accent": { "role": "primary", "displayName": "50.000 Purple", "canonical": "#5B3A7A", "darkCounterpart": "dark-accent", "tonalRamp": ["#22142f", "#331f47", "#432a5c", "#5b3a7a", "#7a5a99", "#9c80b8", "#c7a6e8", "#ece4f2"] },
+      "accent-soft": { "role": "primary", "displayName": "Purple Wash", "canonical": "#ECE4F2", "darkCounterpart": "dark-accent-soft" },
+      "canvas": { "role": "neutral", "displayName": "Banknote Paper", "canonical": "#F4EFE3", "darkCounterpart": "dark-canvas", "tonalRamp": ["#14120f", "#221e19", "#38322a", "#5e574c", "#a89f8f", "#dcd3c1", "#e6decd", "#f4efe3"] },
+      "surface": { "role": "neutral", "displayName": "Clean Paper", "canonical": "#FBF8F1", "darkCounterpart": "dark-surface" },
+      "ink": { "role": "neutral", "displayName": "Ink", "canonical": "#1E1B18", "darkCounterpart": "dark-ink" },
+      "text-muted": { "role": "neutral", "displayName": "Faded Ink", "canonical": "#5E574C", "darkCounterpart": "dark-text-muted" },
+      "divider": { "role": "neutral", "displayName": "Fold Line", "canonical": "#DCD3C1", "darkCounterpart": "dark-divider" },
+      "track": { "role": "neutral", "displayName": "Track", "canonical": "#E6DECD", "darkCounterpart": "dark-track" },
+      "positive": { "role": "state", "displayName": "Positive", "canonical": "#18784A", "darkCounterpart": "dark-positive" },
+      "warning": { "role": "state", "displayName": "Warning", "canonical": "#8A5300", "darkCounterpart": "dark-warning" },
+      "danger": { "role": "state", "displayName": "Danger", "canonical": "#C53030", "darkCounterpart": "dark-danger" },
+      "info": { "role": "state", "displayName": "Info", "canonical": "#1F5F99", "darkCounterpart": "dark-info" },
+      "hero-start": { "role": "signature", "displayName": "Month Note (start)", "canonical": "#5B3A7A", "note": "Same in both themes; gradient top-left to bottom-right into hero-end." },
+      "hero-end": { "role": "signature", "displayName": "Month Note (end)", "canonical": "#432A5C" },
+      "note-100k-green": { "role": "identity", "displayName": "100.000 Green", "canonical": "#2F6B4F", "darkCounterpart": "dark-note-100k-green" },
+      "note-20k-blue": { "role": "identity", "displayName": "20.000 Blue", "canonical": "#2C5A8C", "darkCounterpart": "dark-note-20k-blue" },
+      "note-2k-orange": { "role": "identity", "displayName": "2.000 Orange", "canonical": "#A85A1C", "darkCounterpart": "dark-note-2k-orange" },
+      "note-5k-brown": { "role": "identity", "displayName": "5.000 Brown", "canonical": "#7A4A2E", "darkCounterpart": "dark-note-5k-brown" },
+      "note-10k-rose": { "role": "identity", "displayName": "10.000 Rose", "canonical": "#8A3B6E", "darkCounterpart": "dark-note-10k-rose" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Month amount on the note and the amount being typed; tabular, weight 800." },
+      "headline-large": { "displayName": "Headline Large", "purpose": "Month large title on Mes." },
+      "headline": { "displayName": "Headline", "purpose": "Day number inside the pace ring." },
+      "headline-small": { "displayName": "Headline Small", "purpose": "Large totals such as Deuda total." },
+      "title": { "displayName": "Title", "purpose": "Sheet titles." },
+      "title-small": { "displayName": "Title Small", "purpose": "Row amounts (700, tabular) and day-group headings." },
+      "body": { "displayName": "Body", "purpose": "Row names and running text." },
+      "body-small": { "displayName": "Body Small", "purpose": "Row status lines, pace sentence, errors." },
+      "label": { "displayName": "Label", "purpose": "Field labels and the note label." },
+      "label-small": { "displayName": "Label Small", "purpose": "Tab labels, ring caption, Wallet marker; 11pt floor." }
+    },
+    "shadows": [
+      { "name": "lift", "value": "0 3px 10px rgba(30,27,24,0.08)", "darkValue": "0 3px 10px rgba(0,0,0,0.30)", "purpose": "Only under the raised + in the tab bar." }
+    ],
+    "motion": [
+      { "name": "pace-ring-fill", "value": "900ms cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "One-time fill of the pace ring arc on first build (Curves.easeOutExpo). Reduce Motion: rendered filled, no animation." },
+      { "name": "page-transition-ios", "value": "CupertinoPageTransitionsBuilder", "purpose": "Native push on iOS; fade-upwards on Android." },
+      { "name": "theme-switch", "value": "snap (lerp at t=0.5)", "purpose": "AppColors does not interpolate between themes." }
+    ],
+    "breakpoints": [
+      { "name": "phone", "value": "single column; 20pt gutter on Mes, 16pt elsewhere" }
+    ],
+    "contrast": [
+      { "pair": "ink / canvas", "ratio": 14.94 },
+      { "pair": "text-muted / canvas", "ratio": 6.22 },
+      { "pair": "accent / canvas", "ratio": 7.85 },
+      { "pair": "on-hero / hero-start", "ratio": 9.01 },
+      { "pair": "danger / surface", "ratio": 5.16 },
+      { "pair": "warning / warning-soft", "ratio": 5.67 },
+      { "pair": "note-2k-orange / surface", "ratio": 4.78 },
+      { "pair": "dark-ink / dark-canvas", "ratio": 15.04 },
+      { "pair": "dark-accent / dark-canvas", "ratio": 8.95 },
+      { "pair": "dark-on-accent / dark-accent", "ratio": 8.22 },
+      { "pair": "dark-danger / dark-surface", "ratio": 6.6 }
+    ],
+    "notYetInSystem": ["logo (keep or redraw undecided)", "credit-card history filter uses Material filter chips"]
+  },
+  "components": [
+    {
+      "name": "Month Note",
+      "kind": "custom",
+      "refersTo": "month-note",
+      "description": "The 50.000 note: spend-to-date at display scale, pace sentence, guilloché and the pace ring.",
+      "html": "<div class=\"ds-note\" role=\"img\" aria-label=\"Gastado este mes: $896.900. 11% más que a esta altura de octubre. Día 17 de 30.\"><div class=\"ds-note-left\"><span class=\"ds-note-label\">Gastado este mes</span><span class=\"ds-note-amount\">$896.900</span><span class=\"ds-note-pace\">11% más que a esta altura de octubre</span></div><div class=\"ds-note-ring\"><svg viewBox=\"0 0 132 132\" width=\"132\" height=\"132\"><circle cx=\"66\" cy=\"66\" r=\"52\" fill=\"none\" stroke=\"rgba(255,255,255,0.2)\" stroke-width=\"0.7\"/><circle cx=\"66\" cy=\"66\" r=\"66\" fill=\"none\" stroke=\"rgba(255,255,255,0.2)\" stroke-width=\"0.7\" transform=\"scale(0.985) translate(1 1)\"/><circle class=\"ds-note-arc\" cx=\"66\" cy=\"66\" r=\"59\" fill=\"none\" stroke=\"#fff\" stroke-width=\"5\" stroke-linecap=\"round\" stroke-dasharray=\"260 371\" transform=\"rotate(-90 66 66)\"/></svg><div class=\"ds-note-day\"><b>17</b><small>de 30 días</small></div></div></div>",
+      "css": ".ds-note { display: flex; align-items: center; gap: 12px; padding: 20px; border-radius: 14px; color: #fff; background: repeating-radial-gradient(circle at calc(100% - 86px) 50%, transparent 0 6.4px, rgba(255,255,255,0.2) 6.4px 7px), linear-gradient(135deg, #5B3A7A, #432A5C); font-family: -apple-system, system-ui, sans-serif; } .ds-note-left { flex: 1; display: flex; flex-direction: column; } .ds-note-label { font-size: 14px; font-weight: 600; color: rgba(255,255,255,0.9); margin-bottom: 64px; } .ds-note-amount { font-size: 36px; font-weight: 800; letter-spacing: -1px; font-variant-numeric: tabular-nums; } .ds-note-pace { font-size: 12px; color: rgba(255,255,255,0.9); margin-top: 6px; } .ds-note-ring { position: relative; width: 132px; height: 132px; border-radius: 50%; background: #4f3369; } .ds-note-ring svg { position: absolute; inset: 0; } .ds-note-day { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; } .ds-note-day b { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; } .ds-note-day small { font-size: 11px; color: rgba(255,255,255,0.9); } .ds-note-arc { animation: ds-fill 900ms cubic-bezier(0.16,1,0.3,1); } @keyframes ds-fill { from { stroke-dasharray: 0 371; } } @media (prefers-reduced-motion: reduce) { .ds-note-arc { animation: none; } }"
+    },
+    {
+      "name": "Tab Bar with Add",
+      "kind": "nav",
+      "refersTo": "tab-item-selected",
+      "description": "Mes · Egresos · + · Deudas · Más; raised accent circle for logging an expense.",
+      "html": "<nav class=\"ds-tabs\"><button class=\"ds-tab is-on\" aria-current=\"page\"><svg width=\"26\" height=\"26\" viewBox=\"0 0 24 24\"><path d=\"M12 2a10 10 0 1 0 10 10H12z\" fill=\"currentColor\"/></svg><span>Mes</span></button><button class=\"ds-tab\"><svg width=\"26\" height=\"26\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\"><rect x=\"4\" y=\"4\" width=\"16\" height=\"16\" rx=\"3\"/><path d=\"M8 9h8M8 12h8M8 15h8\"/></svg><span>Egresos</span></button><button class=\"ds-add\" aria-label=\"Registrar egreso\"><svg width=\"26\" height=\"26\" viewBox=\"0 0 24 24\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M12 5v14M5 12h14\"/></svg></button><button class=\"ds-tab\"><svg width=\"26\" height=\"26\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 7v10M14.5 9.5c0-1-1-1.8-2.5-1.8s-2.5.8-2.5 1.8 1 1.6 2.5 1.9 2.5.9 2.5 2-1 1.8-2.5 1.8-2.5-.8-2.5-1.8\"/></svg><span>Deudas</span></button><button class=\"ds-tab\"><svg width=\"26\" height=\"26\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><circle cx=\"8\" cy=\"12\" r=\"1\" fill=\"currentColor\"/><circle cx=\"12\" cy=\"12\" r=\"1\" fill=\"currentColor\"/><circle cx=\"16\" cy=\"12\" r=\"1\" fill=\"currentColor\"/></svg><span>Más</span></button></nav>",
+      "css": ".ds-tabs { display: flex; height: 56px; background: #F4EFE3; border-top: 0.5px solid #DCD3C1; font-family: -apple-system, system-ui, sans-serif; } .ds-tab { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 0; background: none; color: #5E574C; font-size: 11px; font-weight: 500; } .ds-tab.is-on { color: #5B3A7A; font-weight: 600; } .ds-tab:focus-visible, .ds-add:focus-visible { outline: 2px solid #5B3A7A; outline-offset: 2px; } .ds-add { flex: none; margin: 0 auto; width: 52px; height: 52px; border-radius: 50%; border: 0; background: #5B3A7A; color: #fff; transform: translateY(-6px); box-shadow: 0 3px 10px rgba(30,27,24,0.08); display: grid; place-items: center; } .ds-add:active { transform: translateY(-6px) scale(0.96); }"
+    },
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Filled accent action, e.g. Guardar egreso.",
+      "html": "<button class=\"ds-btn-primary\">Guardar egreso</button>",
+      "css": ".ds-btn-primary { min-height: 48px; padding: 14px 24px; border: 0; border-radius: 12px; background: #5B3A7A; color: #fff; font: 600 14px -apple-system, system-ui, sans-serif; width: 100%; } .ds-btn-primary:active { background: #432A5C; } .ds-btn-primary:focus-visible { outline: 2px solid #5B3A7A; outline-offset: 2px; }"
+    },
+    {
+      "name": "Account Row Group",
+      "kind": "card",
+      "refersTo": "account-row",
+      "description": "Inset grouped list with note-hue chip, name, one status line and tabular amount.",
+      "html": "<div class=\"ds-group\"><div class=\"ds-row\"><span class=\"ds-chip\" style=\"background:#2F6B4F\"></span><span class=\"ds-row-text\"><span class=\"ds-row-name\">Débito Nequi</span><span class=\"ds-row-status\">3 egresos</span></span><span class=\"ds-row-amt\">$320.900</span></div><div class=\"ds-row\"><span class=\"ds-chip\" style=\"background:#A85A1C\"></span><span class=\"ds-row-text\"><span class=\"ds-row-name\">Mastercard Davivienda</span><span class=\"ds-row-status\">3 egresos</span></span><span class=\"ds-row-amt\">$284.600</span></div></div>",
+      "css": ".ds-group { background: #FBF8F1; border-radius: 12px; overflow: hidden; font-family: -apple-system, system-ui, sans-serif; } .ds-row { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 10px 16px; color: #1E1B18; } .ds-row + .ds-row { box-shadow: inset 16px 0.5px 0 0 #FBF8F1, inset 0 0.5px 0 0 #DCD3C1; } .ds-row:active { background: #E6DECD; } .ds-chip { width: 34px; height: 22px; border-radius: 4px; flex: none; } .ds-row-text { flex: 1; display: flex; flex-direction: column; } .ds-row-name { font-size: 16px; } .ds-row-status { font-size: 12px; color: #5E574C; } .ds-row-amt { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }"
+    },
+    {
+      "name": "Account Choice Chip",
+      "kind": "chip",
+      "refersTo": "account-filter-chip",
+      "description": "Account choice in the expense sheet and filters, with a mini note chip.",
+      "html": "<button class=\"ds-pick\"><span class=\"ds-mini\" style=\"background:#2C5A8C\"></span>Visa Bancolombia</button><button class=\"ds-pick is-on\" aria-pressed=\"true\"><span class=\"ds-mini\" style=\"background:#8A3B6E\"></span>Efectivo</button>",
+      "css": ".ds-pick { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px; margin: 4px; border: 1px solid #DCD3C1; border-radius: 8px; background: #FBF8F1; color: #1E1B18; font: 400 14px -apple-system, system-ui, sans-serif; } .ds-pick.is-on { background: #ECE4F2; border-color: #5B3A7A; } .ds-pick:focus-visible { outline: 2px solid #5B3A7A; outline-offset: 2px; } .ds-mini { width: 22px; height: 14px; border-radius: 3px; }"
+    },
+    {
+      "name": "Amount and Text Field",
+      "kind": "input",
+      "refersTo": "input-field",
+      "description": "Display-scale amount entry and a filled text field.",
+      "html": "<label class=\"ds-lbl\">Monto</label><div class=\"ds-amount\"><span>$</span><input inputmode=\"numeric\" placeholder=\"0\"></div><input class=\"ds-field\" placeholder=\"Descripción\">",
+      "css": ".ds-lbl { display: block; font: 600 14px -apple-system, system-ui, sans-serif; color: #5E574C; } .ds-amount { display: flex; align-items: baseline; gap: 4px; font: 800 36px -apple-system, system-ui, sans-serif; letter-spacing: -1px; } .ds-amount span { color: #5E574C; } .ds-amount input { border: 0; background: none; font: inherit; color: #1E1B18; font-variant-numeric: tabular-nums; width: 100%; outline: none; } .ds-amount input::placeholder { color: #5E574C; font-weight: 300; } .ds-field { width: 100%; margin-top: 20px; padding: 14px 16px; border-radius: 12px; border: 1px solid #DCD3C1; background: #FBF8F1; color: #1E1B18; font: 400 16px -apple-system, system-ui, sans-serif; } .ds-field:focus-visible { outline: none; border: 2px solid #5B3A7A; padding: 13px 15px; }"
+    },
+    {
+      "name": "Attention Row",
+      "kind": "custom",
+      "refersTo": "attention-row",
+      "description": "Warning-soft row for cut-off days and overdue items.",
+      "html": "<button class=\"ds-attn\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#8A5300\" stroke-width=\"2\"><path d=\"M12 3 2 20h20z\"/><path d=\"M12 10v4M12 17v.5\"/></svg><span class=\"ds-attn-text\"><b>Corte de Visa Bancolombia en 2 días</b><small>Pagá antes del 20</small></span><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#8A5300\" stroke-width=\"2\"><path d=\"m9 6 6 6-6 6\"/></svg></button>",
+      "css": ".ds-attn { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 10px 14px; border: 0; border-radius: 12px; background: #FFF1D6; text-align: left; font-family: -apple-system, system-ui, sans-serif; } .ds-attn:active { filter: brightness(0.97); } .ds-attn:focus-visible { outline: 2px solid #5B3A7A; outline-offset: 2px; } .ds-attn-text { flex: 1; display: flex; flex-direction: column; } .ds-attn-text b { font-size: 14px; font-weight: 600; color: #1E1B18; font-variant-numeric: tabular-nums; } .ds-attn-text small { font-size: 12px; color: #8A5300; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Billete",
+    "overview": "The month is a Colombian banknote. The home screen opens on a purple note (the 50.000 peso bill) whose denomination is what has gone out so far this month, with a fine guilloché engraving and a ring that fills with the spending pace. Everything around it is banknote paper: a warm cream ground, near-black ink, and quiet grouped lists in the iOS idiom. The world replaced a generic green fintech look (green hero card, icon-in-circle tiles, scrollable top tabs); none of that vocabulary returns.\n\nIdentity and state are kept apart. Each account (credit card or payment method) wears the hue of a 2016-series note (100.000 green, 20.000 blue, 2.000 orange, 5.000 brown, 10.000 rose) as a small rectangular \"mini bill\". That hue says which account, never how it is doing. State is carried only by the AA-checked positive / warning / danger / info tokens.\n\nThe shell is native iOS: SF Pro through the system text theme so Dynamic Type works, a bottom tab bar with a raised central \"+\", large titles, inset grouped lists, Cupertino segmented controls and sheets. Brand expression lives where the platform leaves room: the note, the tint, the account hues, heavy tabular figures.",
+    "keyCharacteristics": [
+      "Banknote paper canvas (cream in light, ink-brown in dark) with one purple brand tint.",
+      "One signature object per app: the month note with guilloché and the pace ring.",
+      "Account identity through note hues on mini-bill chips, never through state colours.",
+      "Heavy, tabular money figures; everything else is plain SF Pro.",
+      "Flat surfaces with hairline dividers; the only shadow lifts the \"+\"."
+    ],
+    "rules": [
+      { "name": "The Identity Is Not State Rule", "body": "A note hue identifies an account and nothing else. It never signals success, alert or error, and a state colour never identifies an account.", "section": "colors" },
+      { "name": "The One Purple Rule", "body": "Purple is the only brand colour. It marks the month note and interactive affordances; it is not used for decoration or illustration.", "section": "colors" },
+      { "name": "The Roles Only Rule", "body": "Screens read colours from AppColors roles. A raw hex in a feature file is a defect; an identity change touches one file.", "section": "colors" },
+      { "name": "The Tabular Money Rule", "body": "Every amount and every count that sits in a column uses tabular figures (kTabularFigures).", "section": "typography" },
+      { "name": "The Heavy Denomination Rule", "body": "Only money gets weight 700–800. Labels and names never compete with the figure.", "section": "typography" },
+      { "name": "The Paper On Paper Rule", "body": "Grouping is done with a lighter paper and hairlines. A second shadow in the system needs a reason the \"+\" does not already cover.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do read every colour from AppColors roles; add a role before adding a hex.",
+      "Do mark accounts with a note-hue chip in banknote proportion (34×22 on rows, 22×14 inline), assigned by assignHueSlots.",
+      "Do set every amount in tabular figures; month and total amounts at display or headline weight 700–800.",
+      "Do keep the month note as the first thing on Mes, with guilloché only inside it.",
+      "Do render the pace ring static when Reduce Motion is on.",
+      "Do keep tappable targets at 44pt or more (rows 56pt, buttons 48pt).",
+      "Do design and check both appearances; dark mode uses the dark-* tokens, with the month note unchanged.",
+      "Do write UI copy in Spanish with voseo (\"Registrá un egreso\", \"Reactivala\")."
+    ],
+    "donts": [
+      "Don't use a note hue to signal state, or a state colour to identify an account.",
+      "Don't bring back the old fintech vocabulary: green hero card, icons inside tinted circles as tiles, scrollable top tabs.",
+      "Don't add shadows to cards or groups; the \"+\" is the only lifted element.",
+      "Don't spread guilloché or engraving outside the month note.",
+      "Don't hard-code font sizes outside the theme scale; Dynamic Type must keep working.",
+      "Don't introduce a second brand colour or a display typeface for UI chrome."
+    ]
+  }
+}

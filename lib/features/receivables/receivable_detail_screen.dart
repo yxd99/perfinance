@@ -1,19 +1,24 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:perfinance/core/observability/error_reporter.dart';
 import 'package:perfinance/core/theme/app_theme.dart';
-import 'package:perfinance/services/sync_service.dart';
 import 'package:perfinance/core/utils/date_format_utils.dart';
 import 'package:perfinance/core/widgets/currency_input.dart';
+import 'package:perfinance/core/widgets/paid_stamp.dart';
 import 'package:perfinance/data/models/receivable.dart';
 import 'package:perfinance/data/models/receivable_payment.dart';
 import 'package:perfinance/data/repositories/receivable_payment_repository.dart';
 import 'package:perfinance/data/repositories/receivable_repository.dart';
+import 'package:perfinance/features/receivables/receivable_actions.dart';
 import 'package:perfinance/features/receivables/receivable_form_screen.dart';
 import 'package:perfinance/features/receivables/receivable_notification_service.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:perfinance/features/receivables/receivables_provider.dart';
 import 'package:perfinance/features/receivables/register_payment_bottom_sheet.dart';
+import 'package:perfinance/features/receivables/widgets/inset_list_group.dart';
+import 'package:perfinance/services/sync_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ReceivableDetailScreen extends ConsumerStatefulWidget {
   const ReceivableDetailScreen({super.key, required this.receivable});
@@ -59,6 +64,8 @@ class _ReceivableDetailScreenState extends ConsumerState<ReceivableDetailScreen>
 
   @override
   Widget build(BuildContext context) {
+    final c = context.colors;
+    final t = Theme.of(context).textTheme;
     final isActive = _receivable.status == ReceivableStatus.active;
     final isSettled = _receivable.status == ReceivableStatus.settled;
 
@@ -67,96 +74,117 @@ class _ReceivableDetailScreenState extends ConsumerState<ReceivableDetailScreen>
         title: Text(_receivable.debtorName),
         actions: [
           IconButton(
-            icon: const Icon(Icons.edit_outlined),
+            tooltip: 'Editar',
+            icon: const Icon(CupertinoIcons.pencil),
             onPressed: () async {
               await Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (_) => ReceivableFormScreen(editReceivable: _receivable),
-                ),
+                MaterialPageRoute(builder: (_) => ReceivableFormScreen(editReceivable: _receivable)),
               );
               await _reload();
             },
           ),
-          IconButton(
-            icon: const Icon(Icons.delete_outline),
-            onPressed: () => _deleteReceivable(context),
-          ),
+          IconButton(tooltip: 'Eliminar', icon: const Icon(CupertinoIcons.trash), onPressed: _deleteReceivable),
         ],
       ),
       body: FutureBuilder<List<ReceivablePayment>>(
         future: _paymentsFuture,
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(child: CircularProgressIndicator.adaptive());
+          }
+          if (snap.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Text(
+                  'No se pudieron cargar los cobros. Volvé a abrir esta deuda.',
+                  textAlign: TextAlign.center,
+                  style: t.bodyLarge?.copyWith(color: c.textMuted),
+                ),
+              ),
+            );
           }
           final payments = snap.data ?? [];
           final totalPaid = payments.fold<double>(0, (s, p) => s + p.amount);
           final remaining = _receivable.totalAmount - totalPaid;
-          final progress = (_receivable.totalAmount > 0
-                  ? (totalPaid / _receivable.totalAmount).clamp(0.0, 1.0)
-                  : 0.0)
+          final progress = (_receivable.totalAmount > 0 ? (totalPaid / _receivable.totalAmount).clamp(0.0, 1.0) : 0.0)
               .toDouble();
-          final remainingLabel = remaining <= 0 ? 'Cobrado al 100%' : '\$${formatCurrency(remaining)}';
-          final remainingColor = remaining <= 0 ? AppThemeColors.primaryGreen : AppThemeColors.errorRed;
+          final statusLine = switch (_receivable.status) {
+            ReceivableStatus.writtenOff => 'Incobrable. No suma al total por cobrar.',
+            ReceivableStatus.hidden => 'Cancelada. Podés reactivarla cuando quieras.',
+            ReceivableStatus.settled => 'Cobrada en su totalidad. Reactivala para registrar nuevos cobros.',
+            ReceivableStatus.active => null,
+          };
 
           return ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
             children: [
-              if (isSettled)
-                _InfoBanner(
-                  message: 'Esta deuda fue cobrada en su totalidad. Reactivala para registrar nuevos cobros.',
-                  color: AppThemeColors.primaryGreen,
-                ),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'Resumen',
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              InsetListGroup(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    remaining > 0 && isActive ? 'Te falta cobrar' : 'Monto total',
+                                    style: t.labelLarge?.copyWith(color: c.textMuted),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    '\$${formatCurrency(remaining > 0 && isActive ? remaining : _receivable.totalAmount)}',
+                                    style: t.headlineSmall?.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                      fontFeatures: kTabularFigures,
+                                      color: remaining > 0 && isActive ? c.warning : c.ink,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                          _StatusBadge(status: _receivable.status),
+                            if (isSettled) const PaidStamp(label: 'Saldada'),
+                          ],
+                        ),
+                        if (statusLine != null) ...[
+                          const SizedBox(height: 6),
+                          Text(statusLine, style: t.bodySmall?.copyWith(color: c.textMuted)),
                         ],
-                      ),
-                      const SizedBox(height: 16),
-                      _RowLabel('Monto total', '\$${formatCurrency(_receivable.totalAmount)}'),
-                      _RowLabel('Total cobrado', '\$${formatCurrency(totalPaid)}'),
-                      const SizedBox(height: 12),
-                      LinearProgressIndicator(
-                        value: progress,
-                        backgroundColor: Colors.grey[200],
-                        valueColor: AlwaysStoppedAnimation(AppThemeColors.primaryGreen),
-                        minHeight: 8,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            remaining <= 0 ? remainingLabel : 'Falta: $remainingLabel',
-                            style: TextStyle(
-                              color: remainingColor,
-                              fontWeight: FontWeight.w600,
-                            ),
+                        const SizedBox(height: 12),
+                        ExcludeSemantics(
+                          child: LinearProgressIndicator(
+                            value: progress,
+                            backgroundColor: c.track,
+                            valueColor: AlwaysStoppedAnimation(c.accent),
+                            minHeight: 4,
+                            borderRadius: BorderRadius.circular(2),
                           ),
-                          Text('${(progress * 100).round()}%', style: TextStyle(color: Colors.grey[600])),
-                        ],
-                      ),
-                      if (_receivable.debtorEmail != null) ...[
-                        const SizedBox(height: 8),
-                        _RowLabel('Email', _receivable.debtorEmail!),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '${(progress * 100).round()}% cobrado',
+                          style: t.bodySmall?.copyWith(color: c.textMuted, fontFeatures: kTabularFigures),
+                        ),
                       ],
-                    ],
+                    ),
                   ),
-                ),
+                  _ValueRow('Monto total', '\$${formatCurrency(_receivable.totalAmount)}'),
+                  _ValueRow('Total cobrado', '\$${formatCurrency(totalPaid)}'),
+                  if (isActive)
+                    _ValueRow(
+                      'Falta',
+                      remaining <= 0 ? 'Cobrado al 100%' : '\$${formatCurrency(remaining)}',
+                      color: remaining <= 0 ? c.positive : c.warning,
+                    ),
+                  if (_receivable.debtorEmail != null) _ValueRow('Email', _receivable.debtorEmail!, tabular: false),
+                ],
               ),
               const SizedBox(height: 16),
               if (isActive && remaining > 0)
@@ -171,34 +199,38 @@ class _ReceivableDetailScreenState extends ConsumerState<ReceivableDetailScreen>
                           receivable: _receivable,
                           remainingBalance: remaining,
                         );
-                
                         await _reload();
                       },
                       child: const Text('Registrar cobro'),
                     ),
                     const SizedBox(height: 8),
-                    OutlinedButton(
-                      style: OutlinedButton.styleFrom(foregroundColor: AppThemeColors.neutralGrey),
-                      onPressed: () => _cancelReceivable(context),
-                      child: const Text('Cancelar deuda'),
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+                      onPressed: () => _settleInFull(remaining),
+                      icon: const Icon(CupertinoIcons.checkmark_circle, size: 18),
+                      label: Text('Cobrar todo (\$${formatCurrency(remaining)})'),
                     ),
                     if (_receivable.debtorEmail != null && _receivable.debtorEmail!.trim().isNotEmpty) ...[
                       const SizedBox(height: 8),
-                      FilledButton.tonalIcon(
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
                         onPressed: _sendingReminder ? null : _sendReminder,
                         icon: _sendingReminder
                             ? const SizedBox(
                                 width: 16,
                                 height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: AppThemeColors.neutralGrey,
-                                ),
+                                child: CircularProgressIndicator.adaptive(strokeWidth: 2),
                               )
-                            : const Icon(Icons.send_outlined, size: 18),
+                            : const Icon(CupertinoIcons.paperplane, size: 18),
                         label: Text(_sendingReminder ? 'Enviando...' : 'Enviar recordatorio'),
                       ),
                     ],
+                    const SizedBox(height: 8),
+                    TextButton(
+                      style: TextButton.styleFrom(foregroundColor: c.textMuted, minimumSize: const Size.fromHeight(44)),
+                      onPressed: _cancelReceivable,
+                      child: const Text('Cancelar deuda'),
+                    ),
                   ],
                 ),
               if (isActive && remaining <= 0)
@@ -206,52 +238,44 @@ class _ReceivableDetailScreenState extends ConsumerState<ReceivableDetailScreen>
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.amber.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(8),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(color: c.warningSoft, borderRadius: BorderRadius.circular(12)),
+                      child: Text(
+                        'El saldo llegó a \$0. ¿La marcás como cobrada?',
+                        style: t.bodyMedium?.copyWith(color: c.ink, fontWeight: FontWeight.w600),
                       ),
-                      child: const Text('El saldo llegó a \$0. ¿Querés marcarla como cobrada?'),
                     ),
                     const SizedBox(height: 8),
-                    FilledButton(
-                      onPressed: () => _markAsSettled(),
-                      child: const Text('Marcar como cobrada'),
-                    ),
+                    FilledButton(onPressed: _markAsSettled, child: const Text('Marcar como cobrada')),
                   ],
                 ),
-              if (isSettled)
-                FilledButton(
-                  onPressed: () => _reactivate(),
-                  child: const Text('Reactivar'),
-                ),
-              const SizedBox(height: 24),
-              Text(
-                'Historial de cobros',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-              ),
-              const Divider(),
+              if (isSettled) FilledButton(onPressed: _reactivate, child: const Text('Reactivar')),
+              const InsetSectionHeader('Historial de cobros'),
               if (payments.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                  child: Center(child: Text('Aún no hay cobros registrados.')),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Text('Todavía no registraste cobros.', style: t.bodyMedium?.copyWith(color: c.textMuted)),
+                )
+              else
+                InsetListGroup(
+                  children: [
+                    for (final p in payments)
+                      _PaymentRow(
+                        payment: p,
+                        onEdit: () async {
+                          await showRegisterPaymentSheet(
+                            context,
+                            ref,
+                            receivable: _receivable,
+                            remainingBalance: remaining,
+                            editPayment: p,
+                          );
+                          await _reload();
+                        },
+                        onDelete: () => _deletePayment(p),
+                      ),
+                  ],
                 ),
-              ...payments.map((p) => _PaymentTile(
-                    payment: p,
-                    receivable: _receivable,
-                    remaining: remaining,
-                    onEdit: () async {
-                      await showRegisterPaymentSheet(
-                        context,
-                        ref,
-                        receivable: _receivable,
-                        remainingBalance: remaining,
-                        editPayment: p,
-                      );
-                      await _reload();
-                    },
-                    onDelete: () => _deletePayment(context, p, remaining),
-                  )),
             ],
           );
         },
@@ -282,12 +306,9 @@ class _ReceivableDetailScreenState extends ConsumerState<ReceivableDetailScreen>
       final lastSentDate = DateTime.tryParse(lastSent);
       if (lastSentDate != null && DateTime.now().difference(lastSentDate).inHours < 24) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Podés enviar otro recordatorio en 24 horas.'),
-            backgroundColor: AppThemeColors.neutralGrey,
-          ),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Podés enviar otro recordatorio en 24 horas.')));
         return;
       }
     }
@@ -299,18 +320,15 @@ class _ReceivableDetailScreenState extends ConsumerState<ReceivableDetailScreen>
     if (!mounted) return;
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (ctx) => AlertDialog(
         title: const Text('Enviar recordatorio'),
         content: Text(
-          'Se enviará un email automático a "$email" '
-          'informando el saldo pendiente de \$${formatCurrency(remaining)}.',
+          'Le vamos a enviar un email automático a "$email" '
+          'con el saldo pendiente de \$${formatCurrency(remaining)}.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Enviar'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Enviar')),
         ],
       ),
     );
@@ -318,7 +336,9 @@ class _ReceivableDetailScreenState extends ConsumerState<ReceivableDetailScreen>
 
     setState(() => _sendingReminder = true);
     try {
-      await ref.read(receivableNotificationServiceProvider).notify(
+      await ref
+          .read(receivableNotificationServiceProvider)
+          .notify(
             ReceivableNotificationPayload(
               event: ReceivableNotificationEvent.reminder,
               recipientEmail: email,
@@ -333,18 +353,17 @@ class _ReceivableDetailScreenState extends ConsumerState<ReceivableDetailScreen>
       await prefs.setString(lastSentKey, DateTime.now().toIso8601String());
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Recordatorio enviado'),
-          backgroundColor: AppThemeColors.primaryGreen,
-        ),
-      );
-    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Recordatorio enviado.')));
+    } catch (e, st) {
+      ErrorReporter.capture(e, st, operation: 'receivables.send_reminder', details: {'receivable_id': _receivable.id});
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error al enviar: $e'),
-          backgroundColor: AppThemeColors.errorRed,
+          content: Text(
+            'No se pudo enviar el recordatorio. Revisá tu conexión y probá de nuevo.',
+            style: TextStyle(color: context.colors.onDanger),
+          ),
+          backgroundColor: context.colors.danger,
         ),
       );
     } finally {
@@ -352,66 +371,49 @@ class _ReceivableDetailScreenState extends ConsumerState<ReceivableDetailScreen>
     }
   }
 
-  Future<void> _cancelReceivable(BuildContext context) async {
+  Future<void> _cancelReceivable() async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (ctx) => AlertDialog(
         title: const Text('Cancelar deuda'),
-        content: Text('¿Cancelar la deuda de "${_receivable.debtorName}"? Podés reactivarla después.'),
+        content: Text('¿Cancelás la deuda de "${_receivable.debtorName}"? Podés reactivarla después.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-          OutlinedButton(
-            style: OutlinedButton.styleFrom(foregroundColor: AppThemeColors.neutralGrey),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Cancelar deuda'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Volver')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Cancelar deuda')),
         ],
       ),
     );
     if (ok == true) {
       await ref.read(receivableRepositoryProvider).hide(_receivable.id);
-      if (mounted) Navigator.pop(context);
       ref.invalidate(receivablesListProvider);
-    }
-  }
-
-  Future<void> _deleteReceivable(BuildContext context) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Eliminar deudor'),
-        content: Text(
-            '¿Eliminar a "${_receivable.debtorName}" y todo su historial de cobros? Esta acción no se puede deshacer.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Eliminar'),
-          ),
-        ],
-      ),
-    );
-    if (ok == true) {
-      await ref.read(receivableRepositoryProvider).delete(_receivable.id);
-      ref.invalidate(receivablesListProvider);
-      ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
       if (mounted) Navigator.pop(context);
     }
   }
 
-  Future<void> _deletePayment(BuildContext context, ReceivablePayment p, double remaining) async {
+  Future<void> _deleteReceivable() async {
+    final deleted = await confirmAndDeleteReceivable(context, _receivable);
+    if (deleted && mounted) Navigator.pop(context);
+  }
+
+  /// «Cobrar todo» vive acá (antes era el deslizamiento de la fila en la lista,
+  /// que ahora elimina como en las demás listas).
+  Future<void> _settleInFull(double remaining) async {
+    final saved = await confirmAndSettleInFull(context, _receivable, remaining: remaining);
+    if (saved) await _reload();
+  }
+
+  Future<void> _deletePayment(ReceivablePayment p) async {
+    final c = context.colors;
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (ctx) => AlertDialog(
         title: const Text('Eliminar cobro'),
-        content: Text(
-            '¿Eliminar el cobro de \$${formatCurrency(p.amount)} del ${formatDisplayDate(p.date)}?'),
+        content: Text('¿Eliminás el cobro de \$${formatCurrency(p.amount)} del ${formatDisplayDate(p.date)}?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
-            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(backgroundColor: c.danger, foregroundColor: c.onDanger),
+            onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Eliminar'),
           ),
         ],
@@ -419,142 +421,116 @@ class _ReceivableDetailScreenState extends ConsumerState<ReceivableDetailScreen>
     );
     if (ok == true) {
       await ref.read(receivablePaymentRepositoryProvider).delete(p.id);
-      final updatedPayments =
-          await ref.read(receivablePaymentRepositoryProvider).getByReceivableId(_receivable.id);
-      final newRemaining =
-          _receivable.totalAmount - updatedPayments.fold(0.0, (s, pay) => s + pay.amount);
+      final updatedPayments = await ref.read(receivablePaymentRepositoryProvider).getByReceivableId(_receivable.id);
+      final newRemaining = _receivable.totalAmount - updatedPayments.fold(0.0, (s, pay) => s + pay.amount);
       if (_receivable.debtorEmail != null) {
         try {
-          await ref.read(receivableNotificationServiceProvider).notify(ReceivableNotificationPayload(
-            event: ReceivableNotificationEvent.paymentDeleted,
-            recipientEmail: _receivable.debtorEmail!,
-            debtorName: _receivable.debtorName,
-            totalAmount: _receivable.totalAmount,
-            remainingBalance: newRemaining,
-            paymentAmount: p.amount,
-            paymentDate: p.date,
-            creditorEmail: Supabase.instance.client.auth.currentUser?.email,
-          ));
-        } catch (_) {}
+          await ref
+              .read(receivableNotificationServiceProvider)
+              .notify(
+                ReceivableNotificationPayload(
+                  event: ReceivableNotificationEvent.paymentDeleted,
+                  recipientEmail: _receivable.debtorEmail!,
+                  debtorName: _receivable.debtorName,
+                  totalAmount: _receivable.totalAmount,
+                  remainingBalance: newRemaining,
+                  paymentAmount: p.amount,
+                  paymentDate: p.date,
+                  creditorEmail: Supabase.instance.client.auth.currentUser?.email,
+                ),
+              );
+        } catch (e, st) {
+          // El cobro ya se borró; solo falló el aviso por email.
+          ErrorReporter.capture(
+            e,
+            st,
+            operation: 'receivables.notify_payment_deleted',
+            details: {'receivable_id': _receivable.id},
+          );
+        }
       }
       await _reload();
       ref.invalidate(receivablesListProvider);
-      ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
+      ref.read(syncServiceProvider).pushPendingIfOnline().catchError(
+            (Object e, StackTrace st) => ErrorReporter.capture(e, st, operation: 'receivables.push'),
+          );
     }
   }
 }
 
-class _PaymentTile extends StatelessWidget {
-  const _PaymentTile({
-    required this.payment,
-    required this.receivable,
-    required this.remaining,
-    required this.onEdit,
-    required this.onDelete,
-  });
+/// Fila de cobro: fecha a la izquierda, monto a la derecha; tocarla edita.
+class _PaymentRow extends StatelessWidget {
+  const _PaymentRow({required this.payment, required this.onEdit, required this.onDelete});
 
   final ReceivablePayment payment;
-  final Receivable receivable;
-  final double remaining;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: CircleAvatar(
-        backgroundColor: AppThemeColors.primaryGreen.withValues(alpha: 0.15),
-        child: const Icon(Icons.check, color: AppThemeColors.primaryGreen),
-      ),
-      title: Text('\$${formatCurrency(payment.amount)}', style: const TextStyle(fontWeight: FontWeight.w600)),
-      subtitle: Text(formatDisplayDate(payment.date)),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(icon: const Icon(Icons.edit_outlined, size: 20), onPressed: onEdit),
-          IconButton(
-            icon: Icon(Icons.delete_outline, size: 20, color: Theme.of(context).colorScheme.error),
-            onPressed: onDelete,
+    final c = context.colors;
+    final t = Theme.of(context).textTheme;
+    return InkWell(
+      onTap: onEdit,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 56),
+        child: Padding(
+          padding: const EdgeInsets.only(left: 16),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(formatDisplayDate(payment.date), style: t.bodyLarge?.copyWith(color: c.ink)),
+              ),
+              Text(
+                '\$${formatCurrency(payment.amount)}',
+                style: t.titleSmall?.copyWith(color: c.ink, fontWeight: FontWeight.w700, fontFeatures: kTabularFigures),
+              ),
+              IconButton(
+                tooltip: 'Eliminar cobro',
+                icon: Icon(CupertinoIcons.trash, size: 20, color: c.danger),
+                onPressed: onDelete,
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 }
 
-class _InfoBanner extends StatelessWidget {
-  const _InfoBanner({required this.message, required this.color});
-
-  final String message;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      child: Text(message, style: TextStyle(color: color)),
-    );
-  }
-}
-
-class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({required this.status});
-
-  final ReceivableStatus status;
-
-  @override
-  Widget build(BuildContext context) {
-    return switch (status) {
-      ReceivableStatus.settled => _Pill(label: 'Cobrada', color: AppThemeColors.primaryGreen),
-      ReceivableStatus.hidden => _Pill(label: 'Cancelada', color: AppThemeColors.neutralGrey),
-      ReceivableStatus.writtenOff => _Pill(label: 'Incobrable', color: AppThemeColors.neutralGrey),
-      ReceivableStatus.active => const SizedBox.shrink(),
-    };
-  }
-}
-
-class _Pill extends StatelessWidget {
-  const _Pill({required this.label, required this.color});
-
-  final String label;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
-    );
-  }
-}
-
-class _RowLabel extends StatelessWidget {
-  const _RowLabel(this.label, this.value);
+class _ValueRow extends StatelessWidget {
+  const _ValueRow(this.label, this.value, {this.color, this.tabular = true});
 
   final String label;
   final String value;
+  final Color? color;
+  final bool tabular;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: TextStyle(color: Colors.grey[600])),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w500)),
-        ],
+    final c = context.colors;
+    final t = Theme.of(context).textTheme;
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 44),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(
+          children: [
+            Text(label, style: t.bodyLarge?.copyWith(color: c.textMuted)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                value,
+                textAlign: TextAlign.right,
+                style: t.titleSmall?.copyWith(
+                  color: color ?? c.ink,
+                  fontWeight: FontWeight.w700,
+                  fontFeatures: tabular ? kTabularFigures : null,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:perfinance/features/chat/chat_agent.dart';
 
 abstract class ChatAgentConfigs {
@@ -12,8 +12,8 @@ abstract class ChatAgentConfigs {
     agent: ChatAgent.financialAdvisor,
     label: 'Asesor',
     description: 'Análisis financiero, métricas, consejos',
-    icon: Icons.analytics_outlined,
-    color: Color(0xFF2ECC71),
+    icon: CupertinoIcons.chart_bar,
+    tone: AgentTone.accent,
     persistToDb: true,
     systemPrompt: _advisorPrompt,
   );
@@ -22,8 +22,8 @@ abstract class ChatAgentConfigs {
     agent: ChatAgent.appAssistant,
     label: 'Asistente',
     description: 'Registrar gastos, pagos, deudas',
-    icon: Icons.edit_note,
-    color: Color(0xFF3498DB),
+    icon: CupertinoIcons.square_pencil,
+    tone: AgentTone.info,
     persistToDb: true,
     systemPrompt: _assistantPrompt,
   );
@@ -32,8 +32,8 @@ abstract class ChatAgentConfigs {
     agent: ChatAgent.ephemeralChat,
     label: 'Rápido',
     description: 'Mensajes temporales, no se guardan',
-    icon: Icons.flash_on_outlined,
-    color: Color(0xFFF39C12),
+    icon: CupertinoIcons.bolt,
+    tone: AgentTone.warning,
     persistToDb: false,
     systemPrompt: _ephemeralPrompt,
   );

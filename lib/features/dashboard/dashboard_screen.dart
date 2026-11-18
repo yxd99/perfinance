@@ -1,593 +1,86 @@
+import 'dart:math' as math;
+
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:perfinance/features/accounts/account_hue_provider.dart';
 import 'package:perfinance/core/providers/hide_values_provider.dart';
 import 'package:perfinance/core/theme/app_theme.dart';
-import 'package:perfinance/core/utils/user_friendly_errors.dart';
 import 'package:perfinance/core/widgets/currency_input.dart';
+import 'package:perfinance/data/models/credit_card.dart';
+import 'package:perfinance/features/automatic_payments/automatic_payments_provider.dart';
+import 'package:perfinance/features/automatic_payments/automatic_payments_screen.dart';
 import 'package:perfinance/features/credit_cards/credit_cards_provider.dart';
 import 'package:perfinance/features/dashboard/dashboard_account_automatic_payments_screen.dart';
 import 'package:perfinance/features/dashboard/dashboard_account_expenses_screen.dart';
 import 'package:perfinance/features/dashboard/dashboard_provider.dart';
-import 'package:perfinance/features/automatic_payments/automatic_payments_provider.dart';
-import 'package:perfinance/features/automatic_payments/automatic_payments_screen.dart';
+import 'package:perfinance/features/dashboard/debt_summary_copy.dart';
+import 'package:perfinance/features/dashboard/month_pace.dart';
+import 'package:perfinance/features/expenses/expenses_provider.dart';
 import 'package:perfinance/services/dashboard_service.dart';
 
+const double _gutter = 16;
+
+String _money(num value, bool hide) => '\$${formatCurrencyDisplay(value, hide)}';
+
+/// Pestaña «Mes»: el mes se lee como un billete. Primero cuánto salió y a qué ritmo,
+/// después lo que pide atención, el gasto por cuenta y, debajo, deuda y detalle.
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    ref.watch(creditCardsListProvider);
     final selectedMonth = ref.watch(selectedDashboardMonthProvider);
-    final asyncDebt = ref.watch(dashboardDebtProvider);
-    final asyncUsage = ref.watch(dashboardUsageProvider);
-    final asyncComparison = ref.watch(dashboardComparisonProvider);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final hideValues = ref.watch(hideValuesProvider).value ?? false;
-
-    return RefreshIndicator(
-      onRefresh: () async {
-        ref.invalidate(dashboardDebtProvider);
-        ref.invalidate(hasActiveDebtSourcesProvider);
-        ref.invalidate(dashboardAutomaticPaymentsSummaryProvider);
-        ref.invalidate(overdueAutomaticPaymentsProvider);
-        ref.invalidate(dashboardUsageProvider);
-          ref.invalidate(dashboardComparisonProvider);
-        ref.invalidate(dashboardMinPaymentSummaryProvider);
-      },
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          _buildMonthSelector(context, ref),
-          const SizedBox(height: 16),
-          ref.watch(hasActiveDebtSourcesProvider).when(
-            data: (hasActive) {
-              if (!hasActive) return const SizedBox.shrink();
-              return asyncDebt.when(
-                data: (debt) => Card(
-                  clipBehavior: Clip.antiAlias,
-                  child: ExpansionTile(
-                    initiallyExpanded: true,
-                    tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    title: _SectionHeader(
-                      icon: Icons.account_balance_wallet_rounded,
-                      title: 'Deuda total',
-                      isDark: isDark,
-                    ),
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            _DebtHeroCard(amount: debt.total, isDark: isDark, hideValues: hideValues),
-                            if (debt.items.isNotEmpty) ...[
-                              const SizedBox(height: 12),
-                              ExpansionTile(
-                                key: const PageStorageKey('debt_detalle'),
-                                initiallyExpanded: true,
-                                tilePadding: const EdgeInsets.symmetric(vertical: 8),
-                                childrenPadding: EdgeInsets.zero,
-                                backgroundColor: Colors.transparent,
-                                collapsedBackgroundColor: Colors.transparent,
-                                title: Text(
-                                  'Detalle',
-                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: AppThemeColors.primaryGreen,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                                iconColor: AppThemeColors.primaryGreen,
-                                collapsedIconColor: AppThemeColors.primaryGreen,
-                                children: [
-                                  _DebtBreakdownSection(items: debt.items, isDark: isDark, hideValues: hideValues),
-                                ],
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                loading: () => const SizedBox.shrink(),
-                error: (_, __) => const SizedBox.shrink(),
-              );
-            },
-            loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
-          ),
-          ref.watch(hasActiveDebtSourcesProvider).when(
-            data: (hasActive) => hasActive ? const SizedBox(height: 12) : const SizedBox.shrink(),
-            loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
-          ),
-          ref.watch(overdueAutomaticPaymentsProvider).when(
-            data: (overdue) {
-              if (overdue.isEmpty) return const SizedBox.shrink();
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Material(
-                  color: Colors.amber.withValues(alpha: isDark ? 0.18 : 0.15),
-                  borderRadius: BorderRadius.circular(12),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(12),
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const AutomaticPaymentsScreen()),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.warning_amber_rounded, color: Colors.amber),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              overdue.length == 1
-                                  ? 'Tenés 1 pago automático atrasado sin procesar'
-                                  : 'Tenés ${overdue.length} pagos automáticos atrasados sin procesar',
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                          const Icon(Icons.chevron_right_rounded),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            },
-            loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
-          ),
-          ref.watch(dashboardAutomaticPaymentsSummaryProvider).when(
-            data: (summary) {
-              if (summary.byAccount.isEmpty) return const SizedBox.shrink();
-              return Card(
-                clipBehavior: Clip.antiAlias,
-                child: ExpansionTile(
-                  initiallyExpanded: true,
-                  tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  title: _SectionHeader(
-                    icon: Icons.autorenew,
-                    title: 'Pagos automáticos del mes',
-                    isDark: isDark,
-                  ),
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: AppThemeColors.primaryGreen.withValues(alpha: isDark ? 0.2 : 0.12),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  'Total estimado',
-                                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                        fontWeight: FontWeight.w600,
-                                        color: Theme.of(context).colorScheme.onSurface,
-                                      ),
-                                ),
-                                Text(
-                                  '\$${formatCurrencyDisplay(summary.totalPerMonth, hideValues)}',
-                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                        fontWeight: FontWeight.w700,
-                                        color: AppThemeColors.primaryGreen,
-                                      ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            'Por cuenta',
-                            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
-                                ),
-                          ),
-                          const SizedBox(height: 6),
-                          ...summary.byAccount.map(
-                            (a) => Card(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              child: ListTile(
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                                leading: CircleAvatar(
-                                  backgroundColor: (a.isCreditCard ? AppThemeColors.primaryGreen : Colors.blue).withValues(alpha: isDark ? 0.4 : 0.15),
-                                  child: Icon(
-                                    a.isCreditCard ? Icons.credit_card : Icons.savings,
-                                    color: a.isCreditCard ? AppThemeColors.primaryGreen : Colors.blue,
-                                    size: 20,
-                                  ),
-                                ),
-                                title: Text(a.alias, style: const TextStyle(fontWeight: FontWeight.w600)),
-                                trailing: Text(
-                                  '\$${formatCurrencyDisplay(a.amount, hideValues)}',
-                                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                        fontWeight: FontWeight.w700,
-                                        color: Theme.of(context).colorScheme.onSurface,
-                                      ),
-                                ),
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => DashboardAccountAutomaticPaymentsScreen(
-                                        alias: a.alias,
-                                        paymentType: a.paymentType,
-                                        paymentRef: a.paymentRef,
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
-            loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
-          ),
-          ref.watch(dashboardAutomaticPaymentsSummaryProvider).when(
-            data: (summary) => summary.byAccount.isNotEmpty ? const SizedBox(height: 12) : const SizedBox.shrink(),
-            loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
-          ),
-          Card(
-            clipBehavior: Clip.antiAlias,
-            child: ExpansionTile(
-              initiallyExpanded: true,
-              tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              title: _SectionHeader(
-                icon: Icons.credit_card,
-                title: 'Uso por tarjeta',
-                isDark: isDark,
-              ),
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                  child: ref.watch(dashboardMinPaymentSummaryProvider).when(
-                    data: (minSummary) => asyncUsage.when(
-                      data: (list) {
-                        if (list.isEmpty) {
-                          return const Padding(padding: EdgeInsets.all(8), child: Text('Sin tarjetas'));
-                        }
-                        final showTotalMin = minSummary.totalPending > 0;
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            if (showTotalMin) ...[
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                decoration: BoxDecoration(
-                                  color: AppThemeColors.primaryGreen.withValues(alpha: isDark ? 0.2 : 0.12),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      'Total pago mínimo pendiente',
-                                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                            fontWeight: FontWeight.w600,
-                                            color: Theme.of(context).colorScheme.onSurface,
-                                          ),
-                                    ),
-                                    Text(
-                                      '\$${formatCurrencyDisplay(minSummary.totalPending, hideValues)}',
-                                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                            fontWeight: FontWeight.w700,
-                                            color: AppThemeColors.primaryGreen,
-                                          ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                            ],
-                            ...list.map((u) {
-                              final minPending = minSummary.pendingByCard[u.cardId];
-                              final showMinPending = minPending != null && minPending > 0;
-                              return Card(
-                                margin: const EdgeInsets.only(bottom: 12),
-                                child: ListTile(
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                                  leading: CircleAvatar(
-                                    backgroundColor: AppThemeColors.primaryGreen.withValues(alpha: isDark ? 0.4 : 0.15),
-                                    child: Icon(Icons.receipt_long, color: AppThemeColors.primaryGreen, size: 22),
-                                  ),
-                                  title: Text(u.alias, style: const TextStyle(fontWeight: FontWeight.w600)),
-                                  subtitle: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text('${u.count} veces · \$${formatCurrencyDisplay(u.totalAmount, hideValues)}'),
-                                      if (showMinPending)
-                                        Padding(
-                                          padding: const EdgeInsets.only(top: 4),
-                                          child: Text(
-                                            'Pago mín. pendiente: \$${formatCurrencyDisplay(minPending, hideValues)}',
-                                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                                  color: AppThemeColors.primaryGreen,
-                                                  fontWeight: FontWeight.w500,
-                                                ),
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                  onTap: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => DashboardAccountExpensesScreen(
-                                          alias: u.alias,
-                                          paymentType: 'credit_card',
-                                          paymentRef: u.cardId,
-                                          month: selectedMonth,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              );
-                            }),
-                          ],
-                        );
-                      },
-                      loading: () => const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator())),
-                      error: (e, _) => Padding(
-                        padding: const EdgeInsets.all(8),
-                        child: Text(
-                          UserFriendlyErrors.fromAsyncError(e, UserFriendlyErrors.dashboardLoadFailed),
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                      ),
-                    ),
-                    loading: () => asyncUsage.when(
-                      data: (list) => list.isEmpty
-                          ? const Padding(padding: EdgeInsets.all(8), child: Text('Sin tarjetas'))
-                          : Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: list
-                                  .map((u) => Card(
-                                        margin: const EdgeInsets.only(bottom: 12),
-                                        child: ListTile(
-                                          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                                          leading: CircleAvatar(
-                                            backgroundColor: AppThemeColors.primaryGreen.withValues(alpha: isDark ? 0.4 : 0.15),
-                                            child: Icon(Icons.receipt_long, color: AppThemeColors.primaryGreen, size: 22),
-                                          ),
-                                          title: Text(u.alias, style: const TextStyle(fontWeight: FontWeight.w600)),
-                                          subtitle: Text('${u.count} veces · \$${formatCurrencyDisplay(u.totalAmount, hideValues)}'),
-                                          onTap: () {
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (_) => DashboardAccountExpensesScreen(
-                                                  alias: u.alias,
-                                                  paymentType: 'credit_card',
-                                                  paymentRef: u.cardId,
-                                                  month: selectedMonth,
-                                                ),
-                                              ),
-                                            );
-                                          },
-                                        ),
-                                      ))
-                                  .toList(),
-                            ),
-                      loading: () => const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator())),
-                      error: (e, _) => Padding(
-                        padding: const EdgeInsets.all(8),
-                        child: Text(
-                          UserFriendlyErrors.fromAsyncError(e, UserFriendlyErrors.dashboardLoadFailed),
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                      ),
-                    ),
-                    error: (_, __) => asyncUsage.when(
-                      data: (list) => list.isEmpty
-                          ? const Padding(padding: EdgeInsets.all(8), child: Text('Sin tarjetas'))
-                          : Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: list
-                                  .map((u) => Card(
-                                        margin: const EdgeInsets.only(bottom: 12),
-                                        child: ListTile(
-                                          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                                          leading: CircleAvatar(
-                                            backgroundColor: AppThemeColors.primaryGreen.withValues(alpha: isDark ? 0.4 : 0.15),
-                                            child: Icon(Icons.receipt_long, color: AppThemeColors.primaryGreen, size: 22),
-                                          ),
-                                          title: Text(u.alias, style: const TextStyle(fontWeight: FontWeight.w600)),
-                                          subtitle: Text('${u.count} veces · \$${formatCurrencyDisplay(u.totalAmount, hideValues)}'),
-                                          onTap: () {
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (_) => DashboardAccountExpensesScreen(
-                                                  alias: u.alias,
-                                                  paymentType: 'credit_card',
-                                                  paymentRef: u.cardId,
-                                                  month: selectedMonth,
-                                                ),
-                                              ),
-                                            );
-                                          },
-                                        ),
-                                      ))
-                                  .toList(),
-                            ),
-                      loading: () => const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator())),
-                      error: (e, _) => Padding(
-                        padding: const EdgeInsets.all(8),
-                        child: Text(
-                          UserFriendlyErrors.fromAsyncError(e, UserFriendlyErrors.dashboardLoadFailed),
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          Card(
-            clipBehavior: Clip.antiAlias,
-            child: ExpansionTile(
-              initiallyExpanded: true,
-              tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              title: _SectionHeader(
-                icon: Icons.compare_arrows,
-                title: 'Comparativa mes actual vs anterior',
-                isDark: isDark,
-              ),
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                  child: asyncComparison.when(
-                    data: (list) => list.isEmpty
-                        ? const Padding(padding: EdgeInsets.all(8), child: Text('Sin tarjetas'))
-                        : Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: list
-                                .map((c) {
-                                  final isEqual = c.percentChange == null || c.percentChange! < 0.5;
-                                  final isIncrease = c.isIncrease && !isEqual;
-                                  final isDecrease = !c.isIncrease && !isEqual;
-                                  return Card(
-                                    margin: const EdgeInsets.only(bottom: 12),
-                                    child: ListTile(
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                                      leading: CircleAvatar(
-                                        backgroundColor: isEqual
-                                            ? Theme.of(context).colorScheme.onSurface.withValues(alpha: isDark ? 0.2 : 0.12)
-                                            : (isIncrease ? Colors.red : AppThemeColors.primaryGreen).withValues(alpha: isDark ? 0.4 : 0.15),
-                                        child: Icon(
-                                          isEqual ? Icons.drag_handle : (isIncrease ? Icons.trending_up : Icons.trending_down),
-                                          color: isEqual
-                                              ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6)
-                                              : (isIncrease ? Colors.red : AppThemeColors.primaryGreen),
-                                          size: 22,
-                                        ),
-                                      ),
-                                      title: Text(c.alias, style: const TextStyle(fontWeight: FontWeight.w600)),
-                                      subtitle: Text(
-                                        'Este mes: \$${formatCurrencyDisplay(c.thisMonth, hideValues)} · Anterior: \$${formatCurrencyDisplay(c.lastMonth, hideValues)}',
-                                      ),
-                                      trailing: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                        decoration: BoxDecoration(
-                                          color: isEqual
-                                              ? Theme.of(context).colorScheme.onSurface.withValues(alpha: isDark ? 0.15 : 0.08)
-                                              : (isIncrease ? Theme.of(context).colorScheme.error : AppThemeColors.primaryGreen).withValues(alpha: isDark ? 0.25 : 0.12),
-                                          borderRadius: BorderRadius.circular(10),
-                                        ),
-                                        child: Text(
-                                          isEqual ? '=' : '${(c.percentChange ?? 0).toStringAsFixed(0)}% ${isIncrease ? "↑" : "↓"}',
-                                          style: TextStyle(
-                                            color: isEqual
-                                                ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)
-                                                : (isIncrease ? Theme.of(context).colorScheme.error : AppThemeColors.primaryGreen),
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 13,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                })
-                                .toList(),
-                          ),
-                    loading: () => const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator())),
-                    error: (e, _) => Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Text(
-                        UserFriendlyErrors.fromAsyncError(e, UserFriendlyErrors.dashboardLoadFailed),
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  static const List<String> _monthNames = [
-    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
-  ];
-
-  Widget _buildMonthSelector(BuildContext context, WidgetRef ref) {
-    final selected = ref.watch(selectedDashboardMonthProvider);
+    final asyncExpenses = ref.watch(expensesListProvider);
+    final cards = ref.watch(creditCardsListProvider).valueOrNull ?? const <CreditCard>[];
     final now = DateTime.now();
-    final isCurrentMonth = selected.year == now.year && selected.month == now.month;
-    final label = '${_monthNames[selected.month - 1]} ${selected.year}';
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Row(
+
+    final spend = asyncExpenses.whenData((list) => computeMonthSpend(list, selectedMonth, now));
+
+    return SafeArea(
+      bottom: false,
+      child: RefreshIndicator(
+        onRefresh: () async {
+          ref.invalidate(expensesListProvider);
+          ref.invalidate(expensePaymentDisplayProvider);
+          ref.invalidate(creditCardsListProvider);
+          ref.invalidate(dashboardDebtProvider);
+          ref.invalidate(hasActiveDebtSourcesProvider);
+          ref.invalidate(dashboardAutomaticPaymentsSummaryProvider);
+          ref.invalidate(overdueAutomaticPaymentsProvider);
+          ref.invalidate(dashboardUsageProvider);
+          ref.invalidate(dashboardComparisonProvider);
+          ref.invalidate(dashboardMinPaymentSummaryProvider);
+        },
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          // 57pt arriba: el título cae a la misma altura que el título grande de
+          // Egresos, Deudas y Más (SliverAppBar.large con barra de 44pt).
+          padding: const EdgeInsets.fromLTRB(_gutter, _titleTop, _gutter, 40),
           children: [
-            IconButton(
-              icon: const Icon(Icons.chevron_left),
-              onPressed: () {
-                final prev = selected.month == 1
-                    ? DateTime(selected.year - 1, 12, 1)
-                    : DateTime(selected.year, selected.month - 1, 1);
-                ref.read(selectedDashboardMonthProvider.notifier).state = prev;
-              },
-            ),
-            Expanded(
-              child: InkWell(
-                onTap: () async {
-                  final picked = await showDatePicker(
-                    context: context,
-                    initialDate: selected,
-                    firstDate: DateTime(2020),
-                    lastDate: DateTime(now.year, now.month + 1),
-                  );
-                  if (picked != null) {
-                    ref.read(selectedDashboardMonthProvider.notifier).state = DateTime(picked.year, picked.month, 1);
-                  }
-                },
-                child: Center(
-                  child: Text(
-                    label,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-                  ),
-                ),
+            _MonthTitle(selected: selectedMonth, now: now),
+            const SizedBox(height: 12),
+            spend.when(
+              data: (s) => _MonthNote(spend: s, hideValues: hideValues, isCurrentMonth: _isSameMonth(selectedMonth, now)),
+              loading: () => const _MonthNoteLoading(),
+              error: (_, _) => _SectionError(
+                onRetry: () => ref.invalidate(expensesListProvider),
               ),
             ),
-            IconButton(
-              icon: const Icon(Icons.chevron_right),
-              onPressed: isCurrentMonth
-                  ? null
-                  : () {
-                      final next = selected.month == 12
-                          ? DateTime(selected.year + 1, 1, 1)
-                          : DateTime(selected.year, selected.month + 1, 1);
-                      if (next.year < now.year || (next.year == now.year && next.month <= now.month)) {
-                        ref.read(selectedDashboardMonthProvider.notifier).state = next;
-                      }
-                    },
+            _AttentionRows(hideValues: hideValues, month: selectedMonth),
+            const _SectionHeader('Por cuenta'),
+            spend.when(
+              data: (s) => _AccountsGroup(spend: s, cards: cards, hideValues: hideValues, now: now),
+              loading: () => const SizedBox.shrink(),
+              error: (_, _) => _SectionError(
+                onRetry: () => ref.invalidate(expensesListProvider),
+              ),
             ),
+            _DebtSection(hideValues: hideValues),
+            _MinPaymentSection(hideValues: hideValues, cards: cards, month: selectedMonth),
+            _AutomaticPaymentsSection(hideValues: hideValues),
+            _ComparisonSection(hideValues: hideValues, month: selectedMonth),
           ],
         ),
       ),
@@ -595,177 +88,991 @@ class DashboardScreen extends ConsumerWidget {
   }
 }
 
-class _DebtHeroCard extends StatelessWidget {
-  const _DebtHeroCard({required this.amount, required this.isDark, required this.hideValues});
+const double _titleTop = 57;
 
-  final double amount;
-  final bool isDark;
+bool _isSameMonth(DateTime a, DateTime b) => a.year == b.year && a.month == b.month;
+
+// ---------------------------------------------------------------------------
+// Título grande + selector de mes
+// ---------------------------------------------------------------------------
+
+class _MonthTitle extends ConsumerWidget {
+  const _MonthTitle({required this.selected, required this.now});
+
+  final DateTime selected;
+  final DateTime now;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = Theme.of(context).textTheme;
+    final c = context.colors;
+    final isCurrentMonth = _isSameMonth(selected, now);
+    final title = selected.year == now.year
+        ? monthNameEs(selected.month)
+        : '${monthNameEs(selected.month)} ${selected.year}';
+
+    void setMonth(DateTime m) => ref.read(selectedDashboardMonthProvider.notifier).state = m;
+
+    return Row(
+      children: [
+        Expanded(
+          child: Semantics(
+            button: true,
+            label: 'Elegir mes, $title',
+            excludeSemantics: true,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: () async {
+                final picked = await showDatePicker(
+                  context: context,
+                  initialDate: selected,
+                  firstDate: DateTime(2020),
+                  lastDate: DateTime(now.year, now.month + 1),
+                );
+                if (picked != null) setMonth(DateTime(picked.year, picked.month, 1));
+              },
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 44),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: t.headlineLarge?.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.5, color: c.ink),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        IconButton(
+          tooltip: 'Mes anterior',
+          icon: const Icon(CupertinoIcons.chevron_left),
+          color: c.accent,
+          onPressed: () => setMonth(DateTime(selected.year, selected.month - 1, 1)),
+        ),
+        IconButton(
+          tooltip: 'Mes siguiente',
+          icon: const Icon(CupertinoIcons.chevron_right),
+          color: c.accent,
+          onPressed: isCurrentMonth ? null : () => setMonth(DateTime(selected.year, selected.month + 1, 1)),
+        ),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Nota del mes (billete de 50.000)
+// ---------------------------------------------------------------------------
+
+const double _ringSize = 132;
+const double _notePadding = 20;
+
+class _MonthNote extends StatelessWidget {
+  const _MonthNote({required this.spend, required this.hideValues, required this.isCurrentMonth});
+
+  final MonthSpend spend;
+  final bool hideValues;
+  final bool isCurrentMonth;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final t = Theme.of(context).textTheme;
+    final label = isCurrentMonth ? 'Gastado este mes' : 'Gastado en ${monthNameEs(spend.month.month).toLowerCase()}';
+    final amount = _money(spend.total, hideValues);
+    final pace = paceSentence(spend);
+    final ring = ringLabel(spend);
+    final dayLine = ringDayLine(spend);
+
+    return Semantics(
+      container: true,
+      label: '$label: ${hideValues ? 'oculto' : amount}. $pace. ${ring.spoken}.${dayLine == null ? '' : ' $dayLine.'}',
+      excludeSemantics: true,
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: c.heroGradient,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: CustomPaint(
+          painter: _GuillochePainter(color: c.onHeroSoft),
+          child: Padding(
+            padding: const EdgeInsets.all(_notePadding),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(label, style: t.labelLarge?.copyWith(color: c.onHeroMuted)),
+                      if (dayLine != null) ...[
+                        const SizedBox(height: 2),
+                        Text(dayLine, style: t.labelSmall?.copyWith(color: c.onHeroMuted, fontFeatures: kTabularFigures)),
+                        const SizedBox(height: 46),
+                      ] else
+                        const SizedBox(height: 64),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(amount, maxLines: 1, style: t.displaySmall?.copyWith(color: c.onHero)),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(pace, style: t.bodySmall?.copyWith(color: c.onHeroMuted)),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                _PaceRing(fraction: ringFraction(spend), label: ring),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MonthNoteLoading extends StatelessWidget {
+  const _MonthNoteLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Container(
+      height: _ringSize + _notePadding * 2,
+      decoration: BoxDecoration(gradient: c.heroGradient, borderRadius: BorderRadius.circular(14)),
+      alignment: Alignment.center,
+      child: SizedBox(
+        width: 24,
+        height: 24,
+        child: CircularProgressIndicator(strokeWidth: 2, color: c.onHero),
+      ),
+    );
+  }
+}
+
+/// Textura de líneas finas concéntricas, centrada en el anillo, solo dentro del billete.
+class _GuillochePainter extends CustomPainter {
+  _GuillochePainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width - _notePadding - _ringSize / 2, size.height / 2);
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.6;
+    // El interior del anillo queda limpio para leer el día.
+    canvas.save();
+    canvas.clipPath(Path.combine(
+      PathOperation.difference,
+      Path()..addRect(Offset.zero & size),
+      Path()..addOval(Rect.fromCircle(center: center, radius: _ringSize / 2 + 6)),
+    ));
+    final maxR = math.sqrt(size.width * size.width + size.height * size.height);
+    for (var r = _ringSize / 2 + 10; r < maxR; r += 7) {
+      canvas.drawCircle(center, r, paint);
+    }
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_GuillochePainter old) => old.color != color;
+}
+
+/// Anillo de ritmo: banda de roseta guilloché con un arco que se llena según lo
+/// gastado contra el mes anterior. El centro dice esa misma métrica («85%» «de
+/// octubre»); sin mes anterior, el día. Se anima una vez al cargar, salvo con Reducir movimiento.
+class _PaceRing extends StatefulWidget {
+  const _PaceRing({required this.fraction, required this.label});
+
+  final double fraction;
+  final RingLabel label;
+
+  @override
+  State<_PaceRing> createState() => _PaceRingState();
+}
+
+class _PaceRingState extends State<_PaceRing> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
+  late final Animation<double> _progress = CurvedAnimation(parent: _controller, curve: Curves.easeOutExpo);
+  bool _started = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _controller.value = 1;
+    } else {
+      _controller.forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final t = Theme.of(context).textTheme;
+    return SizedBox(
+      width: _ringSize,
+      height: _ringSize,
+      child: AnimatedBuilder(
+        animation: _progress,
+        builder: (context, child) => CustomPaint(
+          painter: _RingPainter(
+            fraction: widget.fraction * _progress.value,
+            lineColor: c.onHeroSoft,
+            fillColor: c.onHero,
+          ),
+          child: child,
+        ),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                widget.label.value,
+                style: t.headlineMedium?.copyWith(color: c.onHero, fontWeight: FontWeight.w700, fontFeatures: kTabularFigures),
+              ),
+              Text(widget.label.caption, style: t.labelSmall?.copyWith(color: c.onHeroMuted)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RingPainter extends CustomPainter {
+  _RingPainter({required this.fraction, required this.lineColor, required this.fillColor});
+
+  final double fraction;
+  final Color lineColor;
+  final Color fillColor;
+
+  static const double _band = 7;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final radius = size.shortestSide / 2 - _band;
+    final line = Paint()
+      ..color = lineColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.7;
+
+    // Roseta: círculos pequeños que giran sobre la pista, como el borde de un billete.
+    const petals = 48;
+    for (var i = 0; i < petals; i++) {
+      final a = 2 * math.pi * i / petals;
+      canvas.drawCircle(center + Offset(math.cos(a), math.sin(a)) * radius, _band, line);
+    }
+    canvas.drawCircle(center, radius - _band, line);
+    canvas.drawCircle(center, radius + _band, line);
+
+    if (fraction <= 0) return;
+    final arc = Paint()
+      ..color = fillColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 5
+      ..strokeCap = StrokeCap.round;
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      -math.pi / 2,
+      2 * math.pi * fraction.clamp(0.0, 1.0),
+      false,
+      arc,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_RingPainter old) =>
+      old.fraction != fraction || old.lineColor != lineColor || old.fillColor != fillColor;
+}
+
+// ---------------------------------------------------------------------------
+// Atención
+// ---------------------------------------------------------------------------
+
+class _AttentionRows extends ConsumerWidget {
+  const _AttentionRows({required this.hideValues, required this.month});
+
+  final bool hideValues;
+  final DateTime month;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final overdue = ref.watch(overdueAutomaticPaymentsProvider);
+    final minSummary = ref.watch(dashboardMinPaymentSummaryProvider);
+
+    final rows = <Widget>[
+      ...overdue.when(
+        data: (list) => [
+          if (list.isNotEmpty)
+            _AttentionRow(
+              text: list.length == 1
+                  ? 'Tenés 1 pago automático atrasado sin procesar'
+                  : 'Tenés ${list.length} pagos automáticos atrasados sin procesar',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AutomaticPaymentsScreen()),
+              ),
+            ),
+        ],
+        loading: () => const [],
+        error: (_, _) => [
+          _SectionError(
+            onRetry: () => ref.invalidate(overdueAutomaticPaymentsProvider),
+          ),
+        ],
+      ),
+      ...minSummary.when(
+        data: (s) => [
+          if (s.totalPending > 0)
+            _AttentionRow(
+              text: 'Pago mínimo pendiente: ${_money(s.totalPending, hideValues)}',
+              detail: s.pendingByCard.length == 1 ? 'En 1 tarjeta' : 'En ${s.pendingByCard.length} tarjetas',
+            ),
+        ],
+        loading: () => const [],
+        error: (_, _) => [
+          _SectionError(
+            onRetry: () => ref.invalidate(dashboardMinPaymentSummaryProvider),
+          ),
+        ],
+      ),
+    ];
+    if (rows.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < rows.length; i++) ...[
+            if (i > 0) const SizedBox(height: 8),
+            rows[i],
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _AttentionRow extends StatelessWidget {
+  const _AttentionRow({required this.text, this.detail, this.onTap});
+
+  final String text;
+  final String? detail;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final t = Theme.of(context).textTheme;
+    return Material(
+      color: c.warningSoft,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 48),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            child: Row(
+              children: [
+                Icon(CupertinoIcons.exclamationmark_triangle, color: c.warning, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        text,
+                        style: t.bodyMedium?.copyWith(
+                          color: c.ink,
+                          fontWeight: FontWeight.w600,
+                          fontFeatures: kTabularFigures,
+                        ),
+                      ),
+                      if (detail != null) Text(detail!, style: t.bodySmall?.copyWith(color: c.warning)),
+                    ],
+                  ),
+                ),
+                if (onTap != null) Icon(CupertinoIcons.chevron_right, color: c.warning),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Por cuenta
+// ---------------------------------------------------------------------------
+
+class _AccountsGroup extends ConsumerWidget {
+  const _AccountsGroup({required this.spend, required this.cards, required this.hideValues, required this.now});
+
+  final MonthSpend spend;
+  final List<CreditCard> cards;
+  final bool hideValues;
+  final DateTime now;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final display = ref.watch(expensePaymentDisplayProvider).valueOrNull;
+    final monthName = monthNameEs(spend.month.month).toLowerCase();
+    if (spend.byAccount.isEmpty) {
+      return _Group(children: [_EmptyRow('Todavía no hay egresos en $monthName.')]);
+    }
+    final cardById = {for (final c in cards) c.id: c};
+    final isCurrent = _isSameMonth(spend.month, now);
+
+    return _Group(
+      children: [
+        for (final a in spend.byAccount)
+          _AccountRow(
+            id: a.paymentRef,
+            name: a.isCreditCard
+                ? (display?.cardAliases[a.paymentRef] ?? 'Tarjeta')
+                : (display?.methodNames[a.paymentRef] ?? 'Medio de pago'),
+            status: _statusFor(a, cardById[a.paymentRef], isCurrent),
+            amount: _money(a.total, hideValues),
+            onTap: () {
+              final name = a.isCreditCard
+                  ? (display?.cardAliases[a.paymentRef] ?? 'Tarjeta')
+                  : (display?.methodNames[a.paymentRef] ?? 'Medio de pago');
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => DashboardAccountExpensesScreen(
+                    alias: name,
+                    paymentType: a.paymentType,
+                    paymentRef: a.paymentRef,
+                    month: spend.month,
+                  ),
+                ),
+              );
+            },
+          ),
+      ],
+    );
+  }
+
+  String _statusFor(AccountSpend a, CreditCard? card, bool isCurrent) {
+    if (isCurrent && card != null && card.isActive) {
+      final cut = cutOffStatus(card.cutOffDay, now);
+      if (cut != null) return cut;
+    }
+    return a.count == 1 ? '1 egreso' : '${a.count} egresos';
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Debajo del pliegue
+// ---------------------------------------------------------------------------
+
+class _DebtSection extends ConsumerWidget {
+  const _DebtSection({required this.hideValues});
+
+  final bool hideValues;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ref.watch(hasActiveDebtSourcesProvider).when(
+          data: (hasActive) {
+            if (!hasActive) return const SizedBox.shrink();
+            return ref.watch(dashboardDebtProvider).when(
+                  data: (debt) => _DebtBody(debt: debt, hideValues: hideValues),
+                  loading: () => const SizedBox.shrink(),
+                  error: (_, _) => _Section(
+                    title: 'Deuda',
+                    child: _SectionError(
+                      onRetry: () => ref.invalidate(dashboardDebtProvider),
+                    ),
+                  ),
+                );
+          },
+          loading: () => const SizedBox.shrink(),
+          error: (_, _) => _Section(
+            title: 'Deuda',
+            child: _SectionError(
+              onRetry: () => ref.invalidate(hasActiveDebtSourcesProvider),
+            ),
+          ),
+        );
+  }
+}
+
+class _DebtBody extends StatelessWidget {
+  const _DebtBody({required this.debt, required this.hideValues});
+
+  final DebtBreakdown debt;
   final bool hideValues;
 
   @override
   Widget build(BuildContext context) {
-    final hasDebt = amount > 0;
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: AppThemeColors.primaryGreen.withValues(alpha: isDark ? 0.2 : 0.25),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-        gradient: hasDebt ? AppThemeColors.debtGradient : AppThemeColors.primaryGradient,
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.25),
-                    borderRadius: BorderRadius.circular(12),
+    final c = context.colors;
+    final t = Theme.of(context).textTheme;
+    final parts = debtTotalParts(debt, hideValues: hideValues);
+    return _Section(
+      title: 'Deuda',
+      child: _Group(
+        children: [
+          Semantics(
+            container: true,
+            label: 'Deuda total: ${hideValues ? 'oculta' : _money(debt.total, false)}'
+                '${parts == null || hideValues ? '' : '. ${debtTotalParts(debt, hideValues: false)}'}',
+            excludeSemantics: true,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('Deuda total', style: t.bodyLarge?.copyWith(color: c.ink)),
+                        if (parts != null) ...[
+                          const SizedBox(height: 2),
+                          Text(parts, style: t.bodySmall?.copyWith(color: c.textMuted, fontFeatures: kTabularFigures)),
+                        ],
+                      ],
+                    ),
                   ),
-                  child: Icon(
-                    hasDebt ? Icons.warning_amber_rounded : Icons.account_balance_wallet_rounded,
-                    color: Colors.white,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  'Deuda total',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: Colors.white.withValues(alpha: 0.95),
-                        fontWeight: FontWeight.w600,
+                  const SizedBox(width: 12),
+                  Flexible(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        _money(debt.total, hideValues),
+                        style: t.headlineSmall?.copyWith(
+                          // Lo que se debe va en tinta: el rojo queda para lo vencido.
+                          color: c.ink,
+                          fontWeight: FontWeight.w800,
+                          fontFeatures: kTabularFigures,
+                        ),
                       ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              '\$${formatCurrencyDisplay(amount, hideValues)}',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                    letterSpacing: -0.5,
+                    ),
                   ),
+                ],
+              ),
             ),
-          ],
+          ),
+          for (final item in debt.items)
+            _PlainRow(
+              title: item.label,
+              status: item.isCreditCard ? 'Tarjeta de crédito' : 'Deuda',
+              amount: _money(item.balance, hideValues),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MinPaymentSection extends ConsumerWidget {
+  const _MinPaymentSection({required this.hideValues, required this.cards, required this.month});
+
+  final bool hideValues;
+  final List<CreditCard> cards;
+  final DateTime month;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Los errores de este provider ya se muestran en la fila de atención.
+    final summary = ref.watch(dashboardMinPaymentSummaryProvider).valueOrNull;
+    if (summary == null || summary.totalPending <= 0) return const SizedBox.shrink();
+    final alias = {for (final c in cards) c.id: c.alias};
+    return _Section(
+      title: 'Pago mínimo de ${monthNameEs(month.month).toLowerCase()}',
+      child: _Group(
+        children: [
+          _PlainRow(title: 'Total pendiente', amount: _money(summary.totalPending, hideValues), strong: true),
+          for (final e in summary.pendingByCard.entries)
+            _AccountRow(
+              id: e.key,
+              name: alias[e.key] ?? 'Tarjeta',
+              status: 'Pendiente',
+              amount: _money(e.value, hideValues),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AutomaticPaymentsSection extends ConsumerWidget {
+  const _AutomaticPaymentsSection({required this.hideValues});
+
+  final bool hideValues;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ref.watch(dashboardAutomaticPaymentsSummaryProvider).when(
+          data: (summary) {
+            if (summary.byAccount.isEmpty) return const SizedBox.shrink();
+            return _Section(
+              title: 'Pagos automáticos del mes',
+              child: _Group(
+                children: [
+                  _PlainRow(title: 'Total estimado', amount: _money(summary.totalPerMonth, hideValues), strong: true),
+                  for (final a in summary.byAccount)
+                    _AccountRow(
+                      id: a.paymentRef,
+                      name: a.alias,
+                      status: a.isCreditCard ? 'Tarjeta de crédito' : 'Medio de pago',
+                      amount: _money(a.amount, hideValues),
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => DashboardAccountAutomaticPaymentsScreen(
+                            alias: a.alias,
+                            paymentType: a.paymentType,
+                            paymentRef: a.paymentRef,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
+          loading: () => const SizedBox.shrink(),
+          error: (_, _) => _Section(
+            title: 'Pagos automáticos del mes',
+            child: _SectionError(
+              onRetry: () => ref.invalidate(dashboardAutomaticPaymentsSummaryProvider),
+            ),
+          ),
+        );
+  }
+}
+
+class _ComparisonSection extends ConsumerWidget {
+  const _ComparisonSection({required this.hideValues, required this.month});
+
+  final bool hideValues;
+  final DateTime month;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final prevName = monthNameEs(DateTime(month.year, month.month - 1, 1).month).toLowerCase();
+    final title = 'Tarjetas contra $prevName';
+    return ref.watch(dashboardComparisonProvider).when(
+          data: (list) {
+            if (list.isEmpty) return const SizedBox.shrink();
+            return _Section(
+              title: title,
+              child: _Group(
+                children: [
+                  for (final cmp in list)
+                    _AccountRow(
+                      id: cmp.cardId,
+                      name: cmp.alias,
+                      status: 'Este mes ${_money(cmp.thisMonth, hideValues)} · $prevName ${_money(cmp.lastMonth, hideValues)}',
+                      trailing: _DeltaLabel(comparison: cmp),
+                    ),
+                ],
+              ),
+            );
+          },
+          loading: () => const SizedBox.shrink(),
+          error: (_, _) => _Section(
+            title: title,
+            child: _SectionError(
+              onRetry: () => ref.invalidate(dashboardComparisonProvider),
+            ),
+          ),
+        );
+  }
+}
+
+class _DeltaLabel extends StatelessWidget {
+  const _DeltaLabel({required this.comparison});
+
+  final CardComparison comparison;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final t = Theme.of(context).textTheme;
+    final pct = comparison.percentChange;
+    final String text;
+    final Color color;
+    if (pct == null) {
+      // Sin gasto el mes anterior no hay porcentaje que mostrar.
+      text = comparison.thisMonth > 0 ? 'Nuevo' : '=';
+      color = c.textMuted;
+    } else if (pct.round() == 0) {
+      text = '=';
+      color = c.textMuted;
+    } else if (comparison.isIncrease) {
+      text = '+${pct.round()}%';
+      color = c.danger;
+    } else {
+      text = '−${pct.round()}%';
+      color = c.positive;
+    }
+    return Text(
+      text,
+      style: t.titleSmall?.copyWith(color: color, fontWeight: FontWeight.w700, fontFeatures: kTabularFigures),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Piezas compartidas: secciones agrupadas, filas, error
+// ---------------------------------------------------------------------------
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader(this.title);
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final t = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 28, 4, 8),
+      child: Semantics(
+        header: true,
+        child: Text(
+          title.toUpperCase(),
+          style: t.labelMedium?.copyWith(color: c.textMuted, letterSpacing: 0.8, fontWeight: FontWeight.w600),
         ),
       ),
     );
   }
 }
 
-class _DebtBreakdownSection extends StatelessWidget {
-  const _DebtBreakdownSection({required this.items, required this.isDark, required this.hideValues});
+class _Section extends StatelessWidget {
+  const _Section({required this.title, required this.child});
 
-  final List<DebtBreakdownItem> items;
-  final bool isDark;
-  final bool hideValues;
+  final String title;
+  final Widget child;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (int i = 0; i < items.length; i++) ...[
-          _DebtBreakdownTile(item: items[i], isDark: isDark, hideValues: hideValues),
-          if (i < items.length - 1)
-            const Divider(height: 1),
-        ],
-      ],
+      children: [_SectionHeader(title), child],
     );
   }
 }
 
-class _DebtBreakdownTile extends StatelessWidget {
-  const _DebtBreakdownTile({required this.item, required this.isDark, required this.hideValues});
+/// Lista agrupada al estilo iOS: filas sobre `surface` con separadores finos.
+class _Group extends StatelessWidget {
+  const _Group({required this.children});
 
-  final DebtBreakdownItem item;
-  final bool isDark;
-  final bool hideValues;
+  final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Row(
+    final c = context.colors;
+    return Material(
+      color: c.surface,
+      borderRadius: BorderRadius.circular(12),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Icon(
-            item.isCreditCard ? Icons.credit_card : Icons.receipt_long,
-            size: 18,
-            color: colorScheme.onSurface.withValues(alpha: 0.5),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              item.label,
-              style: textTheme.bodyMedium,
-              overflow: TextOverflow.ellipsis,
-              maxLines: 1,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            '\$${formatCurrencyDisplay(item.balance, hideValues)}',
-            style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-          ),
+          for (var i = 0; i < children.length; i++) ...[
+            if (i > 0) Divider(height: 1, thickness: 0.5, indent: 16, color: c.divider),
+            children[i],
+          ],
         ],
       ),
     );
   }
 }
 
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.icon, required this.title, required this.isDark});
+/// Fila de cuenta: ficha con el tono del billete, nombre, una línea de estado y monto.
+class _AccountRow extends ConsumerWidget {
+  const _AccountRow({
+    required this.id,
+    required this.name,
+    required this.status,
+    this.amount,
+    this.trailing,
+    this.onTap,
+  });
 
-  final IconData icon;
+  final String id;
+  final String name;
+  final String status;
+  final String? amount;
+  final Widget? trailing;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final c = context.colors;
+    final t = Theme.of(context).textTheme;
+    return InkWell(
+      onTap: onTap,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 56),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: [
+              Container(
+                width: 34,
+                height: 22,
+                decoration: BoxDecoration(
+                  color: ref.accountHue(context, id),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.bodyLarge?.copyWith(color: c.ink)),
+                    Text(
+                      status,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: t.bodySmall?.copyWith(color: c.textMuted, fontFeatures: kTabularFigures),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              if (amount != null)
+                Text(
+                  amount!,
+                  style: t.titleSmall?.copyWith(color: c.ink, fontWeight: FontWeight.w700, fontFeatures: kTabularFigures),
+                ),
+              ?trailing,
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PlainRow extends StatelessWidget {
+  const _PlainRow({required this.title, required this.amount, this.status, this.strong = false});
+
   final String title;
-  final bool isDark;
+  final String? status;
+  final String amount;
+  final bool strong;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            gradient: AppThemeColors.primaryGradient,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: AppThemeColors.primaryGreen.withValues(alpha: 0.35),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
+    final c = context.colors;
+    final t = Theme.of(context).textTheme;
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 48),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: t.bodyLarge?.copyWith(color: c.ink, fontWeight: strong ? FontWeight.w600 : null),
+                  ),
+                  if (status != null) Text(status!, style: t.bodySmall?.copyWith(color: c.textMuted)),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              amount,
+              style: t.titleSmall?.copyWith(color: c.ink, fontWeight: FontWeight.w700, fontFeatures: kTabularFigures),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyRow extends StatelessWidget {
+  const _EmptyRow(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Text(text, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: c.textMuted)),
+    );
+  }
+}
+
+/// Error compacto de una sección. No se reporta acá: `ErrorReporterProviderObserver`
+/// ya manda a Sentry todo provider que falla.
+class _SectionError extends StatelessWidget {
+  const _SectionError({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final t = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Material(
+        color: c.surface,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 4, 4),
+          child: Row(
+            children: [
+              Icon(CupertinoIcons.exclamationmark_circle, size: 20, color: c.danger),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text('No pudimos cargar esta sección', style: t.bodyMedium?.copyWith(color: c.ink)),
+              ),
+              TextButton(
+                onPressed: onRetry,
+                style: TextButton.styleFrom(minimumSize: const Size(44, 44), foregroundColor: c.accent),
+                child: const Text('Reintentar'),
               ),
             ],
           ),
-          child: Icon(icon, color: Colors.white, size: 20),
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            title,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
-          ),
-        ),
-      ],
+      ),
     );
   }
 }
