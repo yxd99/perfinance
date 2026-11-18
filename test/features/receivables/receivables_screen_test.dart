@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:perfinance/core/widgets/inset_add_row.dart';
 import 'package:perfinance/core/theme/app_theme.dart';
 import 'package:perfinance/core/widgets/paid_stamp.dart';
 import 'package:perfinance/data/models/receivable.dart';
@@ -106,13 +107,21 @@ void main() {
       expect(find.textContaining('Nadie te debe'), findsOneWidget);
     });
 
-    testWidgets('muestra SummaryTotalBar con "Total por cobrar"', (tester) async {
-      await tester.pumpWidget(buildScreen(total: 500000));
+    testWidgets('muestra el total por cobrar arriba de la lista', (tester) async {
+      final views = [ReceivableView(receivable: _makeReceivable(name: 'Juan Test'), payments: const [])];
+      await tester.pumpWidget(buildScreen(views: views, total: 500000));
       await tester.pumpAndSettle();
-      expect(find.text('Total por cobrar'), findsOneWidget);
+      expect(find.textContaining('Total por cobrar', findRichText: true), findsOneWidget);
     });
 
-    testWidgets('muestra el botón Agregar deudor', (tester) async {
+    testWidgets('agregar deudor es la última fila de la lista', (tester) async {
+      final views = [ReceivableView(receivable: _makeReceivable(name: 'Juan Test'), payments: const [])];
+      await tester.pumpWidget(buildScreen(views: views));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(InsetAddRow, 'Agregar deudor'), findsOneWidget);
+    });
+
+    testWidgets('sin deudores ofrece agregar uno', (tester) async {
       await tester.pumpWidget(buildScreen());
       await tester.pumpAndSettle();
       expect(find.textContaining('Agregar deudor'), findsWidgets);

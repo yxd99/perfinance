@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:perfinance/core/widgets/inset_add_row.dart';
 import 'package:perfinance/core/providers/hide_values_provider.dart';
 import 'package:perfinance/core/theme/app_theme.dart';
 import 'package:perfinance/core/utils/user_friendly_errors.dart';
@@ -44,13 +45,6 @@ class AutomaticPaymentsScreen extends ConsumerWidget {
         return ListView(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           children: [
-            FilledButton.icon(
-              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
-              onPressed: () => _openForm(context, ref),
-              icon: const Icon(CupertinoIcons.add),
-              label: const Text('Agregar pago automático'),
-            ),
-            const SizedBox(height: 16),
             _InsetGroup(
               children: [
                 for (final p in list)
@@ -63,6 +57,7 @@ class AutomaticPaymentsScreen extends ConsumerWidget {
                     onTap: () => _openForm(context, ref, edit: p),
                     onLongPress: () => _delete(context, ref, p),
                   ),
+                InsetAddRow(label: 'Agregar pago automático', onTap: () => _openForm(context, ref)),
               ],
             ),
             const SizedBox(height: 8),

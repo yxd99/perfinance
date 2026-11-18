@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:perfinance/core/widgets/inset_add_row.dart';
 import 'package:perfinance/core/observability/error_reporter.dart';
 import 'package:perfinance/core/theme/app_theme.dart';
 import 'package:perfinance/core/utils/user_friendly_errors.dart';
@@ -8,7 +9,6 @@ import 'package:perfinance/core/widgets/app_empty_state.dart';
 import 'package:perfinance/core/widgets/app_error_state.dart';
 import 'package:perfinance/core/widgets/currency_input.dart';
 import 'package:perfinance/core/widgets/paid_stamp.dart';
-import 'package:perfinance/core/widgets/summary_total_bar.dart';
 import 'package:perfinance/data/models/receivable.dart';
 import 'package:perfinance/data/models/receivable_payment.dart';
 import 'package:perfinance/data/repositories/receivable_payment_repository.dart';
@@ -85,8 +85,28 @@ class ReceivablesScreen extends ConsumerWidget {
                 );
               }
               return ListView(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                 children: [
+                  // Total tranquilo arriba de la lista, como en Deudas y Egresos.
+                  asyncTotal.when(
+                    data: (total) => Padding(
+                      padding: const EdgeInsets.fromLTRB(0, 0, 0, 8),
+                      child: Text.rich(
+                        TextSpan(
+                          text: 'Total por cobrar: ',
+                          style: TextStyle(color: c.textMuted),
+                          children: [
+                            TextSpan(
+                              text: '\$${formatCurrency(total)}',
+                              style: TextStyle(color: c.ink, fontWeight: FontWeight.w700, fontFeatures: kTabularFigures),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    loading: () => const SizedBox.shrink(),
+                    error: (_, __) => const SizedBox.shrink(),
+                  ),
                   InsetListGroup(
                     children: [
                       for (final view in views)
@@ -100,6 +120,7 @@ class ReceivablesScreen extends ConsumerWidget {
                               ? () => _settleAll(context, ref, view)
                               : null,
                         ),
+                      InsetAddRow(label: 'Agregar deudor', onTap: () => _openForm(context)),
                     ],
                   ),
                 ],
@@ -109,28 +130,6 @@ class ReceivablesScreen extends ConsumerWidget {
             error: (e, _) => AppErrorState(
               message: UserFriendlyErrors.fromAsyncError(e, 'No se pudo cargar lo que te deben. Probá de nuevo.'),
               onRetry: () => ref.invalidate(receivablesListProvider),
-            ),
-          ),
-        ),
-        SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                asyncTotal.when(
-                  data: (total) => SummaryTotalBar(label: 'Total por cobrar', amount: '\$${formatCurrency(total)}'),
-                  loading: () => const SizedBox.shrink(),
-                  error: (_, __) => const SizedBox.shrink(),
-                ),
-                const SizedBox(height: 8),
-                FilledButton.icon(
-                  onPressed: () => _openForm(context),
-                  icon: const Icon(CupertinoIcons.add),
-                  label: const Text('Agregar deudor'),
-                ),
-              ],
             ),
           ),
         ),
