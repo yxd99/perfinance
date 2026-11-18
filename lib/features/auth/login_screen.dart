@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:perfinance/core/observability/error_reporter.dart';
 import 'package:perfinance/core/theme/app_theme.dart';
-import 'package:perfinance/core/utils/user_friendly_errors.dart';
+import 'package:perfinance/features/auth/auth_copy.dart';
 import 'package:perfinance/features/auth/auth_service.dart';
-
-final authServiceProvider = Provider<AuthService>((ref) => AuthService());
+import 'package:perfinance/features/auth/auth_widgets.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -19,7 +19,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
-  bool _obscurePassword = true;
   String? _errorMessage;
 
   @override
@@ -30,6 +29,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _submit() async {
+    if (_isLoading || !_formKey.currentState!.validate()) return;
     setState(() {
       _errorMessage = null;
       _isLoading = true;
@@ -44,14 +44,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     } on Exception catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = UserFriendlyErrors.authMessage(e, isLogin: true);
+          _errorMessage = AuthCopy.errorMessage(e, isLogin: true);
           _isLoading = false;
         });
       }
-    } catch (_) {
+    } catch (e, st) {
+      ErrorReporter.capture(e, st, operation: 'auth.sign_in');
       if (mounted) {
         setState(() {
-          _errorMessage = UserFriendlyErrors.loginFailed;
+          _errorMessage = AuthCopy.loginFailed;
           _isLoading = false;
         });
       }
@@ -60,111 +61,94 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final c = context.colors;
+    final t = Theme.of(context).textTheme;
     return Scaffold(
-      body: Container(
-        decoration: isDark
-            ? null
-            : const BoxDecoration(gradient: AppThemeColors.backgroundGradientLight),
+      backgroundColor: c.canvas,
+      body: AuthCanvas(
         child: SafeArea(
           child: Center(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: Image.asset(
-                      AppAssets.logo,
-                      height: 100,
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  Card(
-                    elevation: 4,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Form(
-                        key: _formKey,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Text(
-                              'Iniciar sesión',
-                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                              textAlign: TextAlign.center,
+              padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: AutofillGroup(
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Center(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: Image.asset(
+                              AppAssets.logo,
+                              height: 88,
+                              fit: BoxFit.contain,
+                              semanticLabel: 'PerFinance',
                             ),
-                            const SizedBox(height: 24),
-                            TextFormField(
-                              controller: _emailController,
-                              keyboardType: TextInputType.emailAddress,
-                              decoration: const InputDecoration(
-                                labelText: 'Correo',
-                              ),
-                              validator: (v) {
-                                if (v == null || v.trim().isEmpty) return 'Ingresa tu correo';
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 16),
-                            TextFormField(
-                              controller: _passwordController,
-                              obscureText: _obscurePassword,
-                              decoration: InputDecoration(
-                                labelText: 'Contraseña',
-                                suffixIcon: IconButton(
-                                  icon: Icon(
-                                    _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-                                  ),
-                                  onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                                ),
-                              ),
-                              validator: (v) {
-                                if (v == null || v.isEmpty) return 'Ingresa tu contraseña';
-                                return null;
-                              },
-                            ),
-                            if (_errorMessage != null) ...[
-                              const SizedBox(height: 16),
-                              Text(
-                                _errorMessage!,
-                                style: TextStyle(color: Theme.of(context).colorScheme.error),
-                              ),
-                            ],
-                            const SizedBox(height: 24),
-                            FilledButton(
-                              onPressed: _isLoading
-                                  ? null
-                                  : () {
-                                      if (_formKey.currentState!.validate()) _submit();
-                                    },
-                              child: _isLoading
-                                  ? const SizedBox(
-                                      height: 20,
-                                      width: 20,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
-                                    )
-                                  : const Text('Iniciar sesión'),
-                            ),
-                            const SizedBox(height: 12),
-                            TextButton(
-                              onPressed: () => context.push('/register'),
-                              child: const Text('¿No tienes cuenta? Regístrate'),
-                            ),
-                          ],
+                          ),
                         ),
-                      ),
+                        const SizedBox(height: 28),
+                        Semantics(
+                          header: true,
+                          child: Text(
+                            'Iniciá sesión',
+                            style: t.headlineSmall?.copyWith(color: c.ink),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Tus egresos, tarjetas y deudas, en tu teléfono y en la nube.',
+                          style: t.bodyMedium?.copyWith(color: c.textMuted),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 28),
+                        TextFormField(
+                          controller: _emailController,
+                          keyboardType: TextInputType.emailAddress,
+                          autocorrect: false,
+                          textInputAction: TextInputAction.next,
+                          autofillHints: const [AutofillHints.email, AutofillHints.username],
+                          decoration: const InputDecoration(labelText: 'Correo'),
+                          validator: AuthCopy.validateEmail,
+                        ),
+                        const SizedBox(height: 12),
+                        PasswordField(
+                          controller: _passwordController,
+                          label: 'Contraseña',
+                          onSubmitted: _submit,
+                          validator: (v) => v == null || v.isEmpty ? AuthCopy.passwordRequired : null,
+                        ),
+                        if (_errorMessage != null) ...[
+                          const SizedBox(height: 16),
+                          AuthErrorText(_errorMessage!),
+                        ],
+                        const SizedBox(height: 24),
+                        AuthPrimaryButton(label: 'Iniciar sesión', loading: _isLoading, onPressed: _submit),
+                        const SizedBox(height: 8),
+                        TextButton(
+                          onPressed: _isLoading ? null : () => context.push('/register'),
+                          style: TextButton.styleFrom(minimumSize: const Size.fromHeight(44)),
+                          child: Text.rich(
+                            TextSpan(
+                              text: '¿No tenés cuenta? ',
+                              style: TextStyle(color: c.textMuted),
+                              children: [
+                                TextSpan(
+                                  text: 'Creá una',
+                                  style: TextStyle(color: c.accent, fontWeight: FontWeight.w600),
+                                ),
+                              ],
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
+                ),
               ),
             ),
           ),
