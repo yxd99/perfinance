@@ -13,7 +13,7 @@ void main() {
 
   test('cualquier otro error nunca muestra el texto crudo', () {
     final msg = chatErrorMessage('Error 500: {"error":"boom"}');
-    expect(msg, 'No se pudo obtener respuesta. Intentá de nuevo.');
-    expect(chatErrorMessage(null), 'No se pudo obtener respuesta. Intentá de nuevo.');
+    expect(msg, 'No se pudo obtener respuesta. Intenta de nuevo.');
+    expect(chatErrorMessage(null), 'No se pudo obtener respuesta. Intenta de nuevo.');
   });
 }

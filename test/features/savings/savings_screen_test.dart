@@ -27,14 +27,14 @@ void main() {
     expect(find.text('Efectivo'), findsOneWidget);
     expect(find.text('Débito'), findsOneWidget);
     expect(find.text('cash'), findsNothing);
-    expect(find.text('Agregar medio de pago'), findsOneWidget);
+    expect(find.text('Agregar cuenta de ahorro'), findsOneWidget);
   });
 
   testWidgets('sin medios lo dice y ofrece agregar uno', (tester) async {
     await tester.pumpWidget(_app(() async => []));
     await tester.pumpAndSettle();
-    expect(find.textContaining('Todavía no tenés medios de pago'), findsOneWidget);
-    expect(find.widgetWithText(FilledButton, 'Agregar medio de pago'), findsOneWidget);
+    expect(find.textContaining('Todavía no tienes cuentas de ahorro'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Agregar cuenta de ahorro'), findsOneWidget);
   });
 
   testWidgets('si falla la carga muestra el error y reintenta', (tester) async {
@@ -45,7 +45,7 @@ void main() {
       return [PaymentMethod(id: 'a', userId: 'u', name: 'Billetera', type: 'other')];
     }));
     await tester.pumpAndSettle();
-    expect(find.text('No se pudieron cargar los medios de pago.'), findsOneWidget);
+    expect(find.text('No se pudieron cargar las cuentas de ahorro.'), findsOneWidget);
     await tester.tap(find.text('Reintentar'));
     await tester.pumpAndSettle();
     expect(calls, 2);
@@ -66,7 +66,7 @@ void main() {
   testWidgets('tocar un medio abre su edición; deslizar pide confirmar el borrado', (tester) async {
     await tester.pumpWidget(_app(() async => [PaymentMethod(id: 'a', userId: 'u', name: 'Nequi', type: 'debito')]));
     await tester.pumpAndSettle();
-    expect(find.textContaining('Deslizá'), findsNothing);
+    expect(find.textContaining('Desliza'), findsNothing);
 
     // Mantener presionado no tiene un significado oculto.
     final inkWell = tester.widget<InkWell>(find.ancestor(of: find.text('Nequi'), matching: find.byType(InkWell)).first);
@@ -82,6 +82,26 @@ void main() {
     await tester.tap(find.text('Nequi'));
     await tester.pumpAndSettle();
     expect(find.byType(PaymentMethodFormScreen), findsOneWidget);
-    expect(find.text('Editar medio de pago'), findsOneWidget);
+    expect(find.text('Editar cuenta de ahorro'), findsOneWidget);
+    expect(find.textContaining('no suma a la deuda de tus tarjetas'), findsOneWidget);
+  });
+
+  testWidgets('editar y eliminar están a la vista en el botón de acciones', (tester) async {
+    await tester.pumpWidget(_app(() async => [PaymentMethod(id: 'a', userId: 'u', name: 'Nequi', type: 'debito')]));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.bySemanticsLabel('Acciones de Nequi'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Eliminar'));
+    await tester.pumpAndSettle();
+    expect(find.text('¿Eliminar «Nequi»?'), findsOneWidget);
+    await tester.tap(find.text('Cancelar'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.bySemanticsLabel('Acciones de Nequi'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Editar'));
+    await tester.pumpAndSettle();
+    expect(find.text('Editar cuenta de ahorro'), findsOneWidget);
   });
 }

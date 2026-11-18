@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:perfinance/core/widgets/row_actions_button.dart';
 import 'package:perfinance/core/observability/error_reporter.dart';
 import 'package:perfinance/core/widgets/inset_add_row.dart';
 import 'package:perfinance/core/providers/hide_values_provider.dart';
@@ -38,7 +39,7 @@ class AutomaticPaymentsScreen extends ConsumerWidget {
           return AppEmptyState(
             icon: CupertinoIcons.arrow_2_circlepath,
             message:
-                'Todavía no tenés pagos automáticos. Agregá Netflix, el gimnasio o el arriendo '
+                'Todavía no tienes pagos automáticos. Agrega Netflix, el gimnasio o el arriendo '
                 'y se registran solos como egreso cada período.',
             actionLabel: 'Agregar pago automático',
             onAction: () => _openForm(context, ref),
@@ -67,7 +68,7 @@ class AutomaticPaymentsScreen extends ConsumerWidget {
       },
       loading: () => const Center(child: CircularProgressIndicator.adaptive()),
       error: (e, _) => AppErrorState(
-        message: UserFriendlyErrors.fromAsyncError(e, 'No se pudieron cargar los pagos automáticos. Probá de nuevo.'),
+        message: UserFriendlyErrors.fromAsyncError(e, 'No se pudieron cargar los pagos automáticos. Prueba de nuevo.'),
         onRetry: () => ref.invalidate(automaticPaymentsListProvider),
       ),
     );
@@ -91,7 +92,7 @@ class AutomaticPaymentsScreen extends ConsumerWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Eliminar pago automático'),
-        content: Text('¿Eliminás "${p.description}"? Los egresos que ya generó se quedan.'),
+        content: Text('¿Eliminas "${p.description}"? Los egresos que ya generó se quedan.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
           FilledButton(
@@ -107,7 +108,7 @@ class AutomaticPaymentsScreen extends ConsumerWidget {
       await container.read(automaticPaymentRepositoryProvider).delete(p.id);
     } catch (e, st) {
       ErrorReporter.capture(e, st, operation: 'automatic_payments.delete', details: {'id': p.id});
-      messenger?.showSnackBar(const SnackBar(content: Text('No pudimos eliminar el pago automático. Probá de nuevo.')));
+      messenger?.showSnackBar(const SnackBar(content: Text('No pudimos eliminar el pago automático. Prueba de nuevo.')));
       return false;
     }
     container.invalidate(automaticPaymentsListProvider);
@@ -142,6 +143,7 @@ class _AutomaticPaymentRow extends ConsumerWidget {
     final paused = isAutomaticPaymentPaused(payment);
     final ink = paused ? c.textMuted : c.ink;
     return Semantics(
+      container: true,
       customSemanticsActions: {
         const CustomSemanticsAction(label: 'Eliminar pago automático'): onDelete,
       },
@@ -191,8 +193,13 @@ class _AutomaticPaymentRow extends ConsumerWidget {
                     textAlign: TextAlign.right,
                     style: t.titleSmall?.copyWith(color: ink, fontWeight: FontWeight.w700, fontFeatures: kTabularFigures),
                   ),
-                  const SizedBox(width: 4),
-                  Icon(CupertinoIcons.chevron_right, size: 16, color: c.textMuted),
+                  RowActionsButton(
+                    title: payment.description,
+                    actions: [
+                      RowAction(label: 'Editar', icon: CupertinoIcons.pencil, onSelected: onTap),
+                      RowAction(label: 'Eliminar', icon: CupertinoIcons.trash, destructive: true, onSelected: onDelete),
+                    ],
+                  ),
                 ],
               ),
             ),

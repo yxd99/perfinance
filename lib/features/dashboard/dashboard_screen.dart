@@ -426,8 +426,8 @@ class _AttentionRows extends ConsumerWidget {
           if (list.isNotEmpty)
             _AttentionRow(
               text: list.length == 1
-                  ? 'Tenés 1 pago automático atrasado sin procesar'
-                  : 'Tenés ${list.length} pagos automáticos atrasados sin procesar',
+                  ? 'Tienes 1 pago automático atrasado sin procesar'
+                  : 'Tienes ${list.length} pagos automáticos atrasados sin procesar',
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const AutomaticPaymentsScreen()),
@@ -554,13 +554,13 @@ class _AccountsGroup extends ConsumerWidget {
             id: a.paymentRef,
             name: a.isCreditCard
                 ? (display?.cardAliases[a.paymentRef] ?? 'Tarjeta')
-                : (display?.methodNames[a.paymentRef] ?? 'Medio de pago'),
+                : (display?.methodNames[a.paymentRef] ?? 'Cuenta de ahorro'),
             status: _statusFor(a, cardById[a.paymentRef], isCurrent),
             amount: _money(a.total, hideValues),
             onTap: () {
               final name = a.isCreditCard
                   ? (display?.cardAliases[a.paymentRef] ?? 'Tarjeta')
-                  : (display?.methodNames[a.paymentRef] ?? 'Medio de pago');
+                  : (display?.methodNames[a.paymentRef] ?? 'Cuenta de ahorro');
               Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -743,7 +743,7 @@ class _AutomaticPaymentsSection extends ConsumerWidget {
                     _AccountRow(
                       id: a.paymentRef,
                       name: a.alias,
-                      status: a.isCreditCard ? 'Tarjeta de crédito' : 'Medio de pago',
+                      status: a.isCreditCard ? 'Tarjeta de crédito' : 'Cuenta de ahorro',
                       amount: _money(a.amount, hideValues),
                       onTap: () => Navigator.push(
                         context,
@@ -1039,7 +1039,7 @@ class _EmptyRow extends StatelessWidget {
   }
 }
 
-/// Error compacto de una sección. No se reporta acá: `ErrorReporterProviderObserver`
+/// Error compacto de una sección. No se reporta aquí: `ErrorReporterProviderObserver`
 /// ya manda a Sentry todo provider que falla.
 class _SectionError extends StatelessWidget {
   const _SectionError({required this.onRetry});

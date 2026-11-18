@@ -34,6 +34,8 @@ void main() {
       await tester.tap(find.bySemanticsLabel('Registrar egreso'));
       await tester.tap(find.bySemanticsLabel('Deudas'));
       expect(added, 1);
+      // El botón dice qué hace: «Egreso», no un «+» suelto.
+      expect(find.text('Egreso'), findsOneWidget);
       expect(selected, [2]);
       expect(tester.getSize(find.bySemanticsLabel('Registrar egreso')).height, greaterThanOrEqualTo(44));
     });
@@ -60,16 +62,20 @@ void main() {
       await tester.pumpAndSettle();
 
       for (final label in [
-        'Tarjetas',
-        'Ahorros',
+        'Tarjetas de crédito',
+        'Cuentas de ahorro',
+        'Débito, Nequi y efectivo',
         'Me deben',
         'Auto-pagos',
         'Asesor financiero',
         'Registro con Apple Wallet',
+        'Guía de la app',
         'Ocultar valores',
         'Sincronizar ahora',
         '2 cambios sin subir',
       ]) {
+        // Con subtítulos la lista ya no entra entera: se baja hasta cada fila.
+        await tester.scrollUntilVisible(find.text(label), 100);
         expect(find.text(label), findsOneWidget, reason: label);
       }
       await tester.scrollUntilVisible(find.text('Cerrar sesión'), 100);
@@ -121,6 +127,8 @@ void main() {
         overrides: [...overrides, isSyncingProvider.overrideWith((ref) => true)],
       ));
       await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -400));
       await tester.pump(const Duration(milliseconds: 100));
 
       final badge = find.descendant(of: find.byType(SyncNowTile), matching: find.byType(Badge));

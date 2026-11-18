@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:perfinance/core/widgets/row_actions_button.dart';
 import 'package:perfinance/core/widgets/inset_add_row.dart';
 import 'package:perfinance/core/theme/app_theme.dart';
 import 'package:perfinance/core/utils/user_friendly_errors.dart';
@@ -72,8 +73,8 @@ class ReceivablesScreen extends ConsumerWidget {
                 return AppEmptyState(
                   icon: CupertinoIcons.person_2,
                   message: settledTab
-                      ? 'Todavía no saldaste ningún cobro. Cuando alguien te pague todo, queda acá.'
-                      : 'Nadie te debe plata por ahora.',
+                      ? 'Todavía no saldaste ningún cobro. Cuando alguien te pague todo, queda aquí.'
+                      : 'Nadie te debe dinero por ahora.',
                   actionLabel: settledTab ? null : 'Agregar deudor',
                   onAction: settledTab ? null : () => _openForm(context),
                 );
@@ -120,7 +121,7 @@ class ReceivablesScreen extends ConsumerWidget {
             },
             loading: () => const Center(child: CircularProgressIndicator.adaptive()),
             error: (e, _) => AppErrorState(
-              message: UserFriendlyErrors.fromAsyncError(e, 'No se pudo cargar lo que te deben. Probá de nuevo.'),
+              message: UserFriendlyErrors.fromAsyncError(e, 'No se pudo cargar lo que te deben. Prueba de nuevo.'),
               onRetry: () => ref.invalidate(receivablesListProvider),
             ),
           ),
@@ -222,8 +223,13 @@ class _ReceivableRow extends StatelessWidget {
                     fontFeatures: kTabularFigures,
                   ),
                 ),
-              const SizedBox(width: 4),
-              Icon(CupertinoIcons.chevron_right, size: 16, color: c.textMuted),
+              RowActionsButton(
+                title: r.debtorName,
+                actions: [
+                  RowAction(label: 'Ver detalle', icon: CupertinoIcons.info_circle, onSelected: onTap),
+                  RowAction(label: 'Eliminar', icon: CupertinoIcons.trash, destructive: true, onSelected: onDelete),
+                ],
+              ),
             ],
           ),
         ),
@@ -231,6 +237,7 @@ class _ReceivableRow extends StatelessWidget {
     );
 
     return Semantics(
+      container: true,
       customSemanticsActions: {
         const CustomSemanticsAction(label: 'Eliminar deudor'): onDelete,
       },

@@ -147,7 +147,7 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
             title: const Text('Desactivar tarjeta'),
             content: Text(
               'Esta tarjeta tiene una deuda de \$${formatCurrency(debt)}. '
-              'Podés seguir viéndola y pagándola, pero no podrás usarla para nuevos egresos. ¿Confirmás?',
+              'Puedes seguir viéndola y pagándola, pero no podrás usarla para nuevos egresos. ¿Confirmas?',
             ),
             actions: [
               TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
@@ -164,7 +164,7 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
       await CreditCardLifecycleService.setActive(cardRepo, autoPayRepo, widget.card.id, newValue);
     } catch (e, st) {
       ErrorReporter.capture(e, st, operation: 'credit_cards.set_active', details: {'card_id': widget.card.id, 'active': newValue});
-      _showSaveError(newValue ? 'No pudimos reactivar la tarjeta. Probá de nuevo.' : 'No pudimos desactivar la tarjeta. Probá de nuevo.');
+      _showSaveError(newValue ? 'No pudimos reactivar la tarjeta. Prueba de nuevo.' : 'No pudimos desactivar la tarjeta. Prueba de nuevo.');
       return;
     }
     if (!mounted) return;
@@ -274,7 +274,7 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
                 subtitle: Text(
                   widget.card.isActive
                       ? 'Aparece al registrar egresos.'
-                      : 'Desactivada: no aparece al registrar egresos, pero podés seguir pagándola.',
+                      : 'Desactivada: no aparece al registrar egresos, pero puedes seguir pagándola.',
                 ),
                 activeTrackColor: c.accent,
                 value: widget.card.isActive,
@@ -421,7 +421,7 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
                     Padding(
                       padding: const EdgeInsets.only(top: 6),
                       child: Text(
-                        'Solo podés modificar el monto este mes. La fecha de referencia queda fija en el día ${existing.effectiveDay}.',
+                        'Solo puedes modificar el monto este mes. La fecha de referencia queda fija en el día ${existing.effectiveDay}.',
                         style: Theme.of(ctx).textTheme.bodySmall?.copyWith(color: ctx.colors.textMuted),
                       ),
                     ),
@@ -486,7 +486,7 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
       }
     } catch (e, st) {
       ErrorReporter.capture(e, st, operation: 'credit_cards.save_min_payment', details: {'card_id': widget.card.id});
-      _showSaveError('No pudimos guardar el pago mínimo. Probá de nuevo.');
+      _showSaveError('No pudimos guardar el pago mínimo. Prueba de nuevo.');
       return;
     }
 
@@ -530,7 +530,7 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
       ));
     } catch (e, st) {
       ErrorReporter.capture(e, st, operation: 'credit_cards.register_payment', details: {'card_id': widget.card.id});
-      _showSaveError('No pudimos registrar el pago. Probá de nuevo.');
+      _showSaveError('No pudimos registrar el pago. Prueba de nuevo.');
       return;
     }
     if (mounted) {
@@ -591,7 +591,7 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
       }
     } catch (e, st) {
       ErrorReporter.capture(e, st, operation: 'credit_cards.validate_debt', details: {'card_id': widget.card.id});
-      _showSaveError('No pudimos guardar el ajuste de la deuda. Probá de nuevo.');
+      _showSaveError('No pudimos guardar el ajuste de la deuda. Prueba de nuevo.');
       return;
     }
 
@@ -691,7 +691,7 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
       ));
     } catch (e, st) {
       ErrorReporter.capture(e, st, operation: 'credit_cards.edit_payment', details: {'payment_id': payment.id});
-      _showSaveError('No pudimos guardar el pago. Probá de nuevo.');
+      _showSaveError('No pudimos guardar el pago. Prueba de nuevo.');
       return;
     }
     if (!mounted) return;
@@ -731,7 +731,7 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
       await payRepo.markPendingDelete(payment.id);
     } catch (e, st) {
       ErrorReporter.capture(e, st, operation: 'credit_cards.delete_payment', details: {'payment_id': payment.id});
-      _showSaveError('No pudimos eliminar el pago. Probá de nuevo.');
+      _showSaveError('No pudimos eliminar el pago. Prueba de nuevo.');
       return;
     }
     if (!mounted) return;

@@ -67,7 +67,7 @@ class _ReceivableFormScreenState extends ConsumerState<ReceivableFormScreen> {
                 hintText: 'Ej: Juan Pérez',
               ),
               validator: (v) =>
-                  v == null || v.trim().isEmpty ? 'Ingresá el nombre del responsable' : null,
+                  v == null || v.trim().isEmpty ? 'Ingresa el nombre del responsable' : null,
             ),
             const SizedBox(height: 16),
             TextFormField(
@@ -90,7 +90,7 @@ class _ReceivableFormScreenState extends ConsumerState<ReceivableFormScreen> {
                 if (v == null || v.trim().isEmpty) return null;
                 final email = v.trim();
                 if (!email.contains('@') || !email.contains('.')) {
-                  return 'Email inválido. Verificá el formato.';
+                  return 'Email inválido. Verifica el formato.';
                 }
                 return null;
               },

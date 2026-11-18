@@ -9,6 +9,7 @@ import 'package:perfinance/data/database/database_provider.dart';
 import 'package:perfinance/features/auth/auth_service.dart';
 import 'package:perfinance/features/automatic_payments/automatic_payments_screen.dart';
 import 'package:perfinance/features/credit_cards/credit_cards_screen.dart';
+import 'package:perfinance/features/onboarding/onboarding_screen.dart';
 import 'package:perfinance/features/receivables/receivables_screen.dart';
 import 'package:perfinance/features/savings/savings_screen.dart';
 import 'package:perfinance/services/sync_service.dart';
@@ -23,7 +24,7 @@ class MoreScreen extends ConsumerStatefulWidget {
 }
 
 class _MoreScreenState extends ConsumerState<MoreScreen> {
-  /// Las pantallas que eran pestañas no tienen barra propia: acá se les da
+  /// Las pantallas que eran pestañas no tienen barra propia: aquí se les da
   /// Scaffold y título al abrirlas.
   void _openSection(String title, Widget body) {
     Navigator.of(context).push(
@@ -46,8 +47,8 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
           title: const Text('Cambios sin sincronizar'),
           content: Text(
             pending == 1
-                ? 'Hay 1 cambio que no se pudo subir a la nube. Si cerrás sesión ahora se pierde.'
-                : 'Hay $pending cambios que no se pudieron subir a la nube. Si cerrás sesión ahora se pierden.',
+                ? 'Hay 1 cambio que no se pudo subir a la nube. Si cierras sesión ahora se pierde.'
+                : 'Hay $pending cambios que no se pudieron subir a la nube. Si cierras sesión ahora se pierden.',
           ),
           actions: [
             TextButton(
@@ -88,22 +89,26 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
               children: [
                 _NavRow(
                   icon: CupertinoIcons.creditcard,
-                  title: 'Tarjetas',
-                  onTap: () => _openSection('Tarjetas', const CreditCardsScreen()),
+                  title: 'Tarjetas de crédito',
+                  subtitle: 'Corte, cuota de manejo y pagos',
+                  onTap: () => _openSection('Tarjetas de crédito', const CreditCardsScreen()),
                 ),
                 _NavRow(
                   icon: CupertinoIcons.briefcase,
-                  title: 'Ahorros',
-                  onTap: () => _openSection('Ahorros', const SavingsScreen()),
+                  title: 'Cuentas de ahorro',
+                  subtitle: 'Débito, Nequi y efectivo',
+                  onTap: () => _openSection('Cuentas de ahorro', const SavingsScreen()),
                 ),
                 _NavRow(
                   icon: CupertinoIcons.person_2,
                   title: 'Me deben',
+                  subtitle: 'Dinero que prestaste',
                   onTap: () => _openSection('Me deben', const ReceivablesScreen()),
                 ),
                 _NavRow(
                   icon: CupertinoIcons.repeat,
                   title: 'Auto-pagos',
+                  subtitle: 'Egresos que se repiten cada mes',
                   onTap: () => _openSection('Auto-pagos', const AutomaticPaymentsScreen()),
                 ),
               ],
@@ -119,6 +124,14 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
                   icon: CupertinoIcons.square_stack,
                   title: 'Registro con Apple Wallet',
                   onTap: () => context.push('/wallet-shortcut'),
+                ),
+                _NavRow(
+                  icon: CupertinoIcons.book,
+                  title: 'Guía de la app',
+                  subtitle: 'Vuelve a ver cómo funciona cada sección',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(builder: (_) => const OnboardingScreen(replay: true)),
+                  ),
                 ),
               ],
             ),
@@ -191,10 +204,11 @@ class InsetGroup extends StatelessWidget {
 }
 
 class _NavRow extends StatelessWidget {
-  const _NavRow({required this.icon, required this.title, required this.onTap});
+  const _NavRow({required this.icon, required this.title, required this.onTap, this.subtitle});
 
   final IconData icon;
   final String title;
+  final String? subtitle;
   final VoidCallback onTap;
 
   @override
@@ -202,6 +216,7 @@ class _NavRow extends StatelessWidget {
     return ListTile(
       leading: Icon(icon),
       title: Text(title),
+      subtitle: subtitle == null ? null : Text(subtitle!),
       trailing: Icon(CupertinoIcons.chevron_forward, size: 18, color: context.colors.textMuted),
       onTap: onTap,
     );

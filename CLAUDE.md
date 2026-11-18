@@ -64,4 +64,4 @@ Reportar siempre con `ErrorReporter.capture(e, st, operation: 'area.accion', det
 
 ## Idioma
 
-Textos de la interfaz y comentarios en español (voseo). Mensajes de commit en inglés, formato conventional commits.
+Textos de la interfaz en español colombiano neutro, tratando al usuario de tú ("registra", "tienes"); nunca voseo ni modismos regionales. Comentarios en español. Mensajes de commit en inglés, formato conventional commits.

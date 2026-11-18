@@ -2,7 +2,6 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:perfinance/features/accounts/account_hue_provider.dart';
 import 'package:perfinance/core/observability/error_reporter.dart';
 import 'package:perfinance/core/theme/app_theme.dart';
 import 'package:perfinance/services/sync_service.dart';
@@ -16,7 +15,7 @@ import 'package:perfinance/features/dashboard/dashboard_provider.dart';
 import 'package:perfinance/features/expenses/expense_list_formatting.dart';
 import 'package:perfinance/features/expenses/expenses_provider.dart';
 import 'package:perfinance/features/expenses/last_account.dart';
-import 'package:perfinance/features/expenses/widgets/account_note_chip.dart';
+import 'package:perfinance/features/expenses/widgets/account_picker.dart';
 import 'package:perfinance/features/savings/savings_provider.dart';
 import 'package:perfinance/features/savings/payment_method_form_screen.dart';
 import 'package:uuid/uuid.dart';
@@ -45,13 +44,6 @@ class ExpenseFormScreen extends ConsumerStatefulWidget {
 
   @override
   ConsumerState<ExpenseFormScreen> createState() => _ExpenseFormScreenState();
-}
-
-class _AccountOption {
-  const _AccountOption(this.id, this.label, {required this.isCard});
-  final String id;
-  final String label;
-  final bool isCard;
 }
 
 class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
@@ -133,7 +125,7 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
     super.dispose();
   }
 
-  void _select(_AccountOption o) {
+  void _select(AccountChoice o) {
     setState(() {
       _isCreditCard = o.isCard;
       if (o.isCard) {
@@ -144,27 +136,27 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
     });
   }
 
-  List<_AccountOption> _accountOptions() {
+  List<AccountChoice> _accountOptions() {
     _applyLastAccount();
     final cards = ref.watch(activeCreditCardsListProvider).valueOrNull ?? [];
     final methods = ref.watch(paymentMethodsListProvider).valueOrNull ?? [];
     final options = [
-      for (final c in cards) _AccountOption(c.id, c.alias, isCard: true),
-      for (final m in methods) _AccountOption(m.id, m.name, isCard: false),
+      for (final c in cards) AccountChoice(c.id, c.alias, isCard: true),
+      for (final m in methods) AccountChoice(m.id, m.name, isCard: false),
     ];
     // Al editar un egreso de una tarjeta desactivada, la cuenta igual se muestra.
     final selected = _selectedId;
     if (selected != null && options.every((o) => o.id != selected)) {
       final display = ref.watch(expensePaymentDisplayProvider).valueOrNull;
       final label = _isCreditCard ? display?.cardAliases[selected] : display?.methodNames[selected];
-      options.insert(0, _AccountOption(selected, label ?? 'Cuenta actual', isCard: _isCreditCard));
+      options.insert(0, AccountChoice(selected, label ?? 'Cuenta actual', isCard: _isCreditCard));
     }
     return options;
   }
 
   @override
   Widget build(BuildContext context) {
-    final title = _isEdit ? 'Editar egreso' : 'Registrá un egreso';
+    final title = _isEdit ? 'Editar egreso' : 'Registra un egreso';
     final fields = _buildFields(context);
     final save = SafeArea(
       top: false,
@@ -271,7 +263,7 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
           contentPadding: const EdgeInsets.symmetric(vertical: 4),
         ),
         validator: (v) {
-          if (v == null || v.trim().isEmpty) return 'Ingresá el monto';
+          if (v == null || v.trim().isEmpty) return 'Ingresa el monto';
           final val = parseCurrency(v);
           if (val == null || val <= 0) return 'Monto inválido';
           return null;
@@ -281,54 +273,28 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
       Text('Cuenta', style: label),
       const SizedBox(height: 8),
       FormField<String>(
-        validator: (_) => (_selectedId == null || _selectedId!.isEmpty) ? 'Elegí una tarjeta o cuenta' : null,
-        builder: (state) => Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              children: [
-                for (final o in options)
-                  ChoiceChip(
-                    avatar: AccountNoteChip(color: ref.accountHue(context, o.id)),
-                    label: Text(o.label),
-                    showCheckmark: false,
-                    selected: o.isCard == _isCreditCard && o.id == _selectedId,
-                    selectedColor: c.accentSoft,
-                    side: BorderSide(
-                      color: o.isCard == _isCreditCard && o.id == _selectedId ? c.accent : c.divider,
-                      width: o.isCard == _isCreditCard && o.id == _selectedId ? 1.5 : 1,
-                    ),
-                    onSelected: (_) {
-                      _select(o);
-                      state.didChange(o.id);
-                    },
-                  ),
-                ActionChip(
-                  avatar: Icon(CupertinoIcons.add, size: 18, color: c.accent),
-                  label: const Text('Nueva cuenta'),
-                  labelStyle: TextStyle(color: c.accent),
-                  backgroundColor: Colors.transparent,
-                  onPressed: () => _addAccount(state),
-                ),
-              ],
-            ),
-            if (options.isEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  'Agregá una tarjeta o cuenta para registrar el egreso.',
-                  style: t.bodySmall?.copyWith(color: c.textMuted),
-                ),
+        validator: (_) => (_selectedId == null || _selectedId!.isEmpty) ? 'Elige una tarjeta o cuenta' : null,
+        builder: (state) {
+          AccountChoice? selected;
+          for (final o in options) {
+            if (o.isCard == _isCreditCard && o.id == _selectedId) selected = o;
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AccountField(
+                selected: selected,
+                errorText: state.errorText,
+                onTap: () => _pickAccount(state, options, selected),
               ),
-            if (state.hasError)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(state.errorText!, style: t.bodySmall?.copyWith(color: c.danger)),
-              ),
-          ],
-        ),
+              if (state.hasError)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(state.errorText!, style: t.bodySmall?.copyWith(color: c.danger)),
+                ),
+            ],
+          );
+        },
       ),
       const SizedBox(height: 20),
       TextFormField(
@@ -391,30 +357,25 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
     setState(() => _date = picked);
   }
 
-  Future<void> _addAccount(FormFieldState<String> field) async {
-    final isCard = await showModalBottomSheet<bool>(
-      context: context,
-      useSafeArea: true,
-      builder: (ctx) => SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(CupertinoIcons.creditcard),
-              title: const Text('Tarjeta de crédito'),
-              onTap: () => Navigator.pop(ctx, true),
-            ),
-            ListTile(
-              leading: const Icon(CupertinoIcons.money_dollar_circle),
-              title: const Text('Ahorro, débito o efectivo'),
-              onTap: () => Navigator.pop(ctx, false),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (isCard == null || !mounted) return;
+  /// Abre la hoja de cuentas. Elegir una la selecciona; pedir una nueva abre
+  /// su formulario y, al volver, la deja elegida.
+  Future<void> _pickAccount(
+    FormFieldState<String> field,
+    List<AccountChoice> options,
+    AccountChoice? selected,
+  ) async {
+    FocusScope.of(context).unfocus();
+    final result = await showAccountPicker(context, options: options, selected: selected);
+    if (!mounted || result == null) return;
+    if (result is AccountChoice) {
+      _select(result);
+      field.didChange(result.id);
+    } else if (result is AccountPickerAdd) {
+      await _addAccount(field, isCard: result == AccountPickerAdd.card);
+    }
+  }
+
+  Future<void> _addAccount(FormFieldState<String> field, {required bool isCard}) async {
     final id = await Navigator.push<String>(
       context,
       MaterialPageRoute(
@@ -428,7 +389,7 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
     } else {
       ref.invalidate(paymentMethodsListProvider);
     }
-    _select(_AccountOption(id, '', isCard: isCard));
+    _select(AccountChoice(id, '', isCard: isCard));
     field.didChange(id);
   }
 

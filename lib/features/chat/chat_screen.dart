@@ -133,7 +133,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       child: Padding(
                         padding: const EdgeInsets.all(24),
                         child: Text(
-                          'Todavía no hay conversaciones.\nEscribí para empezar una.',
+                          'Todavía no hay conversaciones.\nEscribe para empezar una.',
                           textAlign: TextAlign.center,
                           style: t.bodyMedium?.copyWith(color: c.textMuted),
                         ),
@@ -244,14 +244,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   String _hintForAgent(ChatAgent agent) {
     switch (agent) {
       case ChatAgent.financialAdvisor:
-        return 'Preguntame sobre tus gastos y deudas, o pedime un análisis.\n\n'
+        return 'Pregúntame sobre tus gastos y deudas, o pídeme un análisis.\n\n'
             '"¿Cómo van mis finanzas este mes?"\n'
             '"¿Cuánto gasté en enero?"\n'
-            '"Compará enero con febrero"';
+            '"Compara enero con febrero"';
       case ChatAgent.appAssistant:
-        return 'Contame qué pagaste y lo registro por vos.\n\n'
+        return 'Cuéntame qué pagaste y lo registro por ti.\n\n'
             '"Gasté 50 mil en el súper"\n'
-            '"Registrá un pago de 200 mil a la deuda del celular"\n'
+            '"Registra un pago de 200 mil a la deuda del celular"\n'
             '"Pagué la tarjeta Visa"';
       case ChatAgent.ephemeralChat:
         return 'Preguntas rápidas, sin tus datos. Los mensajes no se guardan.\n\n'
@@ -401,11 +401,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   String _hintForInput(ChatAgent agent) {
     switch (agent) {
       case ChatAgent.financialAdvisor:
-        return 'Preguntá sobre tus finanzas';
+        return 'Pregunta sobre tus finanzas';
       case ChatAgent.appAssistant:
-        return 'Registrá algo o consultá datos';
+        return 'Registra algo o consulta datos';
       case ChatAgent.ephemeralChat:
-        return 'Escribí tu pregunta';
+        return 'Escribe tu pregunta';
     }
   }
 

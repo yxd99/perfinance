@@ -135,7 +135,7 @@ class _AutomaticPaymentFormScreenState extends ConsumerState<AutomaticPaymentFor
               textCapitalization: TextCapitalization.sentences,
               decoration: const InputDecoration(labelText: 'Descripción', hintText: 'Ej: Netflix, gym, suscripción...'),
               validator: (v) {
-                if (v == null || v.trim().isEmpty) return 'Ingresá una descripción';
+                if (v == null || v.trim().isEmpty) return 'Ingresa una descripción';
                 return null;
               },
             ),
@@ -150,9 +150,9 @@ class _AutomaticPaymentFormScreenState extends ConsumerState<AutomaticPaymentFor
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(labelText: 'Día del mes (1–31)', hintText: 'Ej: 15'),
               validator: (v) {
-                if (v == null || v.trim().isEmpty) return 'Ingresá un día entre 1 y 31';
+                if (v == null || v.trim().isEmpty) return 'Ingresa un día entre 1 y 31';
                 final day = int.tryParse(v.trim());
-                if (day == null || day < 1 || day > 31) return 'Ingresá un día entre 1 y 31';
+                if (day == null || day < 1 || day > 31) return 'Ingresa un día entre 1 y 31';
                 return null;
               },
             ),
@@ -166,7 +166,7 @@ class _AutomaticPaymentFormScreenState extends ConsumerState<AutomaticPaymentFor
               onChanged: (v) {
                 if (v != null) setState(() => _frequency = v);
               },
-              validator: (v) => (v == null || v.isEmpty) ? 'Elegí una frecuencia' : null,
+              validator: (v) => (v == null || v.isEmpty) ? 'Elige una frecuencia' : null,
             ),
             const SizedBox(height: 8),
             const SizedBox(height: 8),
@@ -175,7 +175,7 @@ class _AutomaticPaymentFormScreenState extends ConsumerState<AutomaticPaymentFor
               backgroundColor: context.colors.track,
               thumbColor: context.colors.surface,
               children: {
-                for (final e in const {true: 'Tarjeta de crédito', false: 'Ahorro o efectivo'}.entries)
+                for (final e in const {true: 'Tarjeta de crédito', false: 'Cuenta de ahorro'}.entries)
                   e.key: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     child: Text(
@@ -204,23 +204,23 @@ class _AutomaticPaymentFormScreenState extends ConsumerState<AutomaticPaymentFor
                 initialValue: cards.any((c) => c.id == _selectedCardId) ? _selectedCardId : null,
                 decoration: const InputDecoration(labelText: 'Tarjeta'),
                 items: [
-                  const DropdownMenuItem(value: null, child: Text('Elegí una tarjeta')),
+                  const DropdownMenuItem(value: null, child: Text('Elige una tarjeta')),
                   ...cards.map((c) => DropdownMenuItem(value: c.id, child: Text(c.alias))),
                 ],
                 onChanged: (v) => setState(() => _selectedCardId = v),
-                validator: (v) => _isCreditCard && (v == null || v.isEmpty) ? 'Elegí una tarjeta' : null,
+                validator: (v) => _isCreditCard && (v == null || v.isEmpty) ? 'Elige una tarjeta' : null,
               ),
             ] else ...[
               DropdownButtonFormField<String>(
                 // Guard: solo preseleccionar si el item está en la lista cargada
                 initialValue: methods.any((m) => m.id == _selectedMethodId) ? _selectedMethodId : null,
-                decoration: const InputDecoration(labelText: 'Medio de pago'),
+                decoration: const InputDecoration(labelText: 'Cuenta de ahorro'),
                 items: [
-                  const DropdownMenuItem(value: null, child: Text('Elegí un medio de pago')),
+                  const DropdownMenuItem(value: null, child: Text('Elige una cuenta')),
                   ...methods.map((m) => DropdownMenuItem(value: m.id, child: Text(m.name))),
                 ],
                 onChanged: (v) => setState(() => _selectedMethodId = v),
-                validator: (v) => !_isCreditCard && (v == null || v.isEmpty) ? 'Elegí un medio de pago' : null,
+                validator: (v) => !_isCreditCard && (v == null || v.isEmpty) ? 'Elige una cuenta' : null,
               ),
             ],
             const SizedBox(height: 24),
@@ -301,7 +301,7 @@ class _AutomaticPaymentFormScreenState extends ConsumerState<AutomaticPaymentFor
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'No se pudo guardar el pago automático. Probá de nuevo.',
+              'No se pudo guardar el pago automático. Prueba de nuevo.',
               style: TextStyle(color: context.colors.onDanger),
             ),
             backgroundColor: context.colors.danger,

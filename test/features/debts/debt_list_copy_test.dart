@@ -15,10 +15,10 @@ Debt _debt({DebtStatus status = DebtStatus.active, double total = 1000000, int i
 
 void main() {
   group('debtsEmptyMessage', () {
-    test('cada filtro dice qué falta, en voseo', () {
-      expect(debtsEmptyMessage(DebtListFilter.active, ''), 'No tenés deudas activas.');
+    test('cada filtro dice qué falta, en español neutro', () {
+      expect(debtsEmptyMessage(DebtListFilter.active, ''), 'No tienes deudas activas.');
       expect(debtsEmptyMessage(DebtListFilter.paid, ''), 'Todavía no pagaste ninguna deuda.');
-      expect(debtsEmptyMessage(DebtListFilter.hidden, ''), 'No tenés deudas ocultas.');
+      expect(debtsEmptyMessage(DebtListFilter.hidden, ''), 'No tienes deudas ocultas.');
       expect(debtsEmptyMessage(DebtListFilter.all, ''), 'Todavía no registraste deudas.');
     });
 

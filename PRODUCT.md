@@ -8,7 +8,7 @@ ios
 
 ## Users
 
-One user: the author, on their own iPhone. Expert in the app; no onboarding or hand-holding needed beyond first run. Opens the app for two jobs:
+The author plus a few people close to them (iPhone and Android). The author is an expert; the newer users learn the app through the first-run guide, which covers every section and can be replayed from Más › Guía de la app. Everyone opens the app for two jobs:
 
 1. **Review the month**: how much has been spent so far, card debt, and what is due soon.
 2. **Log by hand** what Apple Wallet does not capture: cash, Nequi/debit and other non-card payments.
@@ -45,7 +45,7 @@ A private, offline-first expense tracker built around the author's real money fl
 ## Brand Commitments
 
 - Name: PerFinance. Existing logo asset: `assets/images/perfinance-logo.png` (whether to keep or redraw it is undecided).
-- Interface copy in Spanish with voseo (Rioplatense second person: "tenés", "registrá").
+- Interface copy in Colombian neutral Spanish, addressing the user as tú ("tienes", "registra"). No voseo, no regional slang.
 
 ## Evidence on Hand
 
@@ -58,7 +58,7 @@ A private, offline-first expense tracker built around the author's real money fl
 2. **Logging is a seconds-long task.** Manual expense entry must be reachable with the thumb from anywhere in the app.
 3. **Debt is a number to watch, not decoration.** Card and loan debt stay honest and prominent, never softened.
 4. **Works without signal.** No screen may depend on connectivity to be useful.
-5. **Built for one expert.** Prefer density and speed over explanation; no feature tours.
+5. **Fast for experts, findable for newcomers.** Keep density and speed, but no action may live only behind a gesture (long-press, swipe): every row action is also visible. Labels name what they do ("+ Egreso", "Nueva deuda", "Tarjetas de crédito", "Cuentas de ahorro"). The first-run guide explains each section once; it is not repeated in the UI.
 
 ## Accessibility & Inclusion
 

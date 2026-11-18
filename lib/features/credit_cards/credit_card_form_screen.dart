@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perfinance/core/widgets/currency_input.dart';
 import 'package:perfinance/services/sync_service.dart';
 import 'package:perfinance/data/models/credit_card.dart';
+import 'package:perfinance/features/accounts/account_color_picker.dart';
 import 'package:perfinance/features/auth/auth_provider.dart';
 import 'package:perfinance/data/repositories/credit_card_repository.dart';
 import 'package:perfinance/features/credit_cards/credit_card_delete.dart';
@@ -31,10 +32,14 @@ class _CreditCardFormScreenState extends ConsumerState<CreditCardFormScreen> {
   final _cutOffController = TextEditingController();
   final _feeController = TextEditingController();
 
+  /// Color elegido; null mientras el usuario no lo cambie (queda el automático).
+  int? _colorSlot;
+
   @override
   void initState() {
     super.initState();
     if (widget.editCard != null) {
+      _colorSlot = widget.editCard!.colorSlot;
       _aliasController.text = widget.editCard!.alias;
       _cutOffController.text = widget.editCard!.cutOffDay.toString();
       _feeController.text = formatCurrency(widget.editCard!.managementFee);
@@ -62,7 +67,7 @@ class _CreditCardFormScreenState extends ConsumerState<CreditCardFormScreen> {
               controller: _aliasController,
               textCapitalization: TextCapitalization.sentences,
               decoration: const InputDecoration(labelText: 'Alias', hintText: 'Ej.: Visa Bancolombia'),
-              validator: (v) => v == null || v.trim().isEmpty ? 'Escribí un alias' : null,
+              validator: (v) => v == null || v.trim().isEmpty ? 'Escribe un alias' : null,
             ),
             const SizedBox(height: 16),
             TextFormField(
@@ -70,7 +75,7 @@ class _CreditCardFormScreenState extends ConsumerState<CreditCardFormScreen> {
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(labelText: 'Día de corte (1-31)'),
               validator: (v) {
-                if (v == null || v.isEmpty) return 'Escribí el día de corte';
+                if (v == null || v.isEmpty) return 'Escribe el día de corte';
                 final n = int.tryParse(v);
                 if (n == null || n < 1 || n > 31) return 'Tiene que ser un día entre 1 y 31';
                 return null;
@@ -79,13 +84,18 @@ class _CreditCardFormScreenState extends ConsumerState<CreditCardFormScreen> {
             const SizedBox(height: 16),
             CurrencyTextField(
               controller: _feeController,
-              decoration: const InputDecoration(labelText: 'Cuota de manejo', helperText: 'Escribí 0 si no cobra cuota.'),
+              decoration: const InputDecoration(labelText: 'Cuota de manejo', helperText: 'Escribe 0 si no cobra cuota.'),
               validator: (v) {
-                if (v == null || v.trim().isEmpty) return 'Escribí la cuota (0 si no tiene)';
+                if (v == null || v.trim().isEmpty) return 'Escribe la cuota (0 si no tiene)';
                 final val = parseCurrency(v);
-                if (val == null || val < 0) return 'Escribí un monto válido';
+                if (val == null || val < 0) return 'Escribe un monto válido';
                 return null;
               },
+            ),
+            const SizedBox(height: 20),
+            AccountColorPicker(
+              selected: displayedColorSlot(ref, accountId: widget.editCard?.id, chosen: _colorSlot),
+              onChanged: (v) => setState(() => _colorSlot = v),
             ),
             const SizedBox(height: 24),
             FilledButton(
@@ -132,12 +142,12 @@ class _CreditCardFormScreenState extends ConsumerState<CreditCardFormScreen> {
     if (fee == null || fee < 0) return;
 
     if (widget.editCard != null) {
-      final updated = widget.editCard!.copyWith(alias: alias, cutOffDay: cutOff, managementFee: fee);
+      final updated = widget.editCard!.copyWith(alias: alias, cutOffDay: cutOff, managementFee: fee, colorSlot: _colorSlot);
       try {
         await repo.update(updated);
       } catch (e, st) {
         ErrorReporter.capture(e, st, operation: 'credit_cards.update', details: {'card_id': updated.id});
-        _showSaveError('No pudimos guardar los cambios. Probá de nuevo.');
+        _showSaveError('No pudimos guardar los cambios. Prueba de nuevo.');
         return;
       }
     } else {
@@ -147,12 +157,13 @@ class _CreditCardFormScreenState extends ConsumerState<CreditCardFormScreen> {
         alias: alias,
         cutOffDay: cutOff,
         managementFee: fee,
+        colorSlot: _colorSlot,
       );
       try {
         await repo.insert(card);
       } catch (e, st) {
         ErrorReporter.capture(e, st, operation: 'credit_cards.create', details: {'card_id': card.id});
-        _showSaveError('No pudimos guardar la tarjeta. Probá de nuevo.');
+        _showSaveError('No pudimos guardar la tarjeta. Prueba de nuevo.');
         return;
       }
       if (mounted) {

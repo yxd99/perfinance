@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:perfinance/core/widgets/row_actions_button.dart';
 import 'package:perfinance/core/providers/hide_values_provider.dart';
 import 'package:perfinance/core/theme/app_theme.dart';
 import 'package:perfinance/core/widgets/app_error_state.dart';
@@ -17,7 +18,7 @@ import 'package:perfinance/features/credit_cards/credit_card_form_screen.dart';
 import 'package:perfinance/features/credit_cards/widgets/card_inset_group.dart';
 
 /// Lista de tarjetas. Se abre desde «Más», que le pone el Scaffold y el título:
-/// acá solo va el cuerpo.
+/// aquí solo va el cuerpo.
 class CreditCardsScreen extends ConsumerWidget {
   const CreditCardsScreen({super.key});
 
@@ -87,7 +88,7 @@ class _CreditCardRow extends ConsumerWidget {
     final t = Theme.of(context).textTheme;
     final hue = ref.accountHue(context, card.id);
     return Semantics(
-      button: true,
+      container: true,
       customSemanticsActions: {
         const CustomSemanticsAction(label: 'Eliminar tarjeta'): () => confirmAndDeleteCard(context, card),
       },
@@ -143,8 +144,18 @@ class _CreditCardRow extends ConsumerWidget {
                       ],
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Icon(CupertinoIcons.chevron_forward, size: 18, color: c.textMuted),
+                  RowActionsButton(
+                    title: card.alias,
+                    actions: [
+                      RowAction(label: 'Ver detalle', icon: CupertinoIcons.info_circle, onSelected: onTap),
+                      RowAction(
+                        label: 'Eliminar tarjeta',
+                        icon: CupertinoIcons.trash,
+                        destructive: true,
+                        onSelected: () => confirmAndDeleteCard(context, card),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -172,13 +183,13 @@ class _EmptyCards extends StatelessWidget {
             Icon(CupertinoIcons.creditcard, size: 44, color: c.textMuted),
             const SizedBox(height: 12),
             Text(
-              'Todavía no tenés tarjetas.',
+              'Todavía no tienes tarjetas.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: c.ink),
             ),
             const SizedBox(height: 4),
             Text(
-              'Agregá una para registrar sus egresos y llevar la deuda.',
+              'Agrega una para registrar sus egresos y llevar la deuda.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(color: c.textMuted),
             ),

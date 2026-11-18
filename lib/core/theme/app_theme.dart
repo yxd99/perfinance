@@ -21,7 +21,7 @@ abstract class AppThemeColors {
 /// Cifras de montos: tabulares para que las columnas alineen.
 const List<FontFeature> kTabularFigures = [FontFeature.tabularFigures()];
 
-/// Tema de la app (mundo «Billete»). Los colores salen de [AppColors]; acá solo
+/// Tema de la app (mundo «Billete»). Los colores salen de [AppColors]; aquí solo
 /// se mapean a Material. La tipografía es la del sistema (SF Pro en iOS) para
 /// respetar Dynamic Type.
 class AppTheme {

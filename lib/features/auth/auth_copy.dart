@@ -1,11 +1,11 @@
-/// Textos de inicio de sesión y registro, con voseo.
+/// Textos de inicio de sesión y registro, en español colombiano neutro (tú).
 abstract class AuthCopy {
-  static const loginFailed = 'No pudimos iniciar sesión. Revisá tu correo y contraseña.';
-  static const registerFailed = 'No pudimos crear tu cuenta. Intentá de nuevo en un rato.';
-  static const emailRequired = 'Escribí tu correo';
+  static const loginFailed = 'No pudimos iniciar sesión. Revisa tu correo y contraseña.';
+  static const registerFailed = 'No pudimos crear tu cuenta. Intenta de nuevo en un rato.';
+  static const emailRequired = 'Escribe tu correo';
   static const emailInvalid = 'Ese correo no parece válido';
-  static const passwordRequired = 'Escribí tu contraseña';
-  static const newPasswordRequired = 'Elegí una contraseña';
+  static const passwordRequired = 'Escribe tu contraseña';
+  static const newPasswordRequired = 'Elige una contraseña';
   static const passwordTooShort = 'Tiene que tener al menos 6 caracteres';
   static const passwordMismatch = 'Las contraseñas no coinciden';
 
@@ -18,13 +18,13 @@ abstract class AuthCopy {
       return 'Correo o contraseña incorrectos.';
     }
     if (msg.contains('email') && msg.contains('confirm')) {
-      return 'Confirmá tu cuenta desde el correo que te enviamos y volvé a intentar.';
+      return 'Confirma tu cuenta desde el correo que te enviamos y vuelve a intentar.';
     }
     if (msg.contains('network') || msg.contains('connection') || msg.contains('socket')) {
-      return 'Sin conexión. Revisá tu internet e intentá de nuevo.';
+      return 'Sin conexión. Revisa tu internet e intenta de nuevo.';
     }
     if (msg.contains('already registered')) {
-      return 'Ya hay una cuenta con este correo. Iniciá sesión o usá otro correo.';
+      return 'Ya hay una cuenta con este correo. Inicia sesión o usa otro correo.';
     }
     if (msg.contains('password') || msg.contains('weak')) {
       return 'La contraseña tiene que tener al menos 6 caracteres.';

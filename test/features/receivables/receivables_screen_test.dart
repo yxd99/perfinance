@@ -122,15 +122,28 @@ void main() {
       expect(find.widgetWithText(InsetAddRow, 'Agregar deudor'), findsOneWidget);
     });
 
-    testWidgets('"Falta" y el chevron van pegados al borde derecho', (tester) async {
+    testWidgets('"Falta" y el botón de acciones van pegados al borde derecho', (tester) async {
       final views = [ReceivableView(receivable: _makeReceivable(name: 'Juan Test'), payments: const [])];
       await tester.pumpWidget(buildScreen(views: views));
       await tester.pumpAndSettle();
       final groupRight = tester.getTopRight(find.byType(Dismissible)).dx;
-      final chevronRight = tester.getTopRight(find.byIcon(CupertinoIcons.chevron_right)).dx;
+      final actions = find.bySemanticsLabel('Acciones de Juan Test');
+      final actionsRight = tester.getTopRight(actions).dx;
+      final actionsLeft = tester.getTopLeft(actions).dx;
       final amountRight = tester.getTopRight(find.text('Falta \$500.000')).dx;
-      expect(groupRight - chevronRight, lessThanOrEqualTo(16));
-      expect(chevronRight - amountRight, lessThanOrEqualTo(24));
+      expect(groupRight - actionsRight, lessThanOrEqualTo(16));
+      expect(actionsLeft - amountRight, lessThanOrEqualTo(4));
+    });
+
+    testWidgets('eliminar está a la vista en el botón de acciones', (tester) async {
+      final views = [ReceivableView(receivable: _makeReceivable(name: 'Juan Test'), payments: const [])];
+      await tester.pumpWidget(buildScreen(views: views));
+      await tester.pumpAndSettle();
+      await tester.tap(find.bySemanticsLabel('Acciones de Juan Test'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Eliminar'));
+      await tester.pumpAndSettle();
+      expect(find.text('Eliminar deudor'), findsOneWidget);
     });
 
     testWidgets('tocar abre el detalle; deslizar a la izquierda pide confirmar el borrado', (tester) async {

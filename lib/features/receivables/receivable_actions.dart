@@ -31,7 +31,7 @@ Future<bool> confirmAndDeleteReceivable(BuildContext context, Receivable receiva
     context: context,
     builder: (ctx) => AlertDialog(
       title: const Text('Eliminar deudor'),
-      content: Text('¿Eliminás a "${receivable.debtorName}" y todo su historial de cobros? No se puede deshacer.'),
+      content: Text('¿Eliminas a "${receivable.debtorName}" y todo su historial de cobros? No se puede deshacer.'),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
         FilledButton(
@@ -47,7 +47,7 @@ Future<bool> confirmAndDeleteReceivable(BuildContext context, Receivable receiva
     await container.read(receivableRepositoryProvider).delete(receivable.id);
   } catch (e, st) {
     ErrorReporter.capture(e, st, operation: 'receivables.delete', details: {'receivable_id': receivable.id});
-    messenger?.showSnackBar(const SnackBar(content: Text('No pudimos eliminar el deudor. Probá de nuevo.')));
+    messenger?.showSnackBar(const SnackBar(content: Text('No pudimos eliminar el deudor. Prueba de nuevo.')));
     return false;
   }
   container.invalidate(receivablesListProvider);
@@ -65,7 +65,7 @@ Future<bool> confirmAndSettleInFull(BuildContext context, Receivable receivable,
     context: context,
     builder: (ctx) => AlertDialog(
       title: const Text('Marcar como cobrada'),
-      content: Text('¿Marcás a "${receivable.debtorName}" como cobrada por completo?'),
+      content: Text('¿Marcas a "${receivable.debtorName}" como cobrada por completo?'),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
         FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Cobrar todo')),
@@ -89,7 +89,7 @@ Future<bool> confirmAndSettleInFull(BuildContext context, Receivable receivable,
     }
   } catch (e, st) {
     ErrorReporter.capture(e, st, operation: 'receivables.settle_all', details: {'receivable_id': receivable.id});
-    messenger?.showSnackBar(const SnackBar(content: Text('No pudimos guardar el cobro. Probá de nuevo.')));
+    messenger?.showSnackBar(const SnackBar(content: Text('No pudimos guardar el cobro. Prueba de nuevo.')));
     return false;
   }
 

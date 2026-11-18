@@ -142,6 +142,6 @@ Deno.serve(async (req: Request) => {
     matched: matched !== null,
     message: matched
       ? `Egreso registrado en ${matched.name}`
-      : `Egreso registrado, pero no reconocí la tarjeta "${cardName}". Asignala en Perfinance → Apple Wallet.`,
+      : `Egreso registrado, pero no reconocí la tarjeta "${cardName}". Asígnala en Perfinance → Apple Wallet.`,
   });
 });

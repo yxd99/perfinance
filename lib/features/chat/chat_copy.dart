@@ -3,10 +3,10 @@
 String chatErrorMessage(String? raw) {
   final msg = (raw ?? '').toLowerCase();
   if (msg.contains('sesión') || msg.contains('session') || msg.contains('401') || msg.contains('jwt')) {
-    return 'Tu sesión venció. Cerrá sesión y volvé a entrar para seguir.';
+    return 'Tu sesión venció. Cierra sesión y vuelve a entrar para seguir.';
   }
   if (msg.contains('socket') || msg.contains('network') || msg.contains('connection') || msg.contains('timeout')) {
-    return 'Sin conexión. El asesor necesita internet; revisá la red e intentá de nuevo.';
+    return 'Sin conexión. El asesor necesita internet; revisa la red e intenta de nuevo.';
   }
-  return 'No se pudo obtener respuesta. Intentá de nuevo.';
+  return 'No se pudo obtener respuesta. Intenta de nuevo.';
 }

@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:perfinance/core/widgets/row_actions_button.dart';
 import 'package:perfinance/features/accounts/account_hue_provider.dart';
 import 'package:perfinance/core/config/supabase_config.dart';
 import 'package:perfinance/core/observability/error_reporter.dart';
@@ -296,7 +297,7 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Sin selección ves todos los egresos del período. Si marcás opciones, solo vas a ver los cargados a esas tarjetas o cuentas.',
+                'Sin selección ves todos los egresos del período. Si marcas opciones, solo vas a ver los cargados a esas tarjetas o cuentas.',
                 style: Theme.of(ctx).textTheme.bodySmall?.copyWith(color: c.textMuted),
               ),
               const SizedBox(height: 8),
@@ -477,7 +478,7 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
       setState(() => _removed.remove(e.id));
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('No pudimos eliminar el egreso. Probá de nuevo.'),
+          content: const Text('No pudimos eliminar el egreso. Prueba de nuevo.'),
           backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
@@ -611,6 +612,7 @@ class _ExpenseRow extends ConsumerWidget {
     final amount = '\$${formatCurrencyDisplay(expense.amount, hideValues)}';
 
     return Semantics(
+      container: true,
       customSemanticsActions: {
         const CustomSemanticsAction(label: 'Eliminar egreso'): () async {
           if (await confirmDelete()) onDeleted();
@@ -674,6 +676,20 @@ class _ExpenseRow extends ConsumerWidget {
                     Text(
                       amount,
                       style: t.bodyLarge?.copyWith(fontWeight: FontWeight.w600, fontFeatures: kTabularFigures),
+                    ),
+                    RowActionsButton(
+                      title: text.title,
+                      actions: [
+                        RowAction(label: 'Editar', icon: CupertinoIcons.pencil, onSelected: onTap),
+                        RowAction(
+                          label: 'Eliminar',
+                          icon: CupertinoIcons.trash,
+                          destructive: true,
+                          onSelected: () async {
+                            if (await confirmDelete()) onDeleted();
+                          },
+                        ),
+                      ],
                     ),
                   ],
                 ),

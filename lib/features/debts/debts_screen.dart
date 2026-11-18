@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:perfinance/core/widgets/row_actions_button.dart';
 import 'package:perfinance/core/providers/hide_values_provider.dart';
 import 'package:perfinance/core/theme/app_theme.dart';
 import 'package:perfinance/core/utils/user_friendly_errors.dart';
@@ -72,10 +73,15 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
                   ),
                 ),
               ),
-              IconButton(
-                icon: Icon(CupertinoIcons.add, color: c.accent),
-                tooltip: 'Agregar deuda',
+              // Con texto: un «+» suelto aquí se confundía con registrar un egreso.
+              TextButton(
                 onPressed: () => _openForm(context),
+                style: TextButton.styleFrom(
+                  foregroundColor: c.accent,
+                  minimumSize: const Size(44, 44),
+                  textStyle: t.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                child: const Text('Nueva deuda'),
               ),
             ],
           ),
@@ -182,6 +188,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
     }
 
     return Semantics(
+      container: true,
       customSemanticsActions: {
         if (canPay) const CustomSemanticsAction(label: 'Marcar como pagada'): () => pay(),
         const CustomSemanticsAction(label: 'Editar deuda'): () => _editDebt(context, item.debt),
@@ -214,7 +221,12 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
           item: item,
           hideValues: hideValues,
           onTap: openDetail,
-          onLongPress: () => _editDebt(context, item.debt),
+          // A la vista lo que antes era mantener presionado (editar) o deslizar (pagar).
+          actions: [
+            if (canPay) RowAction(label: 'Marcar como pagada', icon: CupertinoIcons.checkmark_circle, onSelected: pay),
+            RowAction(label: 'Editar', icon: CupertinoIcons.pencil, onSelected: () => _editDebt(context, item.debt)),
+            RowAction(label: 'Ver detalle', icon: CupertinoIcons.info_circle, onSelected: openDetail),
+          ],
         ),
       ),
     );
@@ -347,13 +359,15 @@ class _EmptyList extends StatelessWidget {
 
 /// Fila base: nombre, línea de estado y a la derecha el monto o el sello.
 class _RowShell extends StatelessWidget {
-  const _RowShell({required this.title, required this.status, required this.trailing, this.onTap, this.onLongPress});
+  const _RowShell({required this.title, required this.status, required this.trailing, this.onTap, this.actions});
 
   final String title;
   final String status;
   final Widget? trailing;
   final VoidCallback? onTap;
-  final VoidCallback? onLongPress;
+
+  /// Acciones a la vista en un botón «⋯»; sin acciones va el chevron.
+  final List<RowAction>? actions;
 
   @override
   Widget build(BuildContext context) {
@@ -363,7 +377,6 @@ class _RowShell extends StatelessWidget {
       color: c.surface,
       child: InkWell(
         onTap: onTap,
-        onLongPress: onLongPress,
         child: ConstrainedBox(
           constraints: const BoxConstraints(minHeight: 56),
           child: Padding(
@@ -387,7 +400,9 @@ class _RowShell extends StatelessWidget {
                   ),
                 ),
                 if (trailing != null) ...[const SizedBox(width: 12), trailing!],
-                if (onTap != null) ...[
+                if (actions != null)
+                  RowActionsButton(title: title, actions: actions!)
+                else if (onTap != null) ...[
                   const SizedBox(width: 4),
                   Icon(CupertinoIcons.chevron_forward, size: 16, color: c.textMuted),
                 ],
@@ -427,12 +442,12 @@ class _Amount extends StatelessWidget {
 }
 
 class _DebtRow extends StatelessWidget {
-  const _DebtRow({required this.item, required this.hideValues, required this.onTap, required this.onLongPress});
+  const _DebtRow({required this.item, required this.hideValues, required this.onTap, required this.actions});
 
   final DebtWithPaid item;
   final bool hideValues;
   final VoidCallback onTap;
-  final VoidCallback onLongPress;
+  final List<RowAction> actions;
 
   @override
   Widget build(BuildContext context) {
@@ -453,7 +468,7 @@ class _DebtRow extends StatelessWidget {
       status: debtStatusLine(item, hideValues: hideValues, today: now),
       trailing: trailing,
       onTap: onTap,
-      onLongPress: onLongPress,
+      actions: actions,
     );
   }
 }
