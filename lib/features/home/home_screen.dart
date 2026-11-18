@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perfinance/core/observability/error_reporter.dart';
 import 'package:perfinance/core/theme/app_colors.dart';
+import 'package:perfinance/core/update/app_update.dart';
+import 'package:perfinance/core/update/app_update_provider.dart';
 import 'package:perfinance/features/automatic_payments/automatic_payments_provider.dart';
 import 'package:perfinance/features/dashboard/dashboard_screen.dart';
 import 'package:perfinance/features/debts/debts_screen.dart';
@@ -16,6 +18,7 @@ import 'package:perfinance/features/more/more_screen.dart';
 import 'package:perfinance/services/connectivity_sync.dart';
 import 'package:perfinance/services/process_automatic_payments_service.dart';
 import 'package:perfinance/services/sync_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// Shell principal: barra inferior Mes · Egresos · + · Deudas · Más.
 ///
@@ -99,6 +102,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           children: [
             const _SyncingStrip(),
             const _OfflineBanner(),
+            const _UpdateBanner(),
             Expanded(
               child: IndexedStack(
                 index: _index,
@@ -145,6 +149,62 @@ class _SyncingStrip extends ConsumerWidget {
             Text(
               'Sincronizando datos...',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(color: c.ink),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Aviso de versión nueva publicada en Drive. Se puede cerrar hasta el próximo
+/// arranque de la app.
+class _UpdateBanner extends ConsumerStatefulWidget {
+  const _UpdateBanner();
+
+  @override
+  ConsumerState<_UpdateBanner> createState() => _UpdateBannerState();
+}
+
+class _UpdateBannerState extends ConsumerState<_UpdateBanner> {
+  bool _dismissed = false;
+
+  Future<void> _download(AppRelease release) async {
+    final opened = await launchUrl(Uri.parse(release.url), mode: LaunchMode.externalApplication);
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo abrir el link de descarga.')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final release = ref.watch(pendingUpdateProvider).valueOrNull;
+    if (release == null || _dismissed) return const SizedBox.shrink();
+    final c = context.colors;
+    return Material(
+      color: c.track,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 4, 4),
+        child: Row(
+          children: [
+            Icon(Icons.system_update_outlined, size: 20, color: c.accent),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Hay una versión nueva (${release.version}).',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: c.ink),
+              ),
+            ),
+            TextButton(
+              onPressed: () => _download(release),
+              child: const Text('Descargar'),
+            ),
+            IconButton(
+              tooltip: 'Cerrar aviso',
+              icon: const Icon(Icons.close, size: 18),
+              onPressed: () => setState(() => _dismissed = true),
             ),
           ],
         ),
