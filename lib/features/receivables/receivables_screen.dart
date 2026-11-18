@@ -1,8 +1,8 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perfinance/core/widgets/inset_add_row.dart';
-import 'package:perfinance/core/observability/error_reporter.dart';
 import 'package:perfinance/core/theme/app_theme.dart';
 import 'package:perfinance/core/utils/user_friendly_errors.dart';
 import 'package:perfinance/core/widgets/app_empty_state.dart';
@@ -10,18 +10,12 @@ import 'package:perfinance/core/widgets/app_error_state.dart';
 import 'package:perfinance/core/widgets/currency_input.dart';
 import 'package:perfinance/core/widgets/paid_stamp.dart';
 import 'package:perfinance/data/models/receivable.dart';
-import 'package:perfinance/data/models/receivable_payment.dart';
-import 'package:perfinance/data/repositories/receivable_payment_repository.dart';
-import 'package:perfinance/data/repositories/receivable_repository.dart';
+import 'package:perfinance/features/receivables/receivable_actions.dart';
 import 'package:perfinance/features/receivables/receivable_detail_screen.dart';
 import 'package:perfinance/features/receivables/receivable_form_screen.dart';
-import 'package:perfinance/features/receivables/receivable_notification_service.dart';
 import 'package:perfinance/features/receivables/receivable_row_status.dart';
 import 'package:perfinance/features/receivables/receivables_provider.dart';
 import 'package:perfinance/features/receivables/widgets/inset_list_group.dart';
-import 'package:perfinance/services/sync_service.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:uuid/uuid.dart';
 
 final receivableListFilterProvider = StateProvider<ReceivableListFilter>((ref) => ReceivableListFilter.active);
 
@@ -116,9 +110,7 @@ class ReceivablesScreen extends ConsumerWidget {
                             context,
                             MaterialPageRoute(builder: (_) => ReceivableDetailScreen(receivable: view.receivable)),
                           ),
-                          onSettleAll: view.receivable.status == ReceivableStatus.active
-                              ? () => _settleAll(context, ref, view)
-                              : null,
+                          onDelete: () => confirmAndDeleteReceivable(context, view.receivable),
                         ),
                       InsetAddRow(label: 'Agregar deudor', onTap: () => _openForm(context)),
                     ],
@@ -140,73 +132,17 @@ class ReceivablesScreen extends ConsumerWidget {
   void _openForm(BuildContext context) {
     Navigator.push(context, MaterialPageRoute(builder: (_) => const ReceivableFormScreen()));
   }
-
-  Future<void> _settleAll(BuildContext context, WidgetRef ref, ReceivableView view) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Marcar como cobrada'),
-        content: Text('¿Marcás a "${view.receivable.debtorName}" como cobrada por completo?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Cobrar todo')),
-        ],
-      ),
-    );
-    if (ok != true) return;
-
-    final remaining = view.remainingBalance;
-    if (remaining > 0) {
-      final payRepo = ref.read(receivablePaymentRepositoryProvider);
-      await payRepo.insert(
-        ReceivablePayment(
-          id: const Uuid().v4(),
-          receivableId: view.receivable.id,
-          amount: remaining,
-          date: DateTime.now(),
-        ),
-      );
-      if (view.receivable.debtorEmail != null) {
-        try {
-          await ref
-              .read(receivableNotificationServiceProvider)
-              .notify(
-                ReceivableNotificationPayload(
-                  event: ReceivableNotificationEvent.paymentRecorded,
-                  recipientEmail: view.receivable.debtorEmail!,
-                  debtorName: view.receivable.debtorName,
-                  totalAmount: view.receivable.totalAmount,
-                  remainingBalance: 0,
-                  paymentAmount: remaining,
-                  paymentDate: DateTime.now(),
-                  creditorEmail: Supabase.instance.client.auth.currentUser?.email,
-                ),
-              );
-        } catch (e, st) {
-          // El cobro ya quedó guardado; solo falló el aviso por email.
-          ErrorReporter.capture(
-            e,
-            st,
-            operation: 'receivables.notify_settle_all',
-            details: {'receivable_id': view.receivable.id},
-          );
-        }
-      }
-    } else {
-      await ref.read(receivableRepositoryProvider).settle(view.receivable.id);
-    }
-    ref.invalidate(receivablesListProvider);
-    ref.invalidate(receivablePaymentsProvider(view.receivable.id));
-    ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
-  }
 }
 
+/// Fila de un cobro. Tocar abre el detalle (ahí se registra o se cobra todo);
+/// deslizar a la izquierda elimina, con confirmación. VoiceOver tiene la
+/// misma acción de eliminar.
 class _ReceivableRow extends StatelessWidget {
-  const _ReceivableRow({required this.view, required this.onTap, this.onSettleAll});
+  const _ReceivableRow({required this.view, required this.onTap, required this.onDelete});
 
   final ReceivableView view;
   final VoidCallback onTap;
-  final VoidCallback? onSettleAll;
+  final Future<bool> Function() onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -264,16 +200,17 @@ class _ReceivableRow extends StatelessWidget {
               const SizedBox(width: 12),
               if (status.stamp != null)
                 PaidStamp(label: status.stamp!)
+              // Sin Flexible: con flex el monto recibía media fila y quedaba
+              // flotando en el centro; así va pegado al chevron, como en las
+              // otras listas.
               else if (status.trailing != null)
-                Flexible(
-                  child: Text(
-                    status.trailing!,
-                    textAlign: TextAlign.right,
-                    style: t.titleSmall?.copyWith(
-                      color: toneColor,
-                      fontWeight: FontWeight.w700,
-                      fontFeatures: kTabularFigures,
-                    ),
+                Text(
+                  status.trailing!,
+                  textAlign: TextAlign.right,
+                  style: t.titleSmall?.copyWith(
+                    color: toneColor,
+                    fontWeight: FontWeight.w700,
+                    fontFeatures: kTabularFigures,
                   ),
                 ),
               const SizedBox(width: 4),
@@ -284,31 +221,23 @@ class _ReceivableRow extends StatelessWidget {
       ),
     );
 
-    if (onSettleAll == null) return row;
-    return Dismissible(
-      key: ValueKey('receivable-${r.id}'),
-      direction: DismissDirection.endToStart,
-      background: Container(
-        color: c.accent,
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            Icon(CupertinoIcons.checkmark_circle, color: c.onAccent),
-            const SizedBox(width: 8),
-            Text(
-              'Cobrar todo',
-              style: TextStyle(color: c.onAccent, fontWeight: FontWeight.w700),
-            ),
-          ],
-        ),
-      ),
-      confirmDismiss: (_) async {
-        onSettleAll?.call();
-        return false;
+    return Semantics(
+      customSemanticsActions: {
+        const CustomSemanticsAction(label: 'Eliminar deudor'): onDelete,
       },
-      child: row,
+      child: Dismissible(
+        key: ValueKey('receivable-${r.id}'),
+        direction: DismissDirection.endToStart,
+        // Se borra dentro de la confirmación: si falla, la fila vuelve a su lugar.
+        confirmDismiss: (_) => onDelete(),
+        background: Container(
+          color: c.danger,
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Icon(CupertinoIcons.trash, color: c.onDanger, semanticLabel: 'Eliminar'),
+        ),
+        child: row,
+      ),
     );
   }
 }

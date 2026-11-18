@@ -134,7 +134,9 @@ class _PaymentMethodFormScreenState extends ConsumerState<PaymentMethodFormScree
       }
       if (!mounted) return;
       ref.invalidate(paymentMethodsListProvider);
-      ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
+      ref.read(syncServiceProvider).pushPendingIfOnline().catchError(
+            (Object e, StackTrace st) => ErrorReporter.capture(e, st, operation: 'savings.push'),
+          );
       Navigator.pop(context, createdId);
     } catch (e, st) {
       ErrorReporter.capture(e, st, operation: 'savings.save', details: {'editing': widget.edit != null});

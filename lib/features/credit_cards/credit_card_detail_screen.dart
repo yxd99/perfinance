@@ -21,6 +21,7 @@ import 'package:perfinance/features/accounts/account_hue_provider.dart';
 import 'package:perfinance/features/auth/auth_provider.dart';
 import 'package:perfinance/features/credit_cards/card_payment_date_filter.dart';
 import 'package:perfinance/features/credit_cards/card_debt_validation_dialog.dart';
+import 'package:perfinance/features/credit_cards/credit_card_form_screen.dart';
 import 'package:perfinance/features/credit_cards/credit_cards_provider.dart';
 import 'package:perfinance/features/credit_cards/credit_card_payments_provider.dart';
 import 'package:perfinance/features/dashboard/dashboard_provider.dart';
@@ -169,12 +170,23 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
     if (!mounted) return;
     ref.invalidate(creditCardsListProvider);
     ref.invalidate(activeCreditCardsListProvider);
-    ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
+    ref.read(syncServiceProvider).pushPendingIfOnline().catchError(
+          (Object e, StackTrace st) => ErrorReporter.capture(e, st, operation: 'credit_cards.push'),
+        );
     if (newValue) {
       ScaffoldMessenger.of(this.context).showSnackBar(
         const SnackBar(content: Text('Tarjeta reactivada')),
       );
     }
+  }
+
+  /// Abre el formulario de la tarjeta. Si se eliminó desde ahí, este detalle
+  /// ya no tiene qué mostrar y se cierra también.
+  Future<void> _editCard() async {
+    final result = await Navigator.of(context).push<Object?>(
+      MaterialPageRoute(builder: (_) => CreditCardFormScreen(editCard: widget.card)),
+    );
+    if (result == CreditCardFormScreen.deletedResult && mounted) Navigator.of(context).pop();
   }
 
   @override
@@ -184,7 +196,16 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
     final asyncPayments = ref.watch(filteredCardPaymentsByCardProvider(widget.card.id));
     final selectedPaymentFilter = ref.watch(selectedCardPaymentDateFilterProvider(widget.card.id));
     return Scaffold(
-      appBar: AppBar(title: Text(widget.card.alias)),
+      appBar: AppBar(
+        title: Text(widget.card.alias),
+        actions: [
+          IconButton(
+            tooltip: 'Editar',
+            icon: const Icon(CupertinoIcons.pencil),
+            onPressed: _editCard,
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.only(top: 12, bottom: 24),
         children: [
@@ -517,7 +538,9 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
       ref.invalidate(dashboardDebtProvider);
       ref.invalidate(dashboardMinPaymentSummaryProvider);
       ref.invalidate(cardPaymentsByCardProvider(widget.card.id));
-      ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
+      ref.read(syncServiceProvider).pushPendingIfOnline().catchError(
+            (Object e, StackTrace st) => ErrorReporter.capture(e, st, operation: 'credit_cards.push'),
+          );
     }
   }
 
@@ -578,7 +601,9 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
     ref.invalidate(dashboardDebtProvider);
     ref.invalidate(creditCardsListProvider);
     ref.invalidate(cardPaymentsByCardProvider(widget.card.id));
-    ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
+    ref.read(syncServiceProvider).pushPendingIfOnline().catchError(
+          (Object e, StackTrace st) => ErrorReporter.capture(e, st, operation: 'credit_cards.push'),
+        );
     final message = switch (decision.reconciliation.action) {
       CardDebtAdjustmentAction.missingExpense =>
         'Se agregó un egreso por faltante de deuda.',
@@ -674,7 +699,9 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
     ref.invalidate(dashboardDebtProvider);
     ref.invalidate(dashboardMinPaymentSummaryProvider);
     ref.invalidate(cardPaymentsByCardProvider(widget.card.id));
-    ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
+    ref.read(syncServiceProvider).pushPendingIfOnline().catchError(
+          (Object e, StackTrace st) => ErrorReporter.capture(e, st, operation: 'credit_cards.push'),
+        );
   }
 
   Future<void> _deletePayment(BuildContext context, CardPayment payment) async {
@@ -712,7 +739,9 @@ class _DetailContentState extends ConsumerState<_DetailContent> {
     ref.invalidate(dashboardDebtProvider);
     ref.invalidate(dashboardMinPaymentSummaryProvider);
     ref.invalidate(cardPaymentsByCardProvider(widget.card.id));
-    ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
+    ref.read(syncServiceProvider).pushPendingIfOnline().catchError(
+          (Object e, StackTrace st) => ErrorReporter.capture(e, st, operation: 'credit_cards.push'),
+        );
   }
 }
 

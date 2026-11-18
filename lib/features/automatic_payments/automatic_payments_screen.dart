@@ -1,6 +1,8 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:perfinance/core/observability/error_reporter.dart';
 import 'package:perfinance/core/widgets/inset_add_row.dart';
 import 'package:perfinance/core/providers/hide_values_provider.dart';
 import 'package:perfinance/core/theme/app_theme.dart';
@@ -55,18 +57,10 @@ class AutomaticPaymentsScreen extends ConsumerWidget {
                         : (display?.methodNames[p.paymentRef] ?? 'Medio'),
                     amount: '\$${formatCurrencyDisplay(p.amount, hideValues)}',
                     onTap: () => _openForm(context, ref, edit: p),
-                    onLongPress: () => _delete(context, ref, p),
+                    onDelete: () => _confirmAndDelete(context, p),
                   ),
                 InsetAddRow(label: 'Agregar pago automático', onTap: () => _openForm(context, ref)),
               ],
-            ),
-            const SizedBox(height: 8),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
-                'Mantené presionado un pago para eliminarlo.',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: context.colors.textMuted),
-              ),
             ),
           ],
         );
@@ -86,7 +80,12 @@ class AutomaticPaymentsScreen extends ConsumerWidget {
     });
   }
 
-  Future<void> _delete(BuildContext context, WidgetRef ref, AutomaticPayment p) async {
+  /// Pide confirmar y borra. Devuelve true solo si quedó borrado, así el
+  /// deslizamiento vuelve la fila a su lugar si se cancela o falla. Toma el
+  /// contenedor y el messenger antes de esperar: la fila puede desaparecer.
+  Future<bool> _confirmAndDelete(BuildContext context, AutomaticPayment p) async {
+    final container = ProviderScope.containerOf(context, listen: false);
+    final messenger = ScaffoldMessenger.maybeOf(context);
     final c = context.colors;
     final ok = await showDialog<bool>(
       context: context,
@@ -103,27 +102,38 @@ class AutomaticPaymentsScreen extends ConsumerWidget {
         ],
       ),
     );
-    if (ok != true) return;
-    await ref.read(automaticPaymentRepositoryProvider).delete(p.id);
-    ref.invalidate(automaticPaymentsListProvider);
-    ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
+    if (ok != true) return false;
+    try {
+      await container.read(automaticPaymentRepositoryProvider).delete(p.id);
+    } catch (e, st) {
+      ErrorReporter.capture(e, st, operation: 'automatic_payments.delete', details: {'id': p.id});
+      messenger?.showSnackBar(const SnackBar(content: Text('No pudimos eliminar el pago automático. Probá de nuevo.')));
+      return false;
+    }
+    container.invalidate(automaticPaymentsListProvider);
+    container.read(syncServiceProvider).pushPendingIfOnline().catchError(
+          (Object e, StackTrace st) => ErrorReporter.capture(e, st, operation: 'automatic_payments.push'),
+        );
+    return true;
   }
 }
 
+/// Fila de pago automático. Tocar abre la edición; deslizar a la izquierda
+/// elimina, con confirmación. VoiceOver tiene la misma acción de eliminar.
 class _AutomaticPaymentRow extends ConsumerWidget {
   const _AutomaticPaymentRow({
     required this.payment,
     required this.accountName,
     required this.amount,
     required this.onTap,
-    required this.onLongPress,
+    required this.onDelete,
   });
 
   final AutomaticPayment payment;
   final String accountName;
   final String amount;
   final VoidCallback onTap;
-  final VoidCallback onLongPress;
+  final Future<bool> Function() onDelete;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -131,45 +141,61 @@ class _AutomaticPaymentRow extends ConsumerWidget {
     final t = Theme.of(context).textTheme;
     final paused = isAutomaticPaymentPaused(payment);
     final ink = paused ? c.textMuted : c.ink;
-    return InkWell(
-      onTap: onTap,
-      onLongPress: onLongPress,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 56),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: Row(
-            children: [
-              AccountNoteChip(color: ref.accountHue(context, payment.paymentRef)),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      payment.description,
-                      style: t.bodyLarge?.copyWith(color: ink),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+    return Semantics(
+      customSemanticsActions: {
+        const CustomSemanticsAction(label: 'Eliminar pago automático'): onDelete,
+      },
+      child: Dismissible(
+        key: ValueKey('dismiss-auto-${payment.id}'),
+        direction: DismissDirection.endToStart,
+        // Se borra dentro de la confirmación: si falla, la fila vuelve a su lugar.
+        confirmDismiss: (_) => onDelete(),
+        background: Container(
+          color: c.danger,
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Icon(CupertinoIcons.trash, color: c.onDanger, semanticLabel: 'Eliminar'),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 56),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              child: Row(
+                children: [
+                  AccountNoteChip(color: ref.accountHue(context, payment.paymentRef)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          payment.description,
+                          style: t.bodyLarge?.copyWith(color: ink),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          automaticPaymentStatusLine(payment, accountName: accountName),
+                          style: t.bodySmall?.copyWith(color: c.textMuted, fontFeatures: kTabularFigures),
+                          maxLines: 2,
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      automaticPaymentStatusLine(payment, accountName: accountName),
-                      style: t.bodySmall?.copyWith(color: c.textMuted, fontFeatures: kTabularFigures),
-                      maxLines: 2,
-                    ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    amount,
+                    textAlign: TextAlign.right,
+                    style: t.titleSmall?.copyWith(color: ink, fontWeight: FontWeight.w700, fontFeatures: kTabularFigures),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(CupertinoIcons.chevron_right, size: 16, color: c.textMuted),
+                ],
               ),
-              const SizedBox(width: 12),
-              Text(
-                amount,
-                textAlign: TextAlign.right,
-                style: t.titleSmall?.copyWith(color: ink, fontWeight: FontWeight.w700, fontFeatures: kTabularFigures),
-              ),
-              const SizedBox(width: 4),
-              Icon(CupertinoIcons.chevron_right, size: 16, color: c.textMuted),
-            ],
+            ),
           ),
         ),
       ),

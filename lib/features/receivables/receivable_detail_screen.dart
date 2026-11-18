@@ -10,6 +10,7 @@ import 'package:perfinance/data/models/receivable.dart';
 import 'package:perfinance/data/models/receivable_payment.dart';
 import 'package:perfinance/data/repositories/receivable_payment_repository.dart';
 import 'package:perfinance/data/repositories/receivable_repository.dart';
+import 'package:perfinance/features/receivables/receivable_actions.dart';
 import 'package:perfinance/features/receivables/receivable_form_screen.dart';
 import 'package:perfinance/features/receivables/receivable_notification_service.dart';
 import 'package:perfinance/features/receivables/receivables_provider.dart';
@@ -202,6 +203,13 @@ class _ReceivableDetailScreenState extends ConsumerState<ReceivableDetailScreen>
                       },
                       child: const Text('Registrar cobro'),
                     ),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+                      onPressed: () => _settleInFull(remaining),
+                      icon: const Icon(CupertinoIcons.checkmark_circle, size: 18),
+                      label: Text('Cobrar todo (\$${formatCurrency(remaining)})'),
+                    ),
                     if (_receivable.debtorEmail != null && _receivable.debtorEmail!.trim().isNotEmpty) ...[
                       const SizedBox(height: 8),
                       OutlinedButton.icon(
@@ -383,28 +391,15 @@ class _ReceivableDetailScreenState extends ConsumerState<ReceivableDetailScreen>
   }
 
   Future<void> _deleteReceivable() async {
-    final c = context.colors;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Eliminar deudor'),
-        content: Text('¿Eliminás a "${_receivable.debtorName}" y todo su historial de cobros? No se puede deshacer.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: c.danger, foregroundColor: c.onDanger),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Eliminar'),
-          ),
-        ],
-      ),
-    );
-    if (ok == true) {
-      await ref.read(receivableRepositoryProvider).delete(_receivable.id);
-      ref.invalidate(receivablesListProvider);
-      ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
-      if (mounted) Navigator.pop(context);
-    }
+    final deleted = await confirmAndDeleteReceivable(context, _receivable);
+    if (deleted && mounted) Navigator.pop(context);
+  }
+
+  /// «Cobrar todo» vive acá (antes era el deslizamiento de la fila en la lista,
+  /// que ahora elimina como en las demás listas).
+  Future<void> _settleInFull(double remaining) async {
+    final saved = await confirmAndSettleInFull(context, _receivable, remaining: remaining);
+    if (saved) await _reload();
   }
 
   Future<void> _deletePayment(ReceivablePayment p) async {
@@ -456,7 +451,9 @@ class _ReceivableDetailScreenState extends ConsumerState<ReceivableDetailScreen>
       }
       await _reload();
       ref.invalidate(receivablesListProvider);
-      ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
+      ref.read(syncServiceProvider).pushPendingIfOnline().catchError(
+            (Object e, StackTrace st) => ErrorReporter.capture(e, st, operation: 'receivables.push'),
+          );
     }
   }
 }

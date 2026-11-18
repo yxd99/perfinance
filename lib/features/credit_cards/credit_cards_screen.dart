@@ -1,12 +1,15 @@
 import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perfinance/core/providers/hide_values_provider.dart';
 import 'package:perfinance/core/theme/app_theme.dart';
 import 'package:perfinance/core/widgets/app_error_state.dart';
+import 'package:perfinance/core/widgets/inset_add_row.dart';
 import 'package:perfinance/core/utils/user_friendly_errors.dart';
 import 'package:perfinance/data/models/credit_card.dart';
 import 'package:perfinance/features/accounts/account_hue_provider.dart';
+import 'package:perfinance/features/credit_cards/credit_card_delete.dart';
 import 'package:perfinance/features/credit_cards/credit_card_list_view.dart';
 import 'package:perfinance/features/credit_cards/credit_cards_provider.dart';
 import 'package:perfinance/features/credit_cards/credit_card_detail_screen.dart';
@@ -41,25 +44,9 @@ class CreditCardsScreen extends ConsumerWidget {
                         builder: (_) => CreditCardDetailScreen(cardId: card.id),
                       ),
                     ),
-                    onLongPress: () => _editCard(context, card),
                   ),
+                InsetAddRow(label: 'Agregar tarjeta', onTap: () => _openForm(context)),
               ],
-            ),
-            CardInsetGroup(
-              children: [
-                CardActionRow(
-                  icon: CupertinoIcons.add,
-                  label: 'Agregar tarjeta',
-                  onTap: () => _openForm(context),
-                ),
-              ],
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: Text(
-                'Mantené presionada una tarjeta para editarla.',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: context.colors.textMuted),
-              ),
             ),
           ],
         );
@@ -76,28 +63,23 @@ class CreditCardsScreen extends ConsumerWidget {
       MaterialPageRoute(builder: (_) => const CreditCardFormScreen()),
     );
   }
-
-  void _editCard(BuildContext context, CreditCard card) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => CreditCardFormScreen(editCard: card)),
-    );
-  }
 }
 
 /// Fila de tarjeta: billete con el tono de la cuenta, alias, una línea de
 /// estado y chevron. Las desactivadas quedan visibles pero apagadas.
+///
+/// Tocar abre el detalle (y desde ahí se edita); deslizar a la izquierda
+/// elimina, con confirmación. VoiceOver tiene la misma acción de eliminar.
 class _CreditCardRow extends ConsumerWidget {
   const _CreditCardRow({
     required this.card,
     required this.hideValues,
     required this.onTap,
-    required this.onLongPress,
   });
 
   final CreditCard card;
   final bool hideValues;
   final VoidCallback onTap;
-  final VoidCallback onLongPress;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -106,52 +88,65 @@ class _CreditCardRow extends ConsumerWidget {
     final hue = ref.accountHue(context, card.id);
     return Semantics(
       button: true,
-      onLongPressHint: 'Editar tarjeta',
-      child: InkWell(
-        onTap: onTap,
-        onLongPress: onLongPress,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 56),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            child: Row(
-              children: [
-                ExcludeSemantics(
-                  child: Container(
-                    key: ValueKey('card-hue-${card.id}'),
-                    width: 34,
-                    height: 22,
-                    decoration: BoxDecoration(
-                      // Desactivada: el billete se ve desteñido, sin cambiar de tono.
-                      color: card.isActive ? hue : hue.withValues(alpha: 0.35),
-                      borderRadius: BorderRadius.circular(4),
+      customSemanticsActions: {
+        const CustomSemanticsAction(label: 'Eliminar tarjeta'): () => confirmAndDeleteCard(context, card),
+      },
+      child: Dismissible(
+        key: ValueKey('dismiss-card-${card.id}'),
+        direction: DismissDirection.endToStart,
+        // Se borra dentro de la confirmación: si falla, la fila vuelve a su lugar.
+        confirmDismiss: (_) => confirmAndDeleteCard(context, card),
+        background: Container(
+          color: c.danger,
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Icon(CupertinoIcons.trash, color: c.onDanger, semanticLabel: 'Eliminar'),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 56),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              child: Row(
+                children: [
+                  ExcludeSemantics(
+                    child: Container(
+                      key: ValueKey('card-hue-${card.id}'),
+                      width: 34,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        // Desactivada: el billete se ve desteñido, sin cambiar de tono.
+                        color: card.isActive ? hue : hue.withValues(alpha: 0.35),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        card.alias,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: t.bodyLarge?.copyWith(color: card.isActive ? c.ink : c.textMuted),
-                      ),
-                      Text(
-                        cardStatusLine(card, hideValues: hideValues),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: t.bodySmall?.copyWith(color: c.textMuted, fontFeatures: kTabularFigures),
-                      ),
-                    ],
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          card.alias,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: t.bodyLarge?.copyWith(color: card.isActive ? c.ink : c.textMuted),
+                        ),
+                        Text(
+                          cardStatusLine(card, hideValues: hideValues),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: t.bodySmall?.copyWith(color: c.textMuted, fontFeatures: kTabularFigures),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Icon(CupertinoIcons.chevron_forward, size: 18, color: c.textMuted),
-              ],
+                  const SizedBox(width: 8),
+                  Icon(CupertinoIcons.chevron_forward, size: 18, color: c.textMuted),
+                ],
+              ),
             ),
           ),
         ),

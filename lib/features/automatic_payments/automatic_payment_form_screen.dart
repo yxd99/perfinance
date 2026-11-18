@@ -313,7 +313,9 @@ class _AutomaticPaymentFormScreenState extends ConsumerState<AutomaticPaymentFor
     if (mounted) {
       ref.invalidate(automaticPaymentsListProvider);
       ref.invalidate(expensesListProvider);
-      ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
+      ref.read(syncServiceProvider).pushPendingIfOnline().catchError(
+            (Object e, StackTrace st) => ErrorReporter.capture(e, st, operation: 'automatic_payments.push'),
+          );
       Navigator.pop(context);
     }
   }

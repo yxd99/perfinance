@@ -9,6 +9,7 @@ import 'package:perfinance/data/models/receivable.dart';
 import 'package:perfinance/data/models/receivable_payment.dart';
 import 'package:perfinance/data/repositories/receivable_payment_repository.dart';
 import 'package:perfinance/data/repositories/receivable_repository.dart';
+import 'package:perfinance/features/receivables/receivable_detail_screen.dart';
 import 'package:perfinance/features/receivables/receivables_screen.dart';
 import 'package:perfinance/features/receivables/receivables_provider.dart';
 
@@ -119,6 +120,40 @@ void main() {
       await tester.pumpWidget(buildScreen(views: views));
       await tester.pumpAndSettle();
       expect(find.widgetWithText(InsetAddRow, 'Agregar deudor'), findsOneWidget);
+    });
+
+    testWidgets('"Falta" y el chevron van pegados al borde derecho', (tester) async {
+      final views = [ReceivableView(receivable: _makeReceivable(name: 'Juan Test'), payments: const [])];
+      await tester.pumpWidget(buildScreen(views: views));
+      await tester.pumpAndSettle();
+      final groupRight = tester.getTopRight(find.byType(Dismissible)).dx;
+      final chevronRight = tester.getTopRight(find.byIcon(CupertinoIcons.chevron_right)).dx;
+      final amountRight = tester.getTopRight(find.text('Falta \$500.000')).dx;
+      expect(groupRight - chevronRight, lessThanOrEqualTo(16));
+      expect(chevronRight - amountRight, lessThanOrEqualTo(24));
+    });
+
+    testWidgets('tocar abre el detalle; deslizar a la izquierda pide confirmar el borrado', (tester) async {
+      final views = [ReceivableView(receivable: _makeReceivable(name: 'Juan Test'), payments: const [])];
+      await tester.pumpWidget(buildScreen(views: views));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Dismissible), findsOneWidget);
+      await tester.drag(find.text('Juan Test'), const Offset(-500, 0));
+      await tester.pumpAndSettle();
+      expect(find.text('Eliminar deudor'), findsOneWidget);
+      expect(find.text('Cobrar todo'), findsNothing);
+      await tester.tap(find.text('Cancelar'));
+      await tester.pumpAndSettle();
+      expect(find.text('Juan Test'), findsOneWidget);
+
+      await tester.tap(find.text('Juan Test'));
+      await tester.pump();
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 200)));
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.byType(ReceivableDetailScreen), findsOneWidget);
+      // «Cobrar todo» se mudó del deslizamiento al detalle.
+      expect(find.text('Cobrar todo (\$500.000)'), findsOneWidget);
     });
 
     testWidgets('sin deudores ofrece agregar uno', (tester) async {

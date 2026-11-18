@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perfinance/core/observability/error_reporter.dart';
 import 'package:perfinance/core/theme/app_theme.dart';
@@ -83,13 +84,6 @@ class _SavingsList extends ConsumerWidget {
             ],
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(4, 8, 4, 0),
-          child: Text(
-            'Deslizá un medio hacia la izquierda para eliminarlo.',
-            style: t.bodySmall?.copyWith(color: c.textMuted),
-          ),
-        ),
       ],
     );
   }
@@ -105,29 +99,30 @@ class _MethodRow extends ConsumerWidget {
     final c = context.colors;
     final t = Theme.of(context).textTheme;
     final typeLabel = paymentMethodTypeLabel(method.type);
+    // «Efectivo / Efectivo» no dice nada: el tipo va solo si agrega información.
+    final showType = typeLabel.trim().toLowerCase() != method.name.trim().toLowerCase();
     return Dismissible(
       key: ValueKey(method.id),
       direction: DismissDirection.endToStart,
       background: Container(
         color: c.danger,
         alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20),
-        child: Icon(CupertinoIcons.trash, color: c.onDanger),
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Icon(CupertinoIcons.trash, color: c.onDanger, semanticLabel: 'Eliminar'),
       ),
-      confirmDismiss: (_) => _confirmDelete(context, method),
-      onDismissed: (_) => _delete(context, method),
+      // Se borra dentro de la confirmación: si se cancela o falla, la fila
+      // vuelve a su lugar y nunca queda un Dismissible descartado en el árbol.
+      confirmDismiss: (_) => _confirmAndDelete(context, method),
       child: Semantics(
         button: true,
-        label: '${method.name}, $typeLabel',
+        label: showType ? '${method.name}, $typeLabel' : method.name,
         hint: 'Editar',
         excludeSemantics: true,
+        customSemanticsActions: {
+          const CustomSemanticsAction(label: 'Eliminar medio de pago'): () => _confirmAndDelete(context, method),
+        },
         child: InkWell(
           onTap: () => _openForm(context, edit: method),
-          onLongPress: () async {
-            if (await _confirmDelete(context, method) && context.mounted) {
-              await _delete(context, method);
-            }
-          },
           child: ConstrainedBox(
             constraints: const BoxConstraints(minHeight: 56),
             child: Padding(
@@ -151,7 +146,7 @@ class _MethodRow extends ConsumerWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(method.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: t.bodyLarge?.copyWith(color: c.ink)),
-                        Text(typeLabel, style: t.bodySmall?.copyWith(color: c.textMuted)),
+                        if (showType) Text(typeLabel, style: t.bodySmall?.copyWith(color: c.textMuted)),
                       ],
                     ),
                   ),
@@ -237,7 +232,12 @@ class _SavingsMessage extends StatelessWidget {
   }
 }
 
-Future<bool> _confirmDelete(BuildContext context, PaymentMethod pm) async {
+/// Pide confirmar y borra. Devuelve true solo si quedó borrado. Toma el
+/// contenedor y el messenger antes de esperar: la fila deslizada puede no
+/// existir cuando termina el borrado.
+Future<bool> _confirmAndDelete(BuildContext context, PaymentMethod pm) async {
+  final container = ProviderScope.containerOf(context, listen: false);
+  final messenger = ScaffoldMessenger.maybeOf(context);
   final ok = await showAdaptiveDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog.adaptive(
@@ -249,22 +249,19 @@ Future<bool> _confirmDelete(BuildContext context, PaymentMethod pm) async {
       ],
     ),
   );
-  return ok == true;
-}
-
-/// Toma el contenedor y el messenger antes de esperar: la fila deslizada ya no
-/// existe cuando termina el borrado.
-Future<void> _delete(BuildContext context, PaymentMethod pm) async {
-  final container = ProviderScope.containerOf(context, listen: false);
-  final messenger = ScaffoldMessenger.maybeOf(context);
+  if (ok != true) return false;
   try {
     await container.read(paymentMethodRepositoryProvider).delete(pm.id);
   } catch (e, st) {
     ErrorReporter.capture(e, st, operation: 'savings.delete', details: {'id': pm.id});
     messenger?.showSnackBar(const SnackBar(content: Text('No se pudo eliminar el medio de pago. Intentá de nuevo.')));
+    return false;
   }
   container.invalidate(paymentMethodsListProvider);
-  container.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
+  container.read(syncServiceProvider).pushPendingIfOnline().catchError(
+        (Object e, StackTrace st) => ErrorReporter.capture(e, st, operation: 'savings.push'),
+      );
+  return true;
 }
 
 /// Botón de diálogo con la forma de la plataforma: acción de Cupertino en iOS

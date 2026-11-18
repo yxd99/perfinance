@@ -68,7 +68,9 @@ class _WalletShortcutScreenState extends ConsumerState<WalletShortcutScreen> {
       ) as int;
       await _loadWalletCards();
       // Baja los egresos que la nube acaba de mover a la tarjeta correcta.
-      ref.read(syncServiceProvider).syncNow(silent: true).catchError((_) {});
+      ref.read(syncServiceProvider).syncNow(silent: true).catchError(
+            (Object e, StackTrace st) => ErrorReporter.capture(e, st, operation: 'wallet_shortcut.sync'),
+          );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

@@ -241,7 +241,9 @@ class _RegisterPaymentSheetState extends ConsumerState<_RegisterPaymentSheet> {
 
         messenger.showSnackBar(SnackBar(content: Text(successMsg)));
 
-        ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
+        ref.read(syncServiceProvider).pushPendingIfOnline().catchError(
+              (Object e, StackTrace st) => ErrorReporter.capture(e, st, operation: 'receivables.push'),
+            );
       }
     } on StateError catch (e) {
       if (mounted) {

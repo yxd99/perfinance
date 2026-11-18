@@ -163,7 +163,9 @@ class _ReceivableFormScreenState extends ConsumerState<ReceivableFormScreen> {
 
     if (mounted) {
       ref.invalidate(receivablesListProvider);
-      ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
+      ref.read(syncServiceProvider).pushPendingIfOnline().catchError(
+            (Object e, StackTrace st) => ErrorReporter.capture(e, st, operation: 'receivables.push'),
+          );
       Navigator.pop(context);
     }
   }
