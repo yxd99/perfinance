@@ -18,152 +18,179 @@ Future<CardDebtValidationDecision?> showCardDebtValidationDialog({
   required BuildContext context,
   required double expectedDebt,
   String title = 'Validar deuda',
-}) async {
-  final controller = TextEditingController(text: formatCurrency(expectedDebt));
-  final decision = await showDialog<CardDebtValidationDecision>(
+}) {
+  return showDialog<CardDebtValidationDecision>(
     context: context,
-    builder: (dialogContext) {
-      return StatefulBuilder(
-        builder: (context, setState) {
-          final actualDebt = parseCurrency(controller.text) ?? expectedDebt;
-          final reconciliation = CardDebtReconciliationService.reconcile(
-            expectedDebt: expectedDebt,
-            actualDebt: actualDebt,
-          );
-          final deltaColor = switch (reconciliation.action) {
-            CardDebtAdjustmentAction.missingExpense => context.colors.warning,
-            CardDebtAdjustmentAction.cardPayment => context.colors.positive,
-            CardDebtAdjustmentAction.none => context.colors.accent,
-          };
-          // Fondo suave del mismo estado: los pares de tokens ya cumplen AA.
-          final deltaSoft = switch (reconciliation.action) {
-            CardDebtAdjustmentAction.missingExpense => context.colors.warningSoft,
-            CardDebtAdjustmentAction.cardPayment => context.colors.positiveSoft,
-            CardDebtAdjustmentAction.none => context.colors.accentSoft,
-          };
-          final deltaLabel = switch (reconciliation.action) {
-            CardDebtAdjustmentAction.missingExpense => 'Faltante detectado',
-            CardDebtAdjustmentAction.cardPayment => 'Pago a registrar',
-            CardDebtAdjustmentAction.none => 'Deuda conciliada',
-          };
-          final helperText = switch (reconciliation.action) {
-            CardDebtAdjustmentAction.missingExpense =>
-              'La deuda real es mayor que la calculada. Se agregará un egreso extra con la descripción Faltante de deuda.',
-            CardDebtAdjustmentAction.cardPayment =>
-              'La deuda real es menor que la calculada. Se registrará un pago de tarjeta por la diferencia.',
-            CardDebtAdjustmentAction.none => 'La deuda ingresada coincide con el cálculo actual. No se crearán movimientos adicionales.',
-          };
-          final confirmLabel = switch (reconciliation.action) {
-            CardDebtAdjustmentAction.missingExpense => 'Agregar faltante',
-            CardDebtAdjustmentAction.cardPayment => 'Registrar pago',
-            CardDebtAdjustmentAction.none => 'Confirmar deuda',
-          };
+    builder: (_) => _CardDebtValidationDialog(expectedDebt: expectedDebt, title: title),
+  );
+}
 
-          return AlertDialog(
-            title: Text(title),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+class _CardDebtValidationDialog extends StatefulWidget {
+  const _CardDebtValidationDialog({required this.expectedDebt, required this.title});
+
+  final double expectedDebt;
+  final String title;
+
+  @override
+  State<_CardDebtValidationDialog> createState() => _CardDebtValidationDialogState();
+}
+
+class _CardDebtValidationDialogState extends State<_CardDebtValidationDialog> {
+  late final TextEditingController _controller =
+      TextEditingController(text: formatCurrency(widget.expectedDebt));
+  late double _actualDebt = parseCurrency(_controller.text) ?? widget.expectedDebt;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onChanged(String _) {
+    setState(() {
+      _actualDebt = parseCurrency(_controller.text) ?? widget.expectedDebt;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final expectedDebt = widget.expectedDebt;
+    final reconciliation = CardDebtReconciliationService.reconcile(
+      expectedDebt: expectedDebt,
+      actualDebt: _actualDebt,
+    );
+    final deltaColor = switch (reconciliation.action) {
+      CardDebtAdjustmentAction.missingExpense => context.colors.warning,
+      CardDebtAdjustmentAction.cardPayment => context.colors.positive,
+      CardDebtAdjustmentAction.none => context.colors.accent,
+    };
+    // Fondo suave del mismo estado: los pares de tokens ya cumplen AA.
+    final deltaSoft = switch (reconciliation.action) {
+      CardDebtAdjustmentAction.missingExpense => context.colors.warningSoft,
+      CardDebtAdjustmentAction.cardPayment => context.colors.positiveSoft,
+      CardDebtAdjustmentAction.none => context.colors.accentSoft,
+    };
+    final deltaLabel = switch (reconciliation.action) {
+      CardDebtAdjustmentAction.missingExpense => 'Faltante detectado',
+      CardDebtAdjustmentAction.cardPayment => 'Pago a registrar',
+      CardDebtAdjustmentAction.none => 'Deuda conciliada',
+    };
+    final helperText = switch (reconciliation.action) {
+      CardDebtAdjustmentAction.missingExpense =>
+        'La deuda real es mayor que la calculada. Se agregará un egreso extra con la descripción Faltante de deuda.',
+      CardDebtAdjustmentAction.cardPayment =>
+        'La deuda real es menor que la calculada. Se registrará un pago de tarjeta por la diferencia.',
+      CardDebtAdjustmentAction.none => 'La deuda ingresada coincide con el cálculo actual. No se crearán movimientos adicionales.',
+    };
+    final confirmLabel = switch (reconciliation.action) {
+      CardDebtAdjustmentAction.missingExpense => 'Agregar faltante',
+      CardDebtAdjustmentAction.cardPayment => 'Registrar pago',
+      CardDebtAdjustmentAction.none => 'Confirmar deuda',
+    };
+
+    return AlertDialog(
+      title: Text(widget.title),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Confirmá si el saldo real de la tarjeta coincide con el cálculo actual.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 12),
+            Row(
               children: [
-                Text(
-                  'Confirmá si el saldo real de la tarjeta coincide con el cálculo actual.',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _DebtSummaryCard(
-                        label: 'Calculada',
-                        value: '\$${formatCurrency(expectedDebt)}',
-                        icon: CupertinoIcons.function,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _DebtSummaryCard(
-                        label: deltaLabel,
-                        value: reconciliation.action == CardDebtAdjustmentAction.none
-                            ? 'Sin ajuste'
-                            : '\$${formatCurrency(reconciliation.delta)}',
-                        icon: reconciliation.action == CardDebtAdjustmentAction.cardPayment
-                            ? CupertinoIcons.arrow_down
-                            : reconciliation.action == CardDebtAdjustmentAction.missingExpense
-                                ? CupertinoIcons.arrow_up
-                                : CupertinoIcons.checkmark_circle,
-                        valueColor: deltaColor,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                CurrencyTextField(
-                  controller: controller,
-                  decoration: const InputDecoration(
-                    labelText: 'Deuda real actual',
-                    helperText: 'Podés dejar el valor calculado si ya está bien.',
+                Expanded(
+                  child: _DebtSummaryCard(
+                    label: 'Calculada',
+                    value: '\$${formatCurrency(expectedDebt)}',
+                    icon: CupertinoIcons.function,
                   ),
-                  validator: (value) {
-                    final parsed = parseCurrency(value ?? '');
-                    if (parsed == null || parsed < 0) return 'Escribí un monto válido';
-                    return null;
-                  },
                 ),
-                const SizedBox(height: 12),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: deltaSoft,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Resultado',
-                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: deltaColor,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(helperText),
-                    ],
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _DebtSummaryCard(
+                    label: deltaLabel,
+                    value: reconciliation.action == CardDebtAdjustmentAction.none
+                        ? 'Sin ajuste'
+                        : '\$${formatCurrency(reconciliation.delta)}',
+                    icon: reconciliation.action == CardDebtAdjustmentAction.cardPayment
+                        ? CupertinoIcons.arrow_down
+                        : reconciliation.action == CardDebtAdjustmentAction.missingExpense
+                            ? CupertinoIcons.arrow_up
+                            : CupertinoIcons.checkmark_circle,
+                    valueColor: deltaColor,
                   ),
                 ),
               ],
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('Cancelar'),
+            const SizedBox(height: 16),
+            CurrencyTextField(
+              controller: _controller,
+              onChanged: _onChanged,
+              decoration: const InputDecoration(
+                labelText: 'Deuda real actual',
+                helperText: 'Podés dejar el valor calculado si ya está bien.',
               ),
-              FilledButton(
-                onPressed: () {
-                  final parsed = parseCurrency(controller.text);
-                  if (parsed == null || parsed < 0) return;
-                  Navigator.pop(
-                    dialogContext,
-                    CardDebtValidationDecision(
-                      actualDebt: parsed,
-                      reconciliation: CardDebtReconciliationService.reconcile(
-                        expectedDebt: expectedDebt,
-                        actualDebt: parsed,
-                      ),
+              validator: (value) {
+                final parsed = parseCurrency(value ?? '');
+                if (parsed == null || parsed < 0) return 'Escribí un monto válido';
+                return null;
+              },
+            ),
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: deltaSoft,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Resultado',
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: deltaColor,
+                      fontWeight: FontWeight.w700,
                     ),
-                  );
-                },
-                child: Text(confirmLabel),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(helperText),
+                ],
               ),
-            ],
-          );
-        },
-      );
-    },
-  );
-  controller.dispose();
-  return decision;
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: () {
+            final parsed = parseCurrency(_controller.text);
+            if (parsed == null || parsed < 0) return;
+            Navigator.pop(
+              context,
+              CardDebtValidationDecision(
+                actualDebt: parsed,
+                reconciliation: CardDebtReconciliationService.reconcile(
+                  expectedDebt: expectedDebt,
+                  actualDebt: parsed,
+                ),
+              ),
+            );
+          },
+          child: Text(confirmLabel),
+        ),
+      ],
+    );
+  }
 }
 
 class _DebtSummaryCard extends StatelessWidget {

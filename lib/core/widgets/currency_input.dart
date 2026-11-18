@@ -54,11 +54,13 @@ class CurrencyTextField extends StatelessWidget {
     required this.controller,
     this.decoration,
     this.validator,
+    this.onChanged,
   });
 
   final TextEditingController controller;
   final InputDecoration? decoration;
   final String? Function(String?)? validator;
+  final ValueChanged<String>? onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -67,6 +69,7 @@ class CurrencyTextField extends StatelessWidget {
       keyboardType: TextInputType.number,
       inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()],
       decoration: decoration ?? const InputDecoration(labelText: 'Monto', border: OutlineInputBorder()),
+      onChanged: onChanged,
       validator: validator ??
           (v) {
             if (v == null || v.trim().isEmpty) return 'Ingresa el monto';

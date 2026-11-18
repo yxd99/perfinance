@@ -9,10 +9,14 @@ final debtRepositoryProvider = Provider<DebtRepository>((ref) {
 });
 
 class DebtRepository {
-  DebtRepository(this._ref);
-  final Ref _ref;
+  DebtRepository(this._ref, {Database? dbOverride}) : _dbOverride = dbOverride;
+  final Ref? _ref;
+  final Database? _dbOverride;
 
-  Future<Database> get _db => _ref.read(databaseProvider.future);
+  Future<Database> get _db async {
+    if (_dbOverride != null) return _dbOverride;
+    return _ref!.read(databaseProvider.future);
+  }
 
   Future<List<Debt>> getAll(String userId) async {
     final db = await _db;
@@ -120,7 +124,8 @@ class DebtRepository {
       return;
     }
     final now = DateTime.now().toIso8601String();
-    await db.insert(
+    await upsertRowById(
+      db,
       tableDebts,
       {
         'id': d.id,
@@ -134,8 +139,7 @@ class DebtRepository {
         columnUpdatedAt: d.updatedAt ?? now,
         'created_at': d.createdAt ?? now,
       },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+      );
   }
 
   Future<void> payDebt(String id) async {

@@ -167,7 +167,7 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
                   label: const Text('Reactivar'),
                 ),
               ],
-              if (isActive) ...[
+              if (isActive || isHidden) ...[
                 const SizedBox(height: 12),
                 Row(
                   children: [

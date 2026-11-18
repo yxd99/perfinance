@@ -140,7 +140,8 @@ class CreditCardRepository {
       return;
     }
     final now = DateTime.now().toIso8601String();
-    await db.insert(
+    await upsertRowById(
+      db,
       tableCreditCards,
       {
         'id': card.id,
@@ -153,8 +154,7 @@ class CreditCardRepository {
         columnUpdatedAt: card.updatedAt ?? now,
         'created_at': card.createdAt ?? now,
       },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+      );
   }
 
   static CreditCard _rowToCard(Map<String, dynamic> r) {

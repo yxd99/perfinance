@@ -2,7 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perfinance/data/database/app_database.dart';
 import 'package:perfinance/data/database/database_provider.dart';
 import 'package:perfinance/data/models/receivable.dart';
-import 'package:sqflite/sqflite.dart';
 
 final receivableRepositoryProvider = Provider<ReceivableRepository>((ref) {
   return ReceivableRepository(ref);
@@ -154,7 +153,8 @@ class ReceivableRepository {
       return; // local wins
     }
     final now = DateTime.now().toIso8601String();
-    await db.insert(
+    await upsertRowById(
+      db,
       tableReceivables,
       {
         'id': r.id,
@@ -169,8 +169,7 @@ class ReceivableRepository {
         columnUpdatedAt: r.updatedAt ?? now,
         'created_at': r.createdAt ?? now,
       },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+      );
   }
 
   // ── status transitions ─────────────────────────────────────────────────────
