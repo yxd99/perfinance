@@ -217,7 +217,7 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
           prefixText: '\$ ',
           prefixStyle: t.displaySmall?.copyWith(color: c.textMuted),
           hintText: '0',
-          hintStyle: t.displaySmall?.copyWith(color: c.textMuted),
+          hintStyle: t.displaySmall?.copyWith(color: c.textMuted, fontWeight: FontWeight.w300),
           filled: false,
           border: InputBorder.none,
           enabledBorder: InputBorder.none,
