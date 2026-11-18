@@ -37,7 +37,7 @@ final expensesListProvider = FutureProvider<List<Expense>>((ref) async {
   return ref.read(expenseRepositoryProvider).getAll(user.id);
 });
 
-final selectedExpenseDateFilterProvider = StateProvider<ExpenseDateFilter>((ref) => ExpenseDateFilter.today);
+final selectedExpenseDateFilterProvider = StateProvider<ExpenseDateFilter>((ref) => ExpenseDateFilter.currentMonth);
 
 /// IDs de tarjeta o cuenta de ahorro (`payment_ref`). Vacío = no filtrar por medio.
 final selectedExpensePaymentIdsFilterProvider = StateProvider<Set<String>>((ref) => {});

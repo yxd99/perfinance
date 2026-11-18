@@ -39,6 +39,10 @@ void main() {
   testWidgets('filtro vacío lo dice y ofrece ver el mes', (tester) async {
     await tester.pumpWidget(_app([_expense('a', 'Taxi')], []));
     await tester.pumpAndSettle();
+    ProviderScope.containerOf(tester.element(find.byType(ExpensesScreen)))
+        .read(selectedExpenseDateFilterProvider.notifier)
+        .state = ExpenseDateFilter.today;
+    await tester.pumpAndSettle();
     expect(find.text('Egresos'), findsWidgets);
     expect(find.text('Hoy no registraste egresos'), findsOneWidget);
     expect(find.text('No hay egresos registrados'), findsNothing);

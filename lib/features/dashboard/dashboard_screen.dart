@@ -201,7 +201,7 @@ class _MonthNote extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(label, style: t.labelLarge?.copyWith(color: c.onHeroMuted, letterSpacing: 0.4)),
+                      Text(label, style: t.labelLarge?.copyWith(color: c.onHeroMuted)),
                       const SizedBox(height: 64),
                       FittedBox(
                         fit: BoxFit.scaleDown,

@@ -39,8 +39,23 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
     final filter = ref.watch(debtListFilterProvider);
     final hideValues = ref.watch(hideValuesProvider).value ?? false;
     final asyncTotal = ref.watch(outstandingDebtsTotalProvider);
+    final t = Theme.of(context).textTheme;
     return Column(
       children: [
+        // Título grande igual al de las otras pestañas del shell.
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 52, 16, 4),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Semantics(
+              header: true,
+              child: Text(
+                'Deudas',
+                style: t.headlineLarge?.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.5),
+              ),
+            ),
+          ),
+        ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
           child: ValueListenableBuilder<TextEditingValue>(

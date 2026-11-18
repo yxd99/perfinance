@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -39,13 +40,21 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
   /// el provider recargue, para que el `Dismissible` no siga en el árbol.
   final Set<String> _removed = {};
 
-  static const _primaryFilters = [
-    ExpenseDateFilter.today,
-    ExpenseDateFilter.yesterday,
-    ExpenseDateFilter.thisWeek,
-    ExpenseDateFilter.currentMonth,
-    ExpenseDateFilter.last30Days,
-  ];
+  /// Rangos de uso diario en el control segmentado; «Ayer» y el rango
+  /// personalizado viven en «Otra fecha».
+  static const _segments = {
+    ExpenseDateFilterType.today: 'Hoy',
+    ExpenseDateFilterType.thisWeek: 'Semana',
+    ExpenseDateFilterType.currentMonth: 'Mes',
+    ExpenseDateFilterType.last30Days: '30 días',
+  };
+
+  static const _segmentFilters = {
+    ExpenseDateFilterType.today: ExpenseDateFilter.today,
+    ExpenseDateFilterType.thisWeek: ExpenseDateFilter.thisWeek,
+    ExpenseDateFilterType.currentMonth: ExpenseDateFilter.currentMonth,
+    ExpenseDateFilterType.last30Days: ExpenseDateFilter.last30Days,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -63,8 +72,8 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
           expandedHeight: 100,
           actions: [
             IconButton(
-              icon: const Icon(Icons.mail_outline),
-              tooltip: 'Enviar exportación por correo',
+              icon: const Icon(CupertinoIcons.square_arrow_up),
+              tooltip: 'Exportar egresos por correo',
               onPressed: () => _sendExpenseExportEmail(context),
             ),
           ],
@@ -175,47 +184,91 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
         : 'Rango personalizado';
     final n = paymentFilter.length;
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
+    final segment = _segments.containsKey(selected.type) ? selected.type : null;
+    final otherLabel = isCustom
+        ? customLabel
+        : selected.type == ExpenseDateFilterType.yesterday
+            ? 'Ayer'
+            : 'Otra fecha';
+
+    return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          for (final f in _primaryFilters)
-            Padding(
-              padding: const EdgeInsets.only(right: 6),
-              child: ChoiceChip(
-                label: Text(f.label),
-                showCheckmark: false,
-                selected: selected.type == f.type,
-                selectedColor: c.accent,
-                labelStyle: TextStyle(
-                  color: selected.type == f.type ? c.onAccent : c.ink,
-                  fontWeight: selected.type == f.type ? FontWeight.w600 : FontWeight.w500,
+          CupertinoSlidingSegmentedControl<ExpenseDateFilterType>(
+            groupValue: segment,
+            backgroundColor: c.track,
+            thumbColor: c.surface,
+            children: {
+              for (final e in _segments.entries)
+                e.key: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Text(
+                    e.value,
+                    style: TextStyle(
+                      color: c.ink,
+                      fontWeight: segment == e.key ? FontWeight.w600 : FontWeight.w500,
+                    ),
+                  ),
                 ),
-                side: BorderSide(color: selected.type == f.type ? c.accent : c.divider),
-                onSelected: (_) => ref.read(selectedExpenseDateFilterProvider.notifier).state = f,
+            },
+            onValueChanged: (type) {
+              if (type == null) return;
+              ref.read(selectedExpenseDateFilterProvider.notifier).state = _segmentFilters[type]!;
+            },
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              _SecondaryChip(
+                icon: CupertinoIcons.calendar,
+                label: otherLabel,
+                active: segment == null,
+                onPressed: () => _pickOtherDate(context),
               ),
-            ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6),
-            child: SizedBox(height: 24, child: VerticalDivider(width: 1, color: c.divider)),
+              if (cards.isNotEmpty || methods.isNotEmpty)
+                _SecondaryChip(
+                  icon: CupertinoIcons.creditcard,
+                  label: n == 0 ? 'Tarjetas y cuentas' : 'Cuentas ($n)',
+                  active: n > 0,
+                  onPressed: () => _openPaymentFilterSheet(context, cards, methods),
+                ),
+            ],
           ),
-          _SecondaryChip(
-            icon: Icons.date_range,
-            label: customLabel,
-            active: isCustom,
-            onPressed: () => _pickCustomRange(context),
-          ),
-          if (cards.isNotEmpty || methods.isNotEmpty)
-            _SecondaryChip(
-              icon: Icons.account_balance_wallet_outlined,
-              label: n == 0 ? 'Tarjetas y cuentas' : 'Cuentas ($n)',
-              active: n > 0,
-              onPressed: () => _openPaymentFilterSheet(context, cards, methods),
-            ),
         ],
       ),
     );
+  }
+
+  /// Hoja de acciones de iOS con los rangos que no están en el segmentado.
+  Future<void> _pickOtherDate(BuildContext context) async {
+    final choice = await showCupertinoModalPopup<String>(
+      context: context,
+      builder: (ctx) => CupertinoActionSheet(
+        actions: [
+          CupertinoActionSheetAction(
+            onPressed: () => Navigator.pop(ctx, 'yesterday'),
+            child: const Text('Ayer'),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () => Navigator.pop(ctx, 'custom'),
+            child: const Text('Elegir un rango…'),
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          isDefaultAction: true,
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('Cancelar'),
+        ),
+      ),
+    );
+    if (!context.mounted) return;
+    if (choice == 'yesterday') {
+      ref.read(selectedExpenseDateFilterProvider.notifier).state = ExpenseDateFilter.yesterday;
+    } else if (choice == 'custom') {
+      await _pickCustomRange(context);
+    }
   }
 
   void _openPaymentFilterSheet(
@@ -570,7 +623,7 @@ class _ExpenseRow extends ConsumerWidget {
           color: c.danger,
           alignment: Alignment.centerRight,
           padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Icon(Icons.delete, color: c.onDanger, semanticLabel: 'Eliminar'),
+          child: Icon(CupertinoIcons.trash, color: c.onDanger, semanticLabel: 'Eliminar'),
         ),
         child: Material(
           color: c.canvas,
@@ -681,12 +734,12 @@ class _EmptyExpenses extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.receipt_long_outlined, size: 40, color: c.textMuted),
+          Icon(CupertinoIcons.doc_text, size: 40, color: c.textMuted),
           const SizedBox(height: 12),
           Text(copy.message, style: Theme.of(context).textTheme.bodyLarge, textAlign: TextAlign.center),
           const SizedBox(height: 16),
           if (isLog)
-            FilledButton.icon(onPressed: onAction, icon: const Icon(Icons.add), label: Text(copy.actionLabel))
+            FilledButton.icon(onPressed: onAction, icon: const Icon(CupertinoIcons.add), label: Text(copy.actionLabel))
           else
             FilledButton.tonal(onPressed: onAction, child: Text(copy.actionLabel)),
         ],

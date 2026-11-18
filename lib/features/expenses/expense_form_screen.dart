@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -216,7 +217,7 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
           prefixText: '\$ ',
           prefixStyle: t.displaySmall?.copyWith(color: c.textMuted),
           hintText: '0',
-          hintStyle: t.displaySmall?.copyWith(color: c.divider),
+          hintStyle: t.displaySmall?.copyWith(color: c.textMuted),
           filled: false,
           border: InputBorder.none,
           enabledBorder: InputBorder.none,
@@ -259,7 +260,7 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
                     },
                   ),
                 ActionChip(
-                  avatar: Icon(Icons.add, size: 18, color: c.accent),
+                  avatar: Icon(CupertinoIcons.add, size: 18, color: c.accent),
                   label: const Text('Nueva cuenta'),
                   labelStyle: TextStyle(color: c.accent),
                   backgroundColor: Colors.transparent,
@@ -303,14 +304,14 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Row(
               children: [
-                Icon(Icons.calendar_today_outlined, size: 20, color: c.textMuted),
+                Icon(CupertinoIcons.calendar, size: 20, color: c.textMuted),
                 const SizedBox(width: 12),
                 Expanded(child: Text('Fecha', style: t.bodyLarge)),
                 Text(
                   expenseDayLabel(_date, now: DateTime.now()),
                   style: t.bodyLarge?.copyWith(color: c.accent, fontWeight: FontWeight.w600),
                 ),
-                Icon(Icons.chevron_right, color: c.textMuted),
+                Icon(CupertinoIcons.chevron_right, size: 18, color: c.textMuted),
               ],
             ),
           ),
@@ -339,12 +340,12 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(Icons.credit_card),
+              leading: const Icon(CupertinoIcons.creditcard),
               title: const Text('Tarjeta de crédito'),
               onTap: () => Navigator.pop(ctx, true),
             ),
             ListTile(
-              leading: const Icon(Icons.savings_outlined),
+              leading: const Icon(CupertinoIcons.money_dollar_circle),
               title: const Text('Ahorro, débito o efectivo'),
               onTap: () => Navigator.pop(ctx, false),
             ),
