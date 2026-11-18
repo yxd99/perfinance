@@ -23,6 +23,8 @@ type Body = {
   paymentDate?: string;
   /** Optional receivable ID — used for ownership verification on reminder events. */
   receivableId?: string;
+  /** Optional description of the receivable, shown so the debtor knows what it is about. */
+  description?: string;
 };
 
 const MONTH_NAMES_ES = [
@@ -134,10 +136,21 @@ function buildEmailHtml(body: Body): string {
     paymentDate,
     creditorEmail,
     isRegistered,
+    description,
   } = body;
   const primaryGreen = "#2ECC71";
   const meta = eventMeta(event, debtorName, creditorEmail, isRegistered);
   const isFullyPaid = remainingBalance <= 0;
+
+  const trimmedDescription = description?.trim();
+  const descriptionRow = trimmedDescription
+    ? `<tr>
+        <td style="padding:8px 0;border-bottom:1px solid #eef;">
+          <span style="font-size:12px;color:#666;">Descripción</span><br/>
+          <span style="font-size:15px;font-weight:600;color:#1c1c1e;">${escapeHtml(trimmedDescription)}</span>
+        </td>
+       </tr>`
+    : "";
 
   const paymentRow = paymentAmount != null
     ? `<tr>
@@ -188,6 +201,7 @@ function buildEmailHtml(body: Body): string {
                 <tr>
                   <td style="padding:16px;">
                     <table width="100%" style="border-collapse:collapse;">
+                      ${descriptionRow}
                       ${paymentRow}
                       ${dateRow}
                       <tr>

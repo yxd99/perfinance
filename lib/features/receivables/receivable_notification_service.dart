@@ -24,6 +24,7 @@ class ReceivableNotificationPayload {
     this.paymentAmount,
     this.paymentDate,
     this.receivableId,
+    this.description,
   });
 
   final ReceivableNotificationEvent event;
@@ -42,6 +43,9 @@ class ReceivableNotificationPayload {
   final double? paymentAmount;
   final DateTime? paymentDate;
   final String? receivableId;
+
+  /// Descripción del cobro; el correo la muestra para dar contexto.
+  final String? description;
 }
 
 final receivableNotificationServiceProvider =
@@ -92,6 +96,8 @@ class ReceivableNotificationService {
         if (payload.paymentDate != null)
           'paymentDate': payload.paymentDate!.toIso8601String(),
         if (payload.receivableId != null) 'receivableId': payload.receivableId,
+        if (payload.description?.trim().isNotEmpty ?? false)
+          'description': payload.description!.trim(),
       };
       return _client.functions.invoke(
         'send-receivable-notification',

@@ -23,6 +23,7 @@ class ReceivableFormScreen extends ConsumerStatefulWidget {
 class _ReceivableFormScreenState extends ConsumerState<ReceivableFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
+  final _descriptionController = TextEditingController();
   final _emailController = TextEditingController();
   final _amountController = TextEditingController();
 
@@ -34,6 +35,7 @@ class _ReceivableFormScreenState extends ConsumerState<ReceivableFormScreen> {
     if (_isEdit) {
       final r = widget.editReceivable!;
       _nameController.text = r.debtorName;
+      _descriptionController.text = r.description ?? '';
       _emailController.text = r.debtorEmail ?? '';
       _amountController.text = formatCurrency(r.totalAmount);
     }
@@ -42,6 +44,7 @@ class _ReceivableFormScreenState extends ConsumerState<ReceivableFormScreen> {
   @override
   void dispose() {
     _nameController.dispose();
+    _descriptionController.dispose();
     _emailController.dispose();
     _amountController.dispose();
     super.dispose();
@@ -60,10 +63,20 @@ class _ReceivableFormScreenState extends ConsumerState<ReceivableFormScreen> {
               controller: _nameController,
               textCapitalization: TextCapitalization.words,
               decoration: const InputDecoration(
-                labelText: 'Nombre o descripción',
-                hintText: 'Ej: Juan Pérez, préstamo...',
+                labelText: 'Nombre del responsable',
+                hintText: 'Ej: Juan Pérez',
               ),
-              validator: (v) => v == null || v.trim().isEmpty ? 'Ingresá un nombre' : null,
+              validator: (v) =>
+                  v == null || v.trim().isEmpty ? 'Ingresá el nombre del responsable' : null,
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _descriptionController,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(
+                labelText: 'Descripción (opcional)',
+                hintText: 'Ej: Préstamo para el carro',
+              ),
             ),
             const SizedBox(height: 16),
             TextFormField(
@@ -114,6 +127,8 @@ class _ReceivableFormScreenState extends ConsumerState<ReceivableFormScreen> {
       return;
     }
     final name = _nameController.text.trim();
+    final descriptionText = _descriptionController.text.trim();
+    final description = descriptionText.isEmpty ? null : descriptionText;
     final email = _emailController.text.trim().isEmpty ? null : _emailController.text.trim();
 
     final repo = ref.read(receivableRepositoryProvider);
@@ -126,6 +141,8 @@ class _ReceivableFormScreenState extends ConsumerState<ReceivableFormScreen> {
         debtorName: name,
         debtorEmail: email,
         totalAmount: total,
+        description: description,
+        dueDate: r.dueDate,
         status: r.status,
         syncStatus: r.syncStatus,
         updatedAt: r.updatedAt,
@@ -140,6 +157,7 @@ class _ReceivableFormScreenState extends ConsumerState<ReceivableFormScreen> {
         debtorName: name,
         debtorEmail: email,
         totalAmount: total,
+        description: description,
       );
       await repo.insert(newReceivable);
       if (email != null && email.isNotEmpty) {
@@ -149,6 +167,7 @@ class _ReceivableFormScreenState extends ConsumerState<ReceivableFormScreen> {
                   event: ReceivableNotificationEvent.created,
                   recipientEmail: email,
                   debtorName: name,
+                  description: description,
                   totalAmount: total,
                   remainingBalance: total,
                   creditorEmail: user.email,
