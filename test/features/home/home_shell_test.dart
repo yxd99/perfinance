@@ -76,6 +76,45 @@ void main() {
       expect(find.text('Cerrar sesión'), findsOneWidget);
     });
 
+    testWidgets('«Cerrar sesión» termina por encima de la barra inferior', (tester) async {
+      // iPhone 15: 393×852 pt con el indicador de inicio (34 pt) abajo.
+      tester.view.physicalSize = const Size(1179, 2556);
+      tester.view.devicePixelRatio = 3;
+      tester.view.padding = const FakeViewPadding(top: 59 * 3, bottom: 34 * 3);
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(ProviderScope(
+        overrides: overrides,
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: Scaffold(
+            body: const SafeArea(bottom: false, child: MoreScreen()),
+            bottomNavigationBar: HomeTabBar(currentIndex: 3, onSelect: (_) {}, onAdd: () {}),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.fling(find.byType(CustomScrollView), const Offset(0, -2000), 3000);
+      await tester.pumpAndSettle();
+      final logoutBottom = tester.getBottomLeft(find.widgetWithText(ListTile, 'Cerrar sesión')).dy;
+      final tabBarTop = tester.getTopLeft(find.byType(HomeTabBar)).dy;
+      expect(logoutBottom, lessThanOrEqualTo(tabBarTop - 16));
+    });
+
+    testWidgets('sin barra inferior deja aire sobre el indicador de inicio', (tester) async {
+      tester.view.physicalSize = const Size(1179, 2556);
+      tester.view.devicePixelRatio = 3;
+      tester.view.padding = const FakeViewPadding(bottom: 34 * 3);
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(_app(const MoreScreen(), overrides: overrides));
+      await tester.pumpAndSettle();
+
+      await tester.fling(find.byType(CustomScrollView), const Offset(0, -2000), 3000);
+      await tester.pumpAndSettle();
+      final logoutBottom = tester.getBottomLeft(find.widgetWithText(ListTile, 'Cerrar sesión')).dy;
+      expect(logoutBottom, lessThanOrEqualTo(852 - 34 - 24));
+    });
+
     testWidgets('al sincronizar gira el ícono pero no el contador', (tester) async {
       await tester.pumpWidget(_app(
         const MoreScreen(),

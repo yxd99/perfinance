@@ -484,7 +484,9 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
       return;
     }
     ref.invalidate(expensesListProvider);
-    ref.read(syncServiceProvider).pushPendingIfOnline().catchError((_) {});
+    ref.read(syncServiceProvider).pushPendingIfOnline().catchError(
+          (Object e, StackTrace st) => ErrorReporter.capture(e, st, operation: 'expenses.push'),
+        );
   }
 }
 

@@ -149,7 +149,10 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 24),
+            // Aire final más el área segura de abajo. Dentro del shell la barra
+            // inferior ya consume esa área (el cuerpo termina sobre ella), así
+            // que esto solo suma cuando la pantalla se muestra sin barra.
+            SizedBox(height: 24 + MediaQuery.paddingOf(context).bottom),
           ],
         ),
       ],

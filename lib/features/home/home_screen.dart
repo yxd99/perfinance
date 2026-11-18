@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:perfinance/core/observability/error_reporter.dart';
 import 'package:perfinance/core/theme/app_colors.dart';
 import 'package:perfinance/features/automatic_payments/automatic_payments_provider.dart';
 import 'package:perfinance/features/dashboard/dashboard_screen.dart';
@@ -48,7 +49,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // Al recuperar la red: sube lo pendiente y baja lo cambiado, sin banner.
       _connectivitySub = startConnectivitySyncListener(
-        () => ref.read(syncServiceProvider).syncNow(silent: true).catchError((_) {}),
+        () => ref.read(syncServiceProvider).syncNow(silent: true).catchError(
+              (Object e, StackTrace st) => ErrorReporter.capture(e, st, operation: 'home.sync'),
+            ),
       );
       _syncIfStale();
       _processAutomaticPayments();
