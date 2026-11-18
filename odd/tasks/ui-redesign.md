@@ -15,7 +15,7 @@ Branch: feat-impeccable-flutter-ui · Delivery: ask-on-risk · Test runner: `flu
 - T1 · S1 · inline: semantic color tokens (`AppColors` ThemeExtension) + theme contrast · done (commit ce4ef5c)
 - T2 · S1 · delegated (parallel writers, disjoint surfaces): migrate features to tokens (A dashboard/home/onboarding/auth/core widgets; B credit_cards/expenses/savings/automatic_payments/wallet_shortcut; C debts/receivables/chat) · done (commit ce4ef5c)
 - T3 · S2 · inline · done (PRODUCT.md, see L7)
-- T4 · S3 · inline · pending
+- T4 · S3 · inline · done (direction "Billete", contract in .impeccable/surfaces/lib-features-home-home-screen-dart.md; see L8)
 - T5 · S4 · pending
 - T6 · S5 · pending
 - T7 · S6 · pending
@@ -29,3 +29,4 @@ Branch: feat-impeccable-flutter-ui · Delivery: ask-on-risk · Test runner: `flu
 - L5: T2 route delegated by Writer trigger (a): three independent units, disjoint file sets, each ~30 color sites.
 - L6: T1+T2 verified. Computed contrast: light accent #18784A 5.49:1 on white / 4.78:1 on accentSoft; dark accent #2ECC71 8.1:1 on surface with onAccent #06210F; all token pairs ≥4.5:1. `flutter analyze`: 24 infos, identical set to HEAD baseline (0 new). `flutter test`: 410 passed. Simulator light+dark captures of all 7 tabs OK. Receivables "Falta" now warning, not danger. Critique P2 hypothesis about dashboard_provider.dart:43 retracted: "Deuda total" renders once sync completes.
 - L7 (user, init interview): opens the app to "Revisar el mes" and "Registrar a mano"; success = "Controlar el gasto"; users = "Solo yo". Written to PRODUCT.md (platform ios). iOS reference loaded: tab bar for 2–5 sections, SF Pro for UI, Dynamic Type, 44pt targets, system controls.
+- L8 (user): logo "definamos al final". Decision page: user chose "Billete" (pick card, seed:fbe413b506bae435) over the rolled "Extracto con resaltador". Brief confirmed ("Confirmar"): 50.000 purple #5B3A7A as brand, note hues per account assigned stably by account id (no schema change), tab bar Mes · Egresos · + · Deudas · Más, SF Pro replaces Plus Jakarta Sans, guilloché month ring as signature. Next: T5 build shell + Mes + Egresos + quick add.
