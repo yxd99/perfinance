@@ -176,6 +176,15 @@ class _ReceivableRow extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
+                    if (r.description?.trim().isNotEmpty ?? false) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        r.description!.trim(),
+                        style: t.bodySmall?.copyWith(color: c.textMuted),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                     const SizedBox(height: 2),
                     Text(
                       status.detail,

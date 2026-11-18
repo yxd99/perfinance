@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:perfinance/data/models/receivable.dart';
 import 'package:perfinance/data/repositories/receivable_repository.dart';
 import 'package:perfinance/features/receivables/receivable_form_screen.dart';
 
@@ -23,14 +24,15 @@ void main() {
 
     tearDown(() => container.dispose());
 
-    Widget buildScreen() => UncontrolledProviderScope(
+    Widget buildScreen({Receivable? edit}) => UncontrolledProviderScope(
           container: container,
-          child: const MaterialApp(home: ReceivableFormScreen()),
+          child: MaterialApp(home: ReceivableFormScreen(editReceivable: edit)),
         );
 
-    testWidgets('renders name, email, and amount fields', (tester) async {
+    testWidgets('renders responsible name, description, email, and amount fields', (tester) async {
       await tester.pumpWidget(buildScreen());
-      expect(find.text('Nombre o descripción'), findsOneWidget);
+      expect(find.text('Nombre del responsable'), findsOneWidget);
+      expect(find.text('Descripción (opcional)'), findsOneWidget);
       expect(find.text('Email (opcional)'), findsOneWidget);
       expect(find.text('Monto total adeudado'), findsOneWidget);
     });
@@ -44,7 +46,7 @@ void main() {
       await tester.pumpWidget(buildScreen());
       await tester.tap(find.text('Guardar'));
       await tester.pump();
-      expect(find.text('Ingresá un nombre'), findsOneWidget);
+      expect(find.text('Ingresá el nombre del responsable'), findsOneWidget);
     });
 
     testWidgets('shows email validation error on invalid format', (tester) async {
@@ -66,6 +68,61 @@ void main() {
     testWidgets('shows caption below email field', (tester) async {
       await tester.pumpWidget(buildScreen());
       expect(find.textContaining('notificarle los cobros'), findsOneWidget);
+    });
+
+    testWidgets('edit saves responsible name and description', (tester) async {
+      final original = Receivable(
+        id: 'r1',
+        userId: 'u1',
+        debtorName: 'Juan',
+        totalAmount: 100000,
+      );
+      await tester.runAsync(() => repo.insert(original));
+      await tester.pumpWidget(buildScreen(edit: original));
+
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Nombre del responsable'),
+        'Juan Pérez',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Descripción (opcional)'),
+        '  Préstamo para el carro  ',
+      );
+      await tester.runAsync(() async {
+        await tester.tap(find.text('Guardar'));
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+      });
+      await tester.pump();
+
+      final saved = await tester.runAsync(() => repo.getById('r1'));
+      expect(saved!.debtorName, 'Juan Pérez');
+      expect(saved.description, 'Préstamo para el carro');
+    });
+
+    testWidgets('edit clears description when left blank', (tester) async {
+      final original = Receivable(
+        id: 'r2',
+        userId: 'u1',
+        debtorName: 'Ana',
+        totalAmount: 50000,
+        description: 'Almuerzo',
+      );
+      await tester.runAsync(() => repo.insert(original));
+      await tester.pumpWidget(buildScreen(edit: original));
+
+      expect(find.text('Almuerzo'), findsOneWidget);
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Descripción (opcional)'),
+        '   ',
+      );
+      await tester.runAsync(() async {
+        await tester.tap(find.text('Guardar'));
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+      });
+      await tester.pump();
+
+      final saved = await tester.runAsync(() => repo.getById('r2'));
+      expect(saved!.description, isNull);
     });
   });
 }

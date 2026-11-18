@@ -77,12 +77,14 @@ void main() {
     double? paymentAmount,
     DateTime? paymentDate,
     bool isRegistered = false,
+    String? description,
   }) =>
       ReceivableNotificationPayload(
         event: event,
         recipientEmail: recipientEmail,
         creditorEmail: creditorEmail,
         debtorName: 'Juan Pérez',
+        description: description,
         totalAmount: 400000,
         remainingBalance: 300000,
         paymentAmount: paymentAmount,
@@ -120,6 +122,20 @@ void main() {
     test('calls send-receivable-notification', () async {
       await service.notify(payload());
       expect(fakeFunctions.lastInvokedFunction, 'send-receivable-notification');
+    });
+  });
+
+  group('description', () {
+    test('sends trimmed description when present', () async {
+      await service.notify(payload(description: '  Préstamo para el carro  '));
+      expect(sentBody()['description'], 'Préstamo para el carro');
+    });
+
+    test('omits description when null or blank', () async {
+      await service.notify(payload(description: '   '));
+      expect(sentBody().containsKey('description'), isFalse);
+      await service.notify(payload());
+      expect(sentBody().containsKey('description'), isFalse);
     });
   });
 
