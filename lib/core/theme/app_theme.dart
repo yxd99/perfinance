@@ -164,8 +164,15 @@ class AppTheme {
           headlineMedium: t.headlineMedium?.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.5),
           headlineSmall: t.headlineSmall?.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.4),
           titleLarge: t.titleLarge?.copyWith(fontWeight: FontWeight.w600),
-          titleMedium: t.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-          labelLarge: t.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+          titleMedium: t.titleMedium?.copyWith(fontWeight: FontWeight.w600, letterSpacing: 0),
+          labelLarge: t.labelLarge?.copyWith(fontWeight: FontWeight.w600, letterSpacing: 0),
+          // Material agrega tracking a cuerpo y etiquetas; SF Pro ya trae el suyo.
+          titleSmall: t.titleSmall?.copyWith(letterSpacing: 0),
+          bodyLarge: t.bodyLarge?.copyWith(letterSpacing: 0),
+          bodyMedium: t.bodyMedium?.copyWith(letterSpacing: 0),
+          bodySmall: t.bodySmall?.copyWith(letterSpacing: 0),
+          labelMedium: t.labelMedium?.copyWith(letterSpacing: 0),
+          labelSmall: t.labelSmall?.copyWith(letterSpacing: 0),
         )
         .apply(bodyColor: c.ink, displayColor: c.ink);
   }

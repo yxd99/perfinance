@@ -16,7 +16,10 @@ Branch: feat-impeccable-flutter-ui · Delivery: ask-on-risk · Test runner: `flu
 - T2 · S1 · delegated (parallel writers, disjoint surfaces): migrate features to tokens (A dashboard/home/onboarding/auth/core widgets; B credit_cards/expenses/savings/automatic_payments/wallet_shortcut; C debts/receivables/chat) · done (commit ce4ef5c)
 - T3 · S2 · inline · done (PRODUCT.md, see L7)
 - T4 · S3 · inline · done (direction "Billete", contract in .impeccable/surfaces/lib-features-home-home-screen-dart.md; see L8)
-- T5 · S4 · pending
+- T5 · S4 · in progress. Base: Billete tokens + system font 332a5e9; quick-add entry point dcfdc1b.
+  - T5a · S4 · delegated (parallel, Writer trigger a): shell — bottom tab bar Mes · Egresos · + · Deudas · Más, "Más" hub, app bar actions moved · done (4f4f7a5; 4 widget tests; sync badge fix included; startup sync/logout untested, sim check pending)
+  - T5b · S4 · delegated (parallel): Mes screen (dashboard) to the Billete first viewport · pending
+  - T5c · S4 · delegated (parallel): Egresos list + quick-add form · done (dd00983; 23 expense tests; helper RED→GREEN; sim check pending)
 - T6 · S5 · pending
 - T7 · S6 · pending
 
