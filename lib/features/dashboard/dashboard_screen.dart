@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perfinance/features/accounts/account_hue_provider.dart';
@@ -17,7 +18,7 @@ import 'package:perfinance/features/dashboard/month_pace.dart';
 import 'package:perfinance/features/expenses/expenses_provider.dart';
 import 'package:perfinance/services/dashboard_service.dart';
 
-const double _gutter = 20;
+const double _gutter = 16;
 
 String _money(num value, bool hide) => '\$${formatCurrencyDisplay(value, hide)}';
 
@@ -142,13 +143,13 @@ class _MonthTitle extends ConsumerWidget {
         ),
         IconButton(
           tooltip: 'Mes anterior',
-          icon: const Icon(Icons.chevron_left_rounded),
+          icon: const Icon(CupertinoIcons.chevron_left),
           color: c.accent,
           onPressed: () => setMonth(DateTime(selected.year, selected.month - 1, 1)),
         ),
         IconButton(
           tooltip: 'Mes siguiente',
-          icon: const Icon(Icons.chevron_right_rounded),
+          icon: const Icon(CupertinoIcons.chevron_right),
           color: c.accent,
           onPressed: isCurrentMonth ? null : () => setMonth(DateTime(selected.year, selected.month + 1, 1)),
         ),
@@ -487,7 +488,7 @@ class _AttentionRow extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             child: Row(
               children: [
-                Icon(Icons.warning_amber_rounded, color: c.warning, size: 20),
+                Icon(CupertinoIcons.exclamationmark_triangle, color: c.warning, size: 20),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
@@ -506,7 +507,7 @@ class _AttentionRow extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (onTap != null) Icon(Icons.chevron_right_rounded, color: c.warning),
+                if (onTap != null) Icon(CupertinoIcons.chevron_right, color: c.warning),
               ],
             ),
           ),
@@ -1036,7 +1037,7 @@ class _SectionError extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 4, 4, 4),
           child: Row(
             children: [
-              Icon(Icons.error_outline_rounded, size: 20, color: c.danger),
+              Icon(CupertinoIcons.exclamationmark_circle, size: 20, color: c.danger),
               const SizedBox(width: 10),
               Expanded(
                 child: Text('No pudimos cargar esta sección', style: t.bodyMedium?.copyWith(color: c.ink)),
