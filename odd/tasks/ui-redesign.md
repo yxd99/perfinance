@@ -26,11 +26,13 @@ Branch: feat-impeccable-flutter-ui · Delivery: ask-on-risk · Test runner: `flu
   - T5c · S4 · delegated (parallel): Egresos list + quick-add form · done (dd00983; 23 expense tests; helper RED→GREEN; sim check pending)
   - Finish review (fresh agent, degraded protocol): disposition fix → 6 material fixes c5534cb → verdict pass all resolved, disposition ship. Total mismatch (seed future-dated row) fixed ae57395 (RED→GREEN); placeholder weight c5470e0. Suite +461.
   - DESIGN.md + .impeccable/design.json written by documenter (fresh agent, degraded protocol). T5 · done.
-- T6 · S5 · in progress. Base: PaidStamp 43d68ed. Route: Writer trigger (a), 4 disjoint units in parallel; T6e inline after.
-  - T6a · delegated: Deudas list + detail (lib/features/debts/**) · pending
-  - T6b · delegated: Tarjetas (lib/features/credit_cards/**) · pending
-  - T6c · delegated: Me deben + Auto-pagos (lib/features/receivables/**, lib/features/automatic_payments/**) · pending
-  - T6d · delegated: Ahorros, login, onboarding, chat, Wallet (lib/features/{savings,auth,onboarding,chat,wallet_shortcut}/**) · pending
+- T6 · S5 · done. Base: PaidStamp 43d68ed. Route: Writer trigger (a), 4 disjoint units in parallel; T6e inline after.
+  - T6a · delegated: Deudas list + detail · done c97be33 (writer ran dart format on 4 unrelated files; reverted via saved patch)
+  - T6b · delegated: Tarjetas · done 9631217
+  - T6c · delegated: Me deben + Auto-pagos · done 8eaf185
+  - T6d · delegated: auth/onboarding 1ef02e1, savings/wallet 7344f7a, chat 3d4584b · done
+  - Core: voseo UserFriendlyErrors + AppEmptyState/AppErrorState without icon circle 4d451c6. Seam: suite +506, analyze 5 issues all pre-existing (debt_detail infos, services warning). Sim light: tabs + 6 pushed screens OK.
+  - Open for T7: inconsistent "Agregar" pattern (in-list row in Tarjetas/Ahorros vs big purple button in Auto-pagos and Me deben + tinted total); Me deben form titles still "Nueva deuda"/"Editar deuda" (user decision); written_off/hidden receivables in no filter (pre-existing); payment notice claims email sent even on failure (pre-existing); AccountNoteChip 22x14 vs DESIGN 34x22 on rows.
   - T6e · inline: Mes drift (16pt gutter + Cupertino icons 6da072c), unused navigationBarTheme removed (tabBarTheme kept: chat uses TabBar) · done
   - 2026-11-18: writers T6a–d stopped by the 5h rate limit with no edits landed; user restarted the machine; local Supabase containers auto-restarted (demo user + 45 expenses intact); tour driver recreated in scratchpad; writers resumed.
   Inputs: documenter drift (no "stamped" paid items; Mes 20pt margins + custom title vs 16pt + SliverAppBar.large; Material icons in Mes attention rows; unused navigationBarTheme/tabBarTheme), voseo in login/forms, raw "cash"/"debit" in savings_screen.dart:59, empty states/errors on remaining screens, Deudas body + Tarjetas/Me deben/Auto-pagos/chat/login to Billete.
