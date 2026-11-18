@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:perfinance/data/database/app_database.dart';
+import 'package:perfinance/data/models/debt_payment.dart';
+import 'package:perfinance/data/repositories/debt_payment_repository.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import '../../helpers/db_helper.dart';
@@ -37,16 +39,10 @@ Future<void> _insertPayment(dynamic db, String debtId, String paymentId, double 
   });
 }
 
-// Guard logic mirroring the actual repository implementation under test.
-Future<void> _guardedInsertPayment(dynamic db, String debtId, String paymentId, double amount) async {
-  final debtRow = await db.query(tableDebts, where: 'id = ?', whereArgs: [debtId]);
-  if (debtRow.isNotEmpty) {
-    final s = debtRow.first['status'] as String?;
-    if (s == 'paid' || s == 'hidden') {
-      throw StateError('Cannot insert payment for a $s debt');
-    }
-  }
-  await _insertPayment(db, debtId, paymentId, amount);
+Future<void> _guardedInsertPayment(dynamic db, String debtId, String paymentId, double amount) {
+  return DebtPaymentRepository(null, dbOverride: db).insert(
+    DebtPayment(id: paymentId, debtId: debtId, amount: amount, date: DateTime(2026, 5, 1)),
+  );
 }
 
 void main() {
@@ -71,12 +67,15 @@ void main() {
       );
     });
 
-    test('throws StateError when target debt status is hidden', () async {
+    test('succeeds when target debt status is hidden', () async {
       await _insertDebt(db, status: 'hidden');
-      expect(
-        () => _guardedInsertPayment(db, 'debt-1', 'pay-1', 100),
-        throwsA(isA<StateError>()),
-      );
+      await _guardedInsertPayment(db, 'debt-1', 'pay-1', 100);
+
+      final rows = await db.query(tableDebtPayments) as List;
+      expect(rows.single['amount'], 100.0);
+      expect(rows.single[columnSyncStatus], 'pending_insert');
+      final debt = (await db.query(tableDebts) as List).single;
+      expect(debt['status'], 'hidden');
     });
 
     test('succeeds when target debt status is active', () async {

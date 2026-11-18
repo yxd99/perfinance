@@ -9,10 +9,14 @@ final debtPaymentRepositoryProvider = Provider<DebtPaymentRepository>((ref) {
 });
 
 class DebtPaymentRepository {
-  DebtPaymentRepository(this._ref);
-  final Ref _ref;
+  DebtPaymentRepository(this._ref, {Database? dbOverride}) : _dbOverride = dbOverride;
+  final Ref? _ref;
+  final Database? _dbOverride;
 
-  Future<Database> get _db => _ref.read(databaseProvider.future);
+  Future<Database> get _db async {
+    if (_dbOverride != null) return _dbOverride;
+    return _ref!.read(databaseProvider.future);
+  }
 
   Future<List<DebtPayment>> getByDebtId(String debtId) async {
     final db = await _db;
@@ -49,7 +53,8 @@ class DebtPaymentRepository {
     final debtRow = await db.query(tableDebts, where: 'id = ?', whereArgs: [p.debtId]);
     if (debtRow.isNotEmpty) {
       final s = debtRow.first['status'] as String?;
-      if (s == 'paid' || s == 'hidden') {
+      // Una deuda oculta sigue abierta: se le pueden registrar pagos.
+      if (s == 'paid') {
         throw StateError('Cannot insert payment for a $s debt');
       }
     }
