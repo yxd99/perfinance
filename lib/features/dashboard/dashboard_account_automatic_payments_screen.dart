@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perfinance/core/providers/hide_values_provider.dart';
 import 'package:perfinance/core/theme/app_theme.dart';
 import 'package:perfinance/core/widgets/currency_input.dart';
-import 'package:perfinance/data/models/automatic_payment.dart';
 import 'package:perfinance/features/automatic_payments/automatic_payment_form_screen.dart';
 import 'package:perfinance/features/automatic_payments/automatic_payments_provider.dart';
 
