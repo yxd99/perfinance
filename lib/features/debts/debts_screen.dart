@@ -59,7 +59,8 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
         // Título grande igual al de las otras pestañas del shell, con la
         // acción de agregar como en una barra de navegación de iOS.
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 52, 4, 4),
+          // 57pt: misma altura que el título grande de Egresos y Más.
+          padding: const EdgeInsets.fromLTRB(16, 57, 4, 4),
           child: Row(
             children: [
               Expanded(
@@ -400,10 +401,15 @@ class _RowShell extends StatelessWidget {
 }
 
 class _Amount extends StatelessWidget {
-  const _Amount({required this.value, required this.owed, required this.hideValues});
+  const _Amount({required this.value, required this.owed, required this.hideValues, this.overdue = false});
 
   final double value;
+
+  /// Se debe: tinta. Lo que no se debe (oculta, saldada) queda atenuado.
   final bool owed;
+
+  /// Vencida: el único caso en rojo.
+  final bool overdue;
   final bool hideValues;
 
   @override
@@ -414,7 +420,7 @@ class _Amount extends StatelessWidget {
       style: Theme.of(context).textTheme.titleSmall?.copyWith(
         fontWeight: FontWeight.w700,
         fontFeatures: kTabularFigures,
-        color: owed ? c.danger : c.textMuted,
+        color: overdue ? c.danger : (owed ? c.ink : c.textMuted),
       ),
     );
   }
@@ -431,14 +437,20 @@ class _DebtRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final remaining = debtRemaining(item);
+    final now = DateTime.now();
     final Widget trailing = switch (item.debt.status) {
       DebtStatus.paid => const PaidStamp(label: 'Pagada'),
-      DebtStatus.active => _Amount(value: remaining, owed: remaining > 0, hideValues: hideValues),
+      DebtStatus.active => _Amount(
+          value: remaining,
+          owed: remaining > 0,
+          overdue: isDebtOverdue(item, now),
+          hideValues: hideValues,
+        ),
       DebtStatus.hidden => _Amount(value: remaining, owed: false, hideValues: hideValues),
     };
     return _RowShell(
       title: item.debt.name,
-      status: debtStatusLine(item, hideValues: hideValues),
+      status: debtStatusLine(item, hideValues: hideValues, today: now),
       trailing: trailing,
       onTap: onTap,
       onLongPress: onLongPress,
@@ -462,6 +474,7 @@ class MirroredDebtCard extends StatelessWidget {
     final t = Theme.of(context).textTheme;
     final debt = item.debt;
     final remaining = debtRemaining(item);
+    final now = DateTime.now();
     return Material(
       color: c.surface,
       child: Column(
@@ -469,12 +482,18 @@ class MirroredDebtCard extends StatelessWidget {
         children: [
           _RowShell(
             title: debt.name,
-            status: debtStatusLine(item, hideValues: hideValues),
+            status: debtStatusLine(item, hideValues: hideValues, today: now),
             trailing: Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (!debt.isRevoked) _Amount(value: remaining, owed: remaining > 0, hideValues: hideValues),
+                if (!debt.isRevoked)
+                  _Amount(
+                    value: remaining,
+                    owed: remaining > 0,
+                    overdue: isDebtOverdue(item, now),
+                    hideValues: hideValues,
+                  ),
                 const SizedBox(height: 2),
                 const _ReceivedMarker(),
               ],

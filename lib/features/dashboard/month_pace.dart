@@ -150,6 +150,40 @@ double ringFraction(MonthSpend s) {
   return f > 1 ? 1 : (f < 0 ? 0 : f);
 }
 
+/// Lo que dice el centro del anillo. Con mes anterior, el porcentaje que llena el
+/// anillo («85%» «de octubre»), sin tope aunque el arco ya esté completo; sin mes
+/// anterior no hay escala y el centro muestra el día del mes.
+class RingLabel {
+  const RingLabel({required this.value, required this.caption, required this.spoken});
+
+  final String value;
+  final String caption;
+
+  /// Frase para VoiceOver.
+  final String spoken;
+}
+
+RingLabel ringLabel(MonthSpend s) {
+  if (s.lastMonthTotal > 0) {
+    final prev = DateTime(s.month.year, s.month.month - 1, 1);
+    final prevName = monthNameEs(prev.month).toLowerCase();
+    final pct = (s.total / s.lastMonthTotal * 100).round();
+    return RingLabel(value: '$pct%', caption: 'de $prevName', spoken: '$pct% de lo gastado en $prevName');
+  }
+  return RingLabel(
+    value: '${s.dayOfMonth}',
+    caption: 'de ${s.daysInMonth} días',
+    spoken: 'Día ${s.dayOfMonth} de ${s.daysInMonth}',
+  );
+}
+
+/// Día del mes en una línea aparte cuando el centro del anillo ya no lo muestra.
+/// Solo en el mes en curso: en un mes cerrado no aporta.
+String? ringDayLine(MonthSpend s) {
+  if (s.lastMonthTotal <= 0 || !s.isInProgress) return null;
+  return 'Día ${s.dayOfMonth} de ${s.daysInMonth}';
+}
+
 /// Frase de ritmo bajo el monto. En el mes en curso compara contra el mes anterior
 /// hasta el mismo día; en un mes cerrado, totales contra totales.
 String paceSentence(MonthSpend s) {

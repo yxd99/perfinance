@@ -65,6 +65,54 @@ void main() {
     });
   });
 
+  group('vencidas', () {
+    final today = DateTime(2027, 1, 5, 10);
+
+    test('activa con saldo y fecha pasada: vencida, y la línea lo dice', () {
+      final d = _debt();
+      final item = DebtWithPaid(debt: d, paid: d.amountPerInstallment * 3);
+      expect(isDebtOverdue(item, today), isTrue);
+      expect(debtStatusLine(item, hideValues: false, today: today), '3 de 10 cuotas · venció 31 dic 2026');
+    });
+
+    test('activa sin cuotas y vencida: «Venció»', () {
+      final d = _debt(installments: 0);
+      expect(debtStatusLine(DebtWithPaid(debt: d, paid: 0), hideValues: false, today: today), 'Venció 31 dic 2026');
+    });
+
+    test('el mismo día del vencimiento todavía no está vencida', () {
+      final item = DebtWithPaid(debt: _debt(), paid: 0);
+      expect(isDebtOverdue(item, DateTime(2026, 12, 31, 23, 59)), isFalse);
+      expect(
+        debtStatusLine(item, hideValues: false, today: DateTime(2026, 12, 31, 23, 59)),
+        '0 de 10 cuotas · vence 31 dic 2026',
+      );
+    });
+
+    test('sin saldo, pagada u oculta: nunca vencida', () {
+      final d = _debt(total: 100);
+      expect(isDebtOverdue(DebtWithPaid(debt: d, paid: 100), today), isFalse);
+      expect(isDebtOverdue(DebtWithPaid(debt: _debt(status: DebtStatus.paid), paid: 0), today), isFalse);
+      expect(isDebtOverdue(DebtWithPaid(debt: _debt(status: DebtStatus.hidden), paid: 0), today), isFalse);
+    });
+
+    test('recibida activa y vencida sí; cancelada no', () {
+      Debt mirrored(String status) => Debt.mirrored(
+        mirroredDebtId: 'm1',
+        userId: 'u1',
+        creditorEmail: 'ana@example.com',
+        name: 'Préstamo',
+        totalAmount: 800,
+        dueDate: DateTime(2026, 12, 31),
+        status: status,
+      );
+      final active = DebtWithPaid(debt: mirrored('active'), paid: 0);
+      expect(isDebtOverdue(active, today), isTrue);
+      expect(debtStatusLine(active, hideValues: false, today: today), 'Registrada por ana@example.com · venció 31 dic 2026');
+      expect(isDebtOverdue(DebtWithPaid(debt: mirrored('revoked'), paid: 0), today), isFalse);
+    });
+  });
+
   group('debtRemaining', () {
     test('nunca negativo', () {
       final d = _debt(total: 100);

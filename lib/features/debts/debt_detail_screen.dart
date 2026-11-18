@@ -13,6 +13,7 @@ import 'package:perfinance/data/models/mirrored_debt_payment.dart';
 import 'package:perfinance/data/repositories/debt_payment_repository.dart';
 import 'package:perfinance/data/repositories/debt_repository.dart';
 import 'package:perfinance/data/repositories/mirrored_debt_repository.dart';
+import 'package:perfinance/features/debts/debt_list_copy.dart';
 import 'package:perfinance/features/debts/debts_provider.dart';
 import 'package:perfinance/services/sync_service.dart';
 import 'package:uuid/uuid.dart';
@@ -86,6 +87,7 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
           final payments = snap.data ?? [];
           final totalPaid = payments.fold<double>(0, (s, p) => s + p.amount);
           final remaining = _debt.totalAmount - totalPaid;
+          final overdue = isDebtOverdue(DebtWithPaid(debt: _debt, paid: totalPaid), DateTime.now());
           final installmentsPaid = _debt.amountPerInstallment > 0
               ? (totalPaid / _debt.amountPerInstallment).floor()
               : 0;
@@ -123,9 +125,9 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
                   _RowLabel(
                     'Falta por pagar',
                     '\$${formatCurrencyDisplay(remaining, hideValues)}',
-                    owed: isActive && remaining > 0,
+                    overdue: overdue,
                   ),
-                  _RowLabel('Fecha máxima de pago', formatDisplayDate(_debt.dueDate)),
+                  _DueDateRow(dueDate: _debt.dueDate, overdue: overdue),
                 ],
               ),
               const SizedBox(height: 16),
@@ -219,6 +221,7 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
           final payments = snap.data ?? [];
           final totalPaid = payments.fold<double>(0, (s, p) => s + p.amount);
           final remaining = _debt.totalAmount - totalPaid;
+          final overdue = isDebtOverdue(DebtWithPaid(debt: _debt, paid: totalPaid), DateTime.now());
 
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
@@ -238,9 +241,9 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
                   _RowLabel(
                     'Falta por pagar',
                     '\$${formatCurrencyDisplay(remaining, hideValues)}',
-                    owed: !_debt.isRevoked && remaining > 0,
+                    overdue: overdue,
                   ),
-                  _RowLabel('Fecha máxima de pago', formatDisplayDate(_debt.dueDate)),
+                  _DueDateRow(dueDate: _debt.dueDate, overdue: overdue),
                 ],
               ),
               // Eliminar solo cuando el acreedor la canceló.
@@ -576,13 +579,13 @@ class _InfoBanner extends StatelessWidget {
 }
 
 class _RowLabel extends StatelessWidget {
-  const _RowLabel(this.label, this.value, {this.owed = false});
+  const _RowLabel(this.label, this.value, {this.overdue = false});
 
   final String label;
   final String value;
 
-  /// Solo lo que de verdad se debe va en rojo.
-  final bool owed;
+  /// Lo que se debe va en tinta; el rojo queda solo para lo vencido.
+  final bool overdue;
 
   @override
   Widget build(BuildContext context) {
@@ -597,7 +600,7 @@ class _RowLabel extends StatelessWidget {
             Expanded(
               child: Text(
                 label,
-                style: t.bodyLarge?.copyWith(color: owed ? c.danger : c.ink, fontWeight: owed ? FontWeight.w600 : null),
+                style: t.bodyLarge?.copyWith(color: overdue ? c.danger : c.ink, fontWeight: overdue ? FontWeight.w600 : null),
               ),
             ),
             const SizedBox(width: 12),
@@ -606,13 +609,27 @@ class _RowLabel extends StatelessWidget {
               style: t.titleSmall?.copyWith(
                 fontWeight: FontWeight.w700,
                 fontFeatures: kTabularFigures,
-                color: owed ? c.danger : c.ink,
+                color: overdue ? c.danger : c.ink,
               ),
             ),
           ],
         ),
       ),
     );
+  }
+}
+
+/// Fecha máxima de pago; vencida, lo dice en palabras además del rojo.
+class _DueDateRow extends StatelessWidget {
+  const _DueDateRow({required this.dueDate, required this.overdue});
+
+  final DateTime dueDate;
+  final bool overdue;
+
+  @override
+  Widget build(BuildContext context) {
+    final date = formatDisplayDate(dueDate);
+    return _RowLabel('Fecha máxima de pago', overdue ? 'Venció $date' : date, overdue: overdue);
   }
 }
 

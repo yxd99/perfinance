@@ -170,6 +170,71 @@ void main() {
     expect(monthNameEs(1), 'Enero');
     expect(monthNameEs(11), 'Noviembre');
   });
+
+  group('ringLabel', () {
+    MonthSpend spend({
+      required double total,
+      required double lastMonthTotal,
+      int day = 18,
+      int days = 30,
+      bool inProgress = true,
+    }) =>
+        MonthSpend(
+          month: DateTime(2026, 11, 1),
+          total: total,
+          count: 1,
+          toSameDay: total,
+          lastMonthTotal: lastMonthTotal,
+          lastMonthToSameDay: lastMonthTotal / 2,
+          dayOfMonth: day,
+          daysInMonth: days,
+          isInProgress: inProgress,
+          byAccount: const [],
+        );
+
+    test('con mes anterior: el centro dice el porcentaje del relleno y de qué mes', () {
+      final l = ringLabel(spend(total: 850, lastMonthTotal: 1000));
+      expect(l.value, '85%');
+      expect(l.caption, 'de octubre');
+      expect(l.spoken, '85% de lo gastado en octubre');
+    });
+
+    test('pasado el mes anterior: el número sigue subiendo aunque el anillo ya esté lleno', () {
+      final s = spend(total: 1200, lastMonthTotal: 1000);
+      expect(ringLabel(s).value, '120%');
+      expect(ringFraction(s), 1);
+    });
+
+    test('sin mes anterior: el centro sigue mostrando los días', () {
+      final l = ringLabel(spend(total: 850, lastMonthTotal: 0));
+      expect(l.value, '18');
+      expect(l.caption, 'de 30 días');
+      expect(l.spoken, 'Día 18 de 30');
+    });
+
+    test('la cuenta de días pasa a una línea aparte solo si el centro muestra el porcentaje y el mes sigue', () {
+      expect(ringDayLine(spend(total: 850, lastMonthTotal: 1000)), 'Día 18 de 30');
+      expect(ringDayLine(spend(total: 850, lastMonthTotal: 0)), isNull);
+      expect(ringDayLine(spend(total: 850, lastMonthTotal: 1000, day: 30, inProgress: false)), isNull);
+    });
+
+    test('enero compara contra diciembre', () {
+      final s = MonthSpend(
+        month: DateTime(2027, 1, 1),
+        total: 50,
+        count: 1,
+        toSameDay: 50,
+        lastMonthTotal: 200,
+        lastMonthToSameDay: 100,
+        dayOfMonth: 10,
+        daysInMonth: 31,
+        isInProgress: true,
+        byAccount: const [],
+      );
+      expect(ringLabel(s).caption, 'de diciembre');
+      expect(ringLabel(s).value, '25%');
+    });
+  });
 }
 
 Matcher closeAs(double v) => closeTo(v, 1e-9);

@@ -9,13 +9,13 @@ import 'package:perfinance/features/debts/debts_provider.dart';
 import 'package:perfinance/features/debts/debts_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-Debt _debt(String id, String name, DebtStatus status) => Debt(
+Debt _debt(String id, String name, DebtStatus status, {DateTime? due}) => Debt(
   id: id,
   userId: 'u1',
   name: name,
   totalAmount: 100000,
   numberOfInstallments: 4,
-  dueDate: DateTime(2026, 12, 31),
+  dueDate: due ?? DateTime(2099, 12, 31),
   status: status,
 );
 
@@ -76,11 +76,24 @@ void main() {
     await tester.pumpWidget(_app([active]));
     await tester.pumpAndSettle();
 
-    expect(find.text('1 de 4 cuotas · vence 31 dic 2026'), findsOneWidget);
+    expect(find.text('1 de 4 cuotas · vence 31 dic 2099'), findsOneWidget);
     expect(find.text(r'$75.000'), findsOneWidget);
+    // Lo que se debe y no está vencido va en tinta, no en rojo.
+    final c = AppTheme.light.extension<AppColors>()!;
+    expect(tester.widget<Text>(find.text(r'$75.000')).style?.color, c.ink);
     expect(find.textContaining('Total por pagar'), findsOneWidget);
     expect(find.byTooltip('Agregar deuda'), findsOneWidget);
     expect(find.byType(CircleAvatar), findsNothing);
+  });
+
+  testWidgets('vencida: el monto en rojo y la línea dice «venció»', (tester) async {
+    final overdueDebt = DebtWithPaid(debt: _debt('v', 'Préstamo', DebtStatus.active, due: DateTime(2020, 3, 1)), paid: 25000);
+    await tester.pumpWidget(_app([overdueDebt]));
+    await tester.pumpAndSettle();
+
+    expect(find.text('1 de 4 cuotas · venció 1 mar 2020'), findsOneWidget);
+    final c = AppTheme.light.extension<AppColors>()!;
+    expect(tester.widget<Text>(find.text(r'$75.000')).style?.color, c.danger);
   });
 
   testWidgets('vacío: mensaje honesto en voseo', (tester) async {

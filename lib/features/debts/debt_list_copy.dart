@@ -22,11 +22,26 @@ String debtsEmptyMessage(DebtListFilter filter, String query) {
 /// Lo que falta por pagar; nunca negativo.
 double debtRemaining(DebtWithPaid item) => (item.debt.totalAmount - item.paid).clamp(0.0, double.infinity).toDouble();
 
-/// Línea de estado bajo el nombre de la deuda en la lista.
-String debtStatusLine(DebtWithPaid item, {required bool hideValues}) {
+/// Vencida: todavía se debe algo y la fecha máxima de pago ya pasó (el mismo día
+/// no cuenta). Pagadas, ocultas y recibidas canceladas nunca lo están.
+bool isDebtOverdue(DebtWithPaid item, DateTime today) {
+  final debt = item.debt;
+  final counts = debt.isMirrored ? !debt.isRevoked : debt.status == DebtStatus.active;
+  if (!counts || debtRemaining(item) <= 0) return false;
+  final due = DateTime(debt.dueDate.year, debt.dueDate.month, debt.dueDate.day);
+  return due.isBefore(DateTime(today.year, today.month, today.day));
+}
+
+/// Línea de estado bajo el nombre de la deuda en la lista. Con [today], una deuda
+/// vencida lo dice en palabras («venció»), no solo con el color del monto.
+String debtStatusLine(DebtWithPaid item, {required bool hideValues, DateTime? today}) {
   final debt = item.debt;
   final due = formatDisplayDate(debt.dueDate);
-  if (debt.isMirrored) return 'Registrada por ${debt.creditorEmail}';
+  final overdue = today != null && isDebtOverdue(item, today);
+  if (debt.isMirrored) {
+    final by = 'Registrada por ${debt.creditorEmail}';
+    return overdue ? '$by · venció $due' : by;
+  }
   switch (debt.status) {
     case DebtStatus.paid:
       return 'Total \$${formatCurrencyDisplay(debt.totalAmount, hideValues)}';
@@ -34,9 +49,9 @@ String debtStatusLine(DebtWithPaid item, {required bool hideValues}) {
       return 'Oculta · vence $due';
     case DebtStatus.active:
       final n = debt.numberOfInstallments;
-      if (n <= 0) return 'Vence $due';
+      if (n <= 0) return overdue ? 'Venció $due' : 'Vence $due';
       final per = debt.amountPerInstallment;
       final done = per > 0 ? (item.paid / per).floor().clamp(0, n) : 0;
-      return '$done de $n cuotas · vence $due';
+      return '$done de $n cuotas · ${overdue ? 'venció' : 'vence'} $due';
   }
 }

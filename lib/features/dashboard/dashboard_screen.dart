@@ -14,6 +14,7 @@ import 'package:perfinance/features/credit_cards/credit_cards_provider.dart';
 import 'package:perfinance/features/dashboard/dashboard_account_automatic_payments_screen.dart';
 import 'package:perfinance/features/dashboard/dashboard_account_expenses_screen.dart';
 import 'package:perfinance/features/dashboard/dashboard_provider.dart';
+import 'package:perfinance/features/dashboard/debt_summary_copy.dart';
 import 'package:perfinance/features/dashboard/month_pace.dart';
 import 'package:perfinance/features/expenses/expenses_provider.dart';
 import 'package:perfinance/services/dashboard_service.dart';
@@ -54,7 +55,9 @@ class DashboardScreen extends ConsumerWidget {
         },
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(_gutter, 8, _gutter, 40),
+          // 57pt arriba: el título cae a la misma altura que el título grande de
+          // Egresos, Deudas y Más (SliverAppBar.large con barra de 44pt).
+          padding: const EdgeInsets.fromLTRB(_gutter, _titleTop, _gutter, 40),
           children: [
             _MonthTitle(selected: selectedMonth, now: now),
             const SizedBox(height: 12),
@@ -84,6 +87,8 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 }
+
+const double _titleTop = 57;
 
 bool _isSameMonth(DateTime a, DateTime b) => a.year == b.year && a.month == b.month;
 
@@ -179,10 +184,12 @@ class _MonthNote extends StatelessWidget {
     final label = isCurrentMonth ? 'Gastado este mes' : 'Gastado en ${monthNameEs(spend.month.month).toLowerCase()}';
     final amount = _money(spend.total, hideValues);
     final pace = paceSentence(spend);
+    final ring = ringLabel(spend);
+    final dayLine = ringDayLine(spend);
 
     return Semantics(
       container: true,
-      label: '$label: ${hideValues ? 'oculto' : amount}. $pace. Día ${spend.dayOfMonth} de ${spend.daysInMonth}.',
+      label: '$label: ${hideValues ? 'oculto' : amount}. $pace. ${ring.spoken}.${dayLine == null ? '' : ' $dayLine.'}',
       excludeSemantics: true,
       child: Container(
         decoration: BoxDecoration(
@@ -203,7 +210,12 @@ class _MonthNote extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(label, style: t.labelLarge?.copyWith(color: c.onHeroMuted)),
-                      const SizedBox(height: 64),
+                      if (dayLine != null) ...[
+                        const SizedBox(height: 2),
+                        Text(dayLine, style: t.labelSmall?.copyWith(color: c.onHeroMuted, fontFeatures: kTabularFigures)),
+                        const SizedBox(height: 46),
+                      ] else
+                        const SizedBox(height: 64),
                       FittedBox(
                         fit: BoxFit.scaleDown,
                         alignment: Alignment.centerLeft,
@@ -215,11 +227,7 @@ class _MonthNote extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 12),
-                _PaceRing(
-                  fraction: ringFraction(spend),
-                  day: spend.dayOfMonth,
-                  days: spend.daysInMonth,
-                ),
+                _PaceRing(fraction: ringFraction(spend), label: ring),
               ],
             ),
           ),
@@ -280,13 +288,13 @@ class _GuillochePainter extends CustomPainter {
 }
 
 /// Anillo de ritmo: banda de roseta guilloché con un arco que se llena según lo
-/// gastado contra el mes anterior. Se anima una vez al cargar, salvo con Reducir movimiento.
+/// gastado contra el mes anterior. El centro dice esa misma métrica («85%» «de
+/// octubre»); sin mes anterior, el día. Se anima una vez al cargar, salvo con Reducir movimiento.
 class _PaceRing extends StatefulWidget {
-  const _PaceRing({required this.fraction, required this.day, required this.days});
+  const _PaceRing({required this.fraction, required this.label});
 
   final double fraction;
-  final int day;
-  final int days;
+  final RingLabel label;
 
   @override
   State<_PaceRing> createState() => _PaceRingState();
@@ -338,10 +346,10 @@ class _PaceRingState extends State<_PaceRing> with SingleTickerProviderStateMixi
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                '${widget.day}',
+                widget.label.value,
                 style: t.headlineMedium?.copyWith(color: c.onHero, fontWeight: FontWeight.w700, fontFeatures: kTabularFigures),
               ),
-              Text('de ${widget.days} días', style: t.labelSmall?.copyWith(color: c.onHeroMuted)),
+              Text(widget.label.caption, style: t.labelSmall?.copyWith(color: c.onHeroMuted)),
             ],
           ),
         ),
@@ -625,21 +633,34 @@ class _DebtBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.colors;
     final t = Theme.of(context).textTheme;
-    final hasDebt = debt.total > 0;
+    final parts = debtTotalParts(debt, hideValues: hideValues);
     return _Section(
       title: 'Deuda',
       child: _Group(
         children: [
           Semantics(
             container: true,
-            label: 'Deuda total: ${hideValues ? 'oculta' : _money(debt.total, false)}',
+            label: 'Deuda total: ${hideValues ? 'oculta' : _money(debt.total, false)}'
+                '${parts == null || hideValues ? '' : '. ${debtTotalParts(debt, hideValues: false)}'}',
             excludeSemantics: true,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
               child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Expanded(child: Text('Deuda total', style: t.bodyLarge?.copyWith(color: c.ink))),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('Deuda total', style: t.bodyLarge?.copyWith(color: c.ink)),
+                        if (parts != null) ...[
+                          const SizedBox(height: 2),
+                          Text(parts, style: t.bodySmall?.copyWith(color: c.textMuted, fontFeatures: kTabularFigures)),
+                        ],
+                      ],
+                    ),
+                  ),
                   const SizedBox(width: 12),
                   Flexible(
                     child: FittedBox(
@@ -648,7 +669,8 @@ class _DebtBody extends StatelessWidget {
                       child: Text(
                         _money(debt.total, hideValues),
                         style: t.headlineSmall?.copyWith(
-                          color: hasDebt ? c.danger : c.ink,
+                          // Lo que se debe va en tinta: el rojo queda para lo vencido.
+                          color: c.ink,
                           fontWeight: FontWeight.w800,
                           fontFeatures: kTabularFigures,
                         ),

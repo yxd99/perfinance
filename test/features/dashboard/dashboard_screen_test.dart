@@ -26,12 +26,23 @@ Future<void> _pump(
   bool hide = false,
   bool failExpenses = false,
   bool disableAnimations = true,
+  double lastMonthSpend = 0,
+  DebtBreakdown debt = const DebtBreakdown(total: 500000, items: []),
 }) async {
   final now = DateTime.now();
   final month = DateTime(now.year, now.month, 1);
   final expenses = [
     Expense(id: '1', userId: 'u', amount: 120000, date: month, paymentType: 'credit_card', paymentRef: 'card-1'),
     Expense(id: '2', userId: 'u', amount: 30000, date: month, paymentType: 'payment_method', paymentRef: 'cash'),
+    if (lastMonthSpend > 0)
+      Expense(
+        id: '3',
+        userId: 'u',
+        amount: lastMonthSpend,
+        date: DateTime(now.year, now.month - 1, 1),
+        paymentType: 'payment_method',
+        paymentRef: 'cash',
+      ),
   ];
   await tester.pumpWidget(
     ProviderScope(
@@ -50,7 +61,7 @@ Future<void> _pump(
         dashboardMinPaymentSummaryProvider
             .overrideWith((ref) async => const DashboardMinPaymentSummary(totalPending: 0, pendingByCard: {})),
         hasActiveDebtSourcesProvider.overrideWith((ref) async => true),
-        dashboardDebtProvider.overrideWith((ref) async => const DebtBreakdown(total: 500000, items: [])),
+        dashboardDebtProvider.overrideWith((ref) async => debt),
         dashboardAutomaticPaymentsSummaryProvider
             .overrideWith((ref) async => const AutomaticPaymentsSummary(totalPerMonth: 0, byAccount: [])),
         dashboardComparisonProvider.overrideWith((ref) async => <CardComparison>[]),
@@ -94,6 +105,37 @@ void main() {
     await _pump(tester, failExpenses: true);
     expect(find.text('No pudimos cargar esta sección'), findsWidgets);
     expect(find.text('Reintentar'), findsWidgets);
+  });
+
+  testWidgets('sin mes anterior el centro del anillo muestra el día', (tester) async {
+    await _pump(tester);
+    final now = DateTime.now();
+    final days = DateTime(now.year, now.month + 1, 0).day;
+    expect(find.text('de $days días'), findsOneWidget);
+  });
+
+  testWidgets('con mes anterior el centro dice el porcentaje que llena el anillo', (tester) async {
+    await _pump(tester, lastMonthSpend: 300000);
+    final now = DateTime.now();
+    final prev = monthNameEs(DateTime(now.year, now.month - 1, 1).month).toLowerCase();
+    expect(find.text('50%'), findsOneWidget);
+    expect(find.text('de $prev'), findsOneWidget);
+    final days = DateTime(now.year, now.month + 1, 0).day;
+    expect(find.text('de $days días'), findsNothing);
+  });
+
+  testWidgets('Deuda total va en tinta y explica qué suma', (tester) async {
+    await _pump(
+      tester,
+      debt: const DebtBreakdown(total: 1500000, items: [
+        DebtBreakdownItem(id: 'card-1', label: 'Visa Bancolombia', isCreditCard: true, balance: 500000),
+        DebtBreakdownItem(id: 'd1', label: 'Moto', isCreditCard: false, balance: 1000000),
+      ]),
+    );
+    await tester.scrollUntilVisible(find.text('Deuda total'), 200);
+    final c = AppTheme.light.extension<AppColors>()!;
+    expect(tester.widget<Text>(find.text(r'$1.500.000')).style?.color, c.ink);
+    expect(find.text(r'Deudas $1.000.000 · Tarjetas $500.000'), findsOneWidget);
   });
 
   testWidgets('con animaciones permitidas el anillo se anima y termina', (tester) async {
