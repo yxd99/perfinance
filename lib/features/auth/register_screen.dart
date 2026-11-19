@@ -118,7 +118,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         const SizedBox(height: 12),
                         PasswordField(
                           controller: _confirmController,
-                          label: 'Repetí la contraseña',
+                          label: 'Repite la contraseña',
                           autofillHints: const [AutofillHints.newPassword],
                           onSubmitted: _submit,
                           validator: (v) => v != _passwordController.text ? AuthCopy.passwordMismatch : null,
@@ -135,11 +135,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                           style: TextButton.styleFrom(minimumSize: const Size.fromHeight(44)),
                           child: Text.rich(
                             TextSpan(
-                              text: '¿Ya tenés cuenta? ',
+                              text: '¿Ya tienes cuenta? ',
                               style: TextStyle(color: c.textMuted),
                               children: [
                                 TextSpan(
-                                  text: 'Iniciá sesión',
+                                  text: 'Inicia sesión',
                                   style: TextStyle(color: c.accent, fontWeight: FontWeight.w600),
                                 ),
                               ],

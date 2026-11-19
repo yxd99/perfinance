@@ -97,13 +97,13 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
             children: [
               if (isPaid)
                 _InfoBanner(
-                  message: 'Esta deuda está marcada como pagada. Reactivala para registrar nuevos pagos.',
+                  message: 'Esta deuda está marcada como pagada. Reactívala para registrar nuevos pagos.',
                   background: c.positiveSoft,
                   foreground: c.ink,
                 ),
               if (isHidden)
                 _InfoBanner(
-                  message: 'Esta deuda está oculta. Reactivala para volver a operarla.',
+                  message: 'Esta deuda está oculta. Reactívala para volver a operarla.',
                   background: c.track,
                   foreground: c.ink,
                 ),
@@ -338,7 +338,7 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Ocultar deuda'),
-        content: Text('¿Ocultar «${_debt.name}»? Podés reactivarla desde el filtro Ocultas.'),
+        content: Text('¿Ocultar «${_debt.name}»? Puedes reactivarla desde el filtro Ocultas.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
           OutlinedButton(

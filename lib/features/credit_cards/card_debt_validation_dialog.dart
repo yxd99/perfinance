@@ -96,7 +96,7 @@ class _CardDebtValidationDialogState extends State<_CardDebtValidationDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Confirmá si el saldo real de la tarjeta coincide con el cálculo actual.',
+              'Confirma si el saldo real de la tarjeta coincide con el cálculo actual.',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             const SizedBox(height: 12),
@@ -132,11 +132,11 @@ class _CardDebtValidationDialogState extends State<_CardDebtValidationDialog> {
               onChanged: _onChanged,
               decoration: const InputDecoration(
                 labelText: 'Deuda real actual',
-                helperText: 'Podés dejar el valor calculado si ya está bien.',
+                helperText: 'Puedes dejar el valor calculado si ya está bien.',
               ),
               validator: (value) {
                 final parsed = parseCurrency(value ?? '');
-                if (parsed == null || parsed < 0) return 'Escribí un monto válido';
+                if (parsed == null || parsed < 0) return 'Escribe un monto válido';
                 return null;
               },
             ),

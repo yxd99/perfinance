@@ -66,7 +66,7 @@ void main() {
     await tester.pumpWidget(_build(const []));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Todavía no tenés pagos automáticos'), findsOneWidget);
+    expect(find.textContaining('Todavía no tienes pagos automáticos'), findsOneWidget);
     expect(find.text('Agregar pago automático'), findsOneWidget);
   });
 
@@ -83,7 +83,7 @@ void main() {
   testWidgets('deslizar a la izquierda pide confirmar; mantener presionado no borra', (tester) async {
     await tester.pumpWidget(_build([_payment(id: 'a1', description: 'Netflix')]));
     await tester.pumpAndSettle();
-    expect(find.textContaining('Mantené presionado'), findsNothing);
+    expect(find.textContaining('Mantén presionado'), findsNothing);
 
     // Mantener presionado no tiene un significado oculto.
     final inkWell = tester.widget<InkWell>(find.ancestor(of: find.text('Netflix'), matching: find.byType(InkWell)).first);

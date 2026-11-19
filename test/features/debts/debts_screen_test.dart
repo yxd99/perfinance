@@ -82,7 +82,9 @@ void main() {
     final c = AppTheme.light.extension<AppColors>()!;
     expect(tester.widget<Text>(find.text(r'$75.000')).style?.color, c.ink);
     expect(find.textContaining('Total por pagar'), findsOneWidget);
-    expect(find.byTooltip('Agregar deuda'), findsOneWidget);
+    // La acción de agregar dice qué agrega: no es un «+» suelto junto al título.
+    expect(find.widgetWithText(TextButton, 'Nueva deuda'), findsOneWidget);
+    expect(find.byIcon(CupertinoIcons.add), findsNothing);
     expect(find.byType(CircleAvatar), findsNothing);
   });
 
@@ -96,10 +98,27 @@ void main() {
     expect(tester.widget<Text>(find.text(r'$75.000')).style?.color, c.danger);
   });
 
-  testWidgets('vacío: mensaje honesto en voseo', (tester) async {
+  testWidgets('vacío: mensaje honesto en español neutro', (tester) async {
     await tester.pumpWidget(_app([]));
     await tester.pumpAndSettle();
-    expect(find.text('No tenés deudas activas.'), findsOneWidget);
+    expect(find.text('No tienes deudas activas.'), findsOneWidget);
     expect(find.text('Ver todas'), findsOneWidget);
   });
+
+  testWidgets('las acciones de una deuda están a la vista, sin mantener presionado', (tester) async {
+    await tester.pumpWidget(_app([active]));
+    await tester.pumpAndSettle();
+
+    for (final ink in tester.widgetList<InkWell>(find.byType(InkWell))) {
+      expect(ink.onLongPress, isNull);
+    }
+    await tester.tap(find.bySemanticsLabel('Acciones de Moto'));
+    await tester.pumpAndSettle();
+    expect(find.text('Marcar como pagada'), findsOneWidget);
+    expect(find.text('Editar'), findsOneWidget);
+    await tester.tap(find.text('Marcar como pagada'));
+    await tester.pumpAndSettle();
+    expect(find.text('¿Marcar «Moto» como pagada?'), findsOneWidget);
+  });
 }
+

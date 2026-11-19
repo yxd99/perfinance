@@ -140,7 +140,8 @@ components:
     backgroundColor: "{colors.accent}"
     textColor: "{colors.on-accent}"
     rounded: "{rounded.full}"
-    size: "52px"
+    height: "44px"
+    padding: "0 14px"
   tab-item-selected:
     textColor: "{colors.accent}"
     typography: "{typography.label-small}"
@@ -227,7 +228,7 @@ Warm paper and ink with a single purple voice, five banknote hues for identity, 
 - **Track** (track): progress tracks, the sync banner and the segmented-control trough.
 
 ### Banknote hues (account identity)
-- **100.000 Green**, **20.000 Blue**, **2.000 Orange**, **5.000 Brown**, **10.000 Rose** (note-* tokens; dark-note-* lifted for dark mode). Assigned by account creation order (`assignHueSlots`) so a new account never recolours an old one and the first five accounts never repeat; deactivated cards keep their slot. Falls back to a stable hash of the id while slots load.
+- **100.000 Green**, **20.000 Blue**, **2.000 Orange**, **5.000 Brown**, **10.000 Rose** (note-* tokens; dark-note-* lifted for dark mode). The user can pick the hue of each card and savings account in its form ("Color": five note swatches, 52×44 targets, the chosen one framed in ink with a check); the choice is stored as `color_slot` (0 green, 1 blue, 2 orange, 3 brown, 4 rose) and synced. Without a choice the slot comes from creation order (`assignHueSlots`), so a new account never recolours an old one and the first five never repeat; deactivated cards keep their slot. Falls back to a stable hash of the id while slots load. Two accounts may share a hue when the user chooses so.
 
 ### State
 - **Positive** (positive / positive-soft): on track, collected, spend going down.
@@ -263,11 +264,11 @@ Warm paper and ink with a single purple voice, five banknote hues for identity, 
 **Character:** One family, weight does the work. Money is heavy (800 at display, 700 in rows) and always tabular so columns align; labels and running text stay at system weights with Material's added tracking removed, because SF Pro carries its own.
 
 ### Hierarchy
-- **Display** (800, 36, -1 tracking, tabular): the month amount on the note ("$896.900") and the amount being typed in "Registrá un egreso"; its placeholder "0" drops to weight 300 in faded ink.
+- **Display** (800, 36, -1 tracking, tabular): the month amount on the note ("$896.900") and the amount being typed in "Registra un egreso"; its placeholder "0" drops to weight 300 in faded ink.
 - **Headline Large** (700, 32, -0.5): the month large title ("Noviembre") on Mes.
 - **Headline** (700, 28): the day number inside the pace ring, tabular.
 - **Headline Small** (700, 24, -0.4): large totals such as "Deuda total".
-- **Title** (600, 22): sheet titles ("Registrá un egreso") and filter-sheet titles.
+- **Title** (600, 22): sheet titles ("Registra un egreso") and filter-sheet titles.
 - **Title Small** (14, weight 700 tabular for row amounts; regular for day-group headings in Egresos).
 - **Body** (400, 16): row names, list text, empty-state messages.
 - **Body Small** (400, 12): one-line status under a row ("3 egresos"), pace sentence on the note, validation errors.
@@ -288,8 +289,8 @@ A single scrolling column per tab, inside the safe area. The Mes screen uses a 2
 
 - **First viewport (Mes):** large month title with month chevrons, the month note (about 250pt tall: 20pt padding, 132pt ring), then "Por cuenta" rows, then debt and other sections.
 - **Large titles:** Egresos and Más use an iOS-style large title app bar (44pt toolbar, 100pt expanded) that collapses on scroll. Mes draws its own large title row so the month can be tapped to pick another.
-- **Shell:** bottom tab bar, 56pt plus the home-indicator inset: Mes · Egresos · + · Deudas · Más. Tabs are sections; the "+" is the one action and sits in the middle for the thumb.
-- **Logging:** "+" opens "Registrá un egreso" as a bottom sheet with a drag handle; amount first with the numeric keyboard, account chips, description, "Guardar egreso".
+- **Shell:** bottom tab bar, 56pt plus the home-indicator inset: Mes · Egresos · + Egreso · Deudas · Más. Tabs are sections (flex 2 each); the labelled "+ Egreso" pill is the one action, sits in the middle for the thumb and gets flex 3 so its label fits.
+- **Logging:** "+ Egreso" opens "Registra un egreso" as a bottom sheet with a drag handle; amount first with the numeric keyboard, the account field, description, "Guardar egreso".
 - **Touch targets:** rows are at least 56pt, attention rows 48pt, buttons 48pt, the month title 44pt.
 
 ## Elevation & Depth
@@ -319,7 +320,7 @@ The 50.000 note. Month Note gradient, 14pt radius, 20pt padding. Left column: "G
 Canvas background, 0.5pt top hairline, 56pt. Items use SF-style Cupertino glyphs at 26pt, filled when selected; selected tint is accent, unselected faded ink; labels at label small. No indicator pill, no splash. "Más" carries a danger badge with the count of local changes not yet uploaded, announced as "Más, N cambios sin subir".
 
 ### Add button
-52pt accent circle with a white (dark: plum) plus, lifted 6pt with the Lift shadow. Light haptic on tap. Announced as "Registrar egreso".
+Accent stadium pill "+ Egreso" (plus glyph 20 and label large 700 in on-accent), at least 44pt tall, with the Lift shadow. Scales down instead of truncating at large text sizes. Light haptic on tap. Announced as "Registrar egreso". It replaced an unlabelled raised "+" circle that a new user confused with the "+" that used to add debts.
 
 ### Buttons
 - **Primary (filled):** accent fill, on-accent text, 12pt radius, 48pt minimum height, 14×24 padding, no elevation ("Guardar egreso").
@@ -329,7 +330,16 @@ Canvas background, 0.5pt top hairline, 56pt. Items use SF-style Cupertino glyphs
 Rounded rectangles in the account's note hue: 34×22 on account rows, 22×14 inside filter chips, expense rows and the form's account choices. Hidden from screen readers; the account name next to them carries the meaning.
 
 ### Chips
-Surface background, divider border, ink label; selected uses Purple Wash with an accent checkmark. Used for account choice in the expense sheet and account filters in Egresos. "Nueva cuenta" sits last with an accent plus.
+Surface background, divider border, ink label; selected uses Purple Wash with an accent checkmark. Used for account filters in Egresos.
+
+### Account field and picker
+The expense form's "Cuenta" is one 56pt surface field (12pt radius, divider border, danger border on error): note chip, account name, kind line ("Tarjeta de crédito" / "Cuenta de ahorro"), and an accent "Cambiar" (or "Elegir" with the placeholder "Elige con qué pagaste"). Tapping it opens the sheet "¿Con qué pagaste?": inset groups "TARJETAS DE CRÉDITO" and "CUENTAS DE AHORRO", each ending in an `InsetAddRow`, the current account marked with an accent check. With more than six accounts a search field filters by name, ignoring case and accents; no match says "Ninguna cuenta coincide con «…»." The last-used account stays preselected, so most entries are amount and save. This replaced a wrap of chips that became a wall with many accounts.
+
+### Row actions
+Every list row with actions ends in a 44pt "⋯" button (`RowActionsButton`, ellipsis-circle glyph in faded ink) that opens a Cupertino action sheet on iOS and a bottom sheet on Android, titled with the row's name, destructive actions in danger, plus "Cancelar". It is the primary way to edit, delete or mark as paid; swipe stays as a shortcut and VoiceOver custom actions remain. It replaces the chevron on rows that have actions.
+
+### Onboarding guide
+Eleven steps on the canvas, one per section (Mes, registrar, Egresos, Tarjetas de crédito, Cuentas de ahorro, Deudas, Me deben, Auto-pagos, Asesor/privacidad/respaldo) plus a final "Empieza por tus cuentas" step with two setup rows that open the card and savings-account forms and report how many exist. Top: a 4pt accent progress bar with "n de 11" and "Omitir" (or "Cerrar" when replayed from Más). Each step: 40pt accent glyph, headline small title, muted body, and left-aligned points with accent checkmarks. Bottom: "Atrás" text button and a full-width "Siguiente" / "Empezar a usar Perfinance".
 
 ### Inset groups and rows
 Surface, 12pt radius, rows separated by 0.5pt hairlines (indented 16pt, or 56pt when rows lead with an icon in Más). Account row: note chip, name in body, one status line in body small faded ink (up to two lines), amount right in bold tabular title small. Section headers above groups: uppercase label medium, faded ink, +0.8 tracking.
@@ -353,13 +363,14 @@ A 4pt-radius outlined tag ("Wallet") in label small faded ink next to expenses c
 Platform transitions: Cupertino push on iOS, fade-upwards on Android; sheets rise and dismiss by swipe. The pace ring fill is the only custom animation and respects Reduce Motion. Theme switches snap rather than interpolate colours.
 
 ### Shared patterns (added in polish)
-- **Rows:** tap opens detail or edit; swipe-left deletes after a confirmation dialog, with a matching VoiceOver "Eliminar" action. Long-press carries no hidden meaning and no list needs a gesture hint.
-- **Adding:** the last row of a grouped list is an accent `InsetAddRow` ("Agregar tarjeta", "Agregar deudor"…). No full-width purple add buttons; Deudas uses a "+" in its title row.
+- **Rows:** tap opens detail or edit; the visible "⋯" button holds the row's actions; swipe-left is a shortcut that deletes (or pays, in Deudas) after a confirmation dialog, with matching VoiceOver actions. Long-press carries no meaning.
+- **Adding:** the last row of a grouped list is an accent `InsetAddRow` ("Agregar tarjeta", "Agregar deudor"…). No full-width purple add buttons; Deudas uses an accent text button "Nueva deuda" in its title row, never a bare "+".
+- **Naming:** "Tarjetas de crédito" and "Cuentas de ahorro" (débito, Nequi, efectivo), never "Tarjetas", "Ahorros" or "medio de pago".
 - **Totals:** a quiet line above the list ("Total por pagar: $X"), muted label with the amount in heavy ink. No tinted total bars.
 - **Settled items:** stamped with `PaidStamp` ("PAGADA", "SALDADA") in `positive`, never hidden.
 - **Debt colour:** owed amounts are ink; `danger` only for overdue, and overdue is also said in words ("venció 8 dic").
 - **Pace ring:** the centre names what the fill measures ("61% de octubre"); the day of the month sits under the note label ("Día 18 de 30"). Without last-month spend the centre falls back to the day count.
-- **Empty and error states:** a bare glyph in `textMuted` (no tinted circle), voseo message, one action; errors offer "Reintentar".
+- **Empty and error states:** a bare glyph in `textMuted` (no tinted circle), Colombian neutral message (tú), one action; errors offer "Reintentar".
 
 ### Not yet in the system
 The logo (`assets/images/perfinance-logo.png`) is undecided: keep or redraw. The credit-card history filter keeps Material filter chips (six options do not fit a segmented control).
@@ -374,7 +385,7 @@ The logo (`assets/images/perfinance-logo.png`) is undecided: keep or redraw. The
 - **Do** render the pace ring static when Reduce Motion is on.
 - **Do** keep tappable targets at 44pt or more (rows 56pt, buttons 48pt).
 - **Do** design and check both appearances; dark mode uses the dark-* tokens, with the month note unchanged.
-- **Do** write UI copy in Spanish with voseo ("Registrá un egreso", "Reactivala").
+- **Do** write UI copy in Colombian neutral Spanish with tú ("Registra un egreso", "Reactívala"); never voseo.
 
 ### Don't:
 - **Don't** use a note hue to signal state, or a state colour to identify an account.

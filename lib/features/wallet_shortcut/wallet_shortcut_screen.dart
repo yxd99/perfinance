@@ -50,7 +50,7 @@ class _WalletShortcutScreenState extends ConsumerState<WalletShortcutScreen> {
     } catch (e, st) {
       ErrorReporter.capture(e, st, operation: 'wallet_shortcut.load_cards');
       if (!mounted) return;
-      setState(() => _walletCardsError = 'No se pudieron cargar las tarjetas de Wallet. Revisá la conexión.');
+      setState(() => _walletCardsError = 'No se pudieron cargar las tarjetas de Wallet. Revisa la conexión.');
     }
   }
 
@@ -85,7 +85,7 @@ class _WalletShortcutScreenState extends ConsumerState<WalletShortcutScreen> {
       ErrorReporter.capture(e, st, operation: 'wallet_shortcut.assign_card');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No se pudo asignar la tarjeta. Intentá de nuevo.')),
+        const SnackBar(content: Text('No se pudo asignar la tarjeta. Intenta de nuevo.')),
       );
     }
   }
@@ -107,7 +107,7 @@ class _WalletShortcutScreenState extends ConsumerState<WalletShortcutScreen> {
     } catch (e, st) {
       ErrorReporter.capture(e, st, operation: 'wallet_shortcut.create_token');
       if (!mounted) return;
-      setState(() => _error = 'No se pudo generar el token. Revisá la conexión e intentá de nuevo.');
+      setState(() => _error = 'No se pudo generar el token. Revisa la conexión e intenta de nuevo.');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -129,7 +129,7 @@ class _WalletShortcutScreenState extends ConsumerState<WalletShortcutScreen> {
       for (final c in cards)
         DropdownMenuItem(value: 'credit_card|${c.id}', child: Text('Tarjeta: ${c.alias}')),
       for (final m in methods)
-        DropdownMenuItem(value: 'payment_method|${m.id}', child: Text('Ahorro: ${m.name}')),
+        DropdownMenuItem(value: 'payment_method|${m.id}', child: Text('Cuenta: ${m.name}')),
     ];
     return Scaffold(
       appBar: AppBar(title: const Text('Apple Wallet')),
@@ -139,7 +139,7 @@ class _WalletShortcutScreenState extends ConsumerState<WalletShortcutScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Text(
-              'Registrá un egreso automáticamente cada vez que pagás con Apple Wallet, sin abrir la app. '
+              'Registra un egreso automáticamente cada vez que pagas con Apple Wallet, sin abrir la app. '
               'Aparece en Egresos como "[Wallet]: comercio" en la siguiente sincronización.',
               style: t.bodyMedium?.copyWith(color: c.textMuted),
             ),
@@ -160,7 +160,7 @@ class _WalletShortcutScreenState extends ConsumerState<WalletShortcutScreen> {
           ),
           _Footnote(
             _token != null
-                ? 'Copialo ahora: no se vuelve a mostrar. Generar uno nuevo deja sin efecto el anterior.'
+                ? 'Cópialo ahora: no se vuelve a mostrar. Generar uno nuevo deja sin efecto el anterior.'
                 : 'Generar un token nuevo deja sin efecto el anterior.',
             color: _token != null ? c.warning : null,
           ),
@@ -184,7 +184,7 @@ class _WalletShortcutScreenState extends ConsumerState<WalletShortcutScreen> {
           else if (_walletCards!.isEmpty)
             _Footnote(
               'Todavía no hay tarjetas para asignar. Cuando llegue un pago con una tarjeta de Wallet que no se reconozca por nombre, '
-              'va a aparecer acá para que la asignes una sola vez.',
+              'va a aparecer aquí para que la asignes una sola vez.',
             )
           else
             _Group(
@@ -196,11 +196,11 @@ class _WalletShortcutScreenState extends ConsumerState<WalletShortcutScreen> {
           const _SectionHeader('Configurar el atajo'),
           const _Group(
             children: [
-              _Step(1, 'En Atajos → Automatización, abrí la automatización "Transaction" de Wallet y elegí "Run Immediately".'),
-              _Step(2, 'Borrá la acción "Open URL" y agregá "Get Contents of URL" con la URL de arriba.'),
-              _Step(3, 'Method: POST. En Headers agregá "Authorization" con valor "Bearer " seguido del token.'),
+              _Step(1, 'En Atajos → Automatización, abre la automatización "Transaction" de Wallet y elige "Run Immediately".'),
+              _Step(2, 'Borra la acción "Open URL" y agrega "Get Contents of URL" con la URL de arriba.'),
+              _Step(3, 'Method: POST. En Headers agrega "Authorization" con valor "Bearer " seguido del token.'),
               _Step(4, 'Request Body: JSON, con tres campos de texto: amount, merchant y card.'),
-              _Step(5, 'En cada campo tocá el valor, elegí "Shortcut Input" y seleccioná Amount, Merchant y Card respectivamente.'),
+              _Step(5, 'En cada campo toca el valor, elige "Shortcut Input" y selecciona Amount, Merchant y Card respectivamente.'),
               _Step(6, 'Si el nombre de la tarjeta en Wallet no se parece al de Perfinance, el primer pago la deja en "Tarjetas de Wallet" para que la asignes.'),
             ],
           ),
@@ -349,7 +349,7 @@ class _WalletCardRow extends StatelessWidget {
             underline: const SizedBox.shrink(),
             dropdownColor: c.surface,
             icon: Icon(CupertinoIcons.chevron_up_chevron_down, size: 16, color: c.textMuted),
-            hint: Text('Sin asignar: elegí a qué corresponde', style: TextStyle(color: c.warning)),
+            hint: Text('Sin asignar: elige a qué corresponde', style: TextStyle(color: c.warning)),
             items: targets,
             onChanged: (t) {
               if (t != null && t != value) onAssign(t);

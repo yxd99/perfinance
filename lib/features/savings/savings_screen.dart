@@ -4,6 +4,7 @@ import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perfinance/core/observability/error_reporter.dart';
 import 'package:perfinance/core/theme/app_theme.dart';
+import 'package:perfinance/core/widgets/row_actions_button.dart';
 import 'package:perfinance/data/models/payment_method.dart';
 import 'package:perfinance/data/repositories/payment_method_repository.dart';
 import 'package:perfinance/features/accounts/account_hue_provider.dart';
@@ -12,8 +13,8 @@ import 'package:perfinance/features/savings/payment_method_type.dart';
 import 'package:perfinance/features/savings/savings_provider.dart';
 import 'package:perfinance/services/sync_service.dart';
 
-/// Medios de pago (efectivo, débito, otro). Se abre desde «Más», que pone el
-/// Scaffold y la barra; acá va solo el cuerpo.
+/// Cuentas de ahorro (débito, efectivo, otra). Se abre desde «Más», que pone el
+/// Scaffold y la barra; aquí va solo el cuerpo.
 class SavingsScreen extends ConsumerWidget {
   const SavingsScreen({super.key});
 
@@ -24,15 +25,16 @@ class SavingsScreen extends ConsumerWidget {
       data: (list) => list.isEmpty
           ? _SavingsMessage(
               icon: CupertinoIcons.money_dollar_circle,
-              message: 'Todavía no tenés medios de pago. Agregá efectivo, una débito u otro para registrar egresos que no van a tarjeta.',
-              actionLabel: 'Agregar medio de pago',
+              message:
+                  'Todavía no tienes cuentas de ahorro. Agrega tu cuenta de débito, Nequi o el efectivo para registrar lo que pagas sin tarjeta de crédito.',
+              actionLabel: 'Agregar cuenta de ahorro',
               onAction: () => _openForm(context),
             )
           : _SavingsList(methods: list),
       loading: () => const Center(child: CircularProgressIndicator.adaptive()),
       error: (e, _) => _SavingsMessage(
         icon: CupertinoIcons.exclamationmark_triangle,
-        message: 'No se pudieron cargar los medios de pago.',
+        message: 'No se pudieron cargar las cuentas de ahorro.',
         actionLabel: 'Reintentar',
         onAction: () => ref.invalidate(paymentMethodsListProvider),
       ),
@@ -41,10 +43,7 @@ class SavingsScreen extends ConsumerWidget {
 }
 
 void _openForm(BuildContext context, {PaymentMethod? edit}) {
-  Navigator.push(
-    context,
-    MaterialPageRoute(builder: (_) => PaymentMethodFormScreen(edit: edit)),
-  );
+  Navigator.push(context, MaterialPageRoute(builder: (_) => PaymentMethodFormScreen(edit: edit)));
 }
 
 class _SavingsList extends ConsumerWidget {
@@ -64,7 +63,7 @@ class _SavingsList extends ConsumerWidget {
           child: Semantics(
             header: true,
             child: Text(
-              'MEDIOS DE PAGO',
+              'CUENTAS DE AHORRO Y EFECTIVO',
               style: t.labelMedium?.copyWith(color: c.textMuted, letterSpacing: 0.8, fontWeight: FontWeight.w600),
             ),
           ),
@@ -113,50 +112,79 @@ class _MethodRow extends ConsumerWidget {
       // Se borra dentro de la confirmación: si se cancela o falla, la fila
       // vuelve a su lugar y nunca queda un Dismissible descartado en el árbol.
       confirmDismiss: (_) => _confirmAndDelete(context, method),
-      child: Semantics(
-        button: true,
-        label: showType ? '${method.name}, $typeLabel' : method.name,
-        hint: 'Editar',
-        excludeSemantics: true,
-        customSemanticsActions: {
-          const CustomSemanticsAction(label: 'Eliminar medio de pago'): () => _confirmAndDelete(context, method),
-        },
-        child: InkWell(
-          onTap: () => _openForm(context, edit: method),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 56),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              child: Row(
-                children: [
-                  ExcludeSemantics(
-                    child: Container(
-                      width: 34,
-                      height: 22,
-                      decoration: BoxDecoration(
-                        color: ref.accountHue(context, method.id),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
+      child: Row(
+        children: [
+          Expanded(
+            child: Semantics(
+              button: true,
+              label: showType ? '${method.name}, $typeLabel' : method.name,
+              hint: 'Editar',
+              excludeSemantics: true,
+              customSemanticsActions: {
+                const CustomSemanticsAction(label: 'Eliminar cuenta'): () => _confirmAndDelete(context, method),
+              },
+              child: InkWell(
+                onTap: () => _openForm(context, edit: method),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 56),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 10, 4, 10),
+                    child: Row(
                       children: [
-                        Text(method.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: t.bodyLarge?.copyWith(color: c.ink)),
-                        if (showType) Text(typeLabel, style: t.bodySmall?.copyWith(color: c.textMuted)),
+                        ExcludeSemantics(
+                          child: Container(
+                            width: 34,
+                            height: 22,
+                            decoration: BoxDecoration(
+                              color: ref.accountHue(context, method.id),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                method.name,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: t.bodyLarge?.copyWith(color: c.ink),
+                              ),
+                              if (showType) Text(typeLabel, style: t.bodySmall?.copyWith(color: c.textMuted)),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Icon(CupertinoIcons.chevron_forward, size: 18, color: c.textMuted),
-                ],
+                ),
               ),
             ),
           ),
-        ),
+          // A la vista: editar y eliminar sin tener que adivinar el gesto.
+          Padding(
+            padding: const EdgeInsets.only(right: 4),
+            child: RowActionsButton(
+              title: method.name,
+              actions: [
+                RowAction(
+                  label: 'Editar',
+                  icon: CupertinoIcons.pencil,
+                  onSelected: () => _openForm(context, edit: method),
+                ),
+                RowAction(
+                  label: 'Eliminar',
+                  icon: CupertinoIcons.trash,
+                  destructive: true,
+                  onSelected: () => _confirmAndDelete(context, method),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -184,8 +212,10 @@ class _AddRow extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Agregar medio de pago',
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: c.accent, fontWeight: FontWeight.w600),
+                    'Agregar cuenta de ahorro',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyLarge?.copyWith(color: c.accent, fontWeight: FontWeight.w600),
                   ),
                 ),
               ],
@@ -199,12 +229,7 @@ class _AddRow extends StatelessWidget {
 
 /// Estado vacío o de error: un ícono quieto, el mensaje y una acción.
 class _SavingsMessage extends StatelessWidget {
-  const _SavingsMessage({
-    required this.icon,
-    required this.message,
-    required this.actionLabel,
-    required this.onAction,
-  });
+  const _SavingsMessage({required this.icon, required this.message, required this.actionLabel, required this.onAction});
 
   final IconData icon;
   final String message;
@@ -254,13 +279,14 @@ Future<bool> _confirmAndDelete(BuildContext context, PaymentMethod pm) async {
     await container.read(paymentMethodRepositoryProvider).delete(pm.id);
   } catch (e, st) {
     ErrorReporter.capture(e, st, operation: 'savings.delete', details: {'id': pm.id});
-    messenger?.showSnackBar(const SnackBar(content: Text('No se pudo eliminar el medio de pago. Intentá de nuevo.')));
+    messenger?.showSnackBar(const SnackBar(content: Text('No se pudo eliminar la cuenta. Intenta de nuevo.')));
     return false;
   }
   container.invalidate(paymentMethodsListProvider);
-  container.read(syncServiceProvider).pushPendingIfOnline().catchError(
-        (Object e, StackTrace st) => ErrorReporter.capture(e, st, operation: 'savings.push'),
-      );
+  container
+      .read(syncServiceProvider)
+      .pushPendingIfOnline()
+      .catchError((Object e, StackTrace st) => ErrorReporter.capture(e, st, operation: 'savings.push'));
   return true;
 }
 

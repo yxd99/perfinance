@@ -46,7 +46,7 @@ void main() {
       await tester.pumpWidget(buildScreen());
       await tester.tap(find.text('Guardar'));
       await tester.pump();
-      expect(find.text('Ingresá el nombre del responsable'), findsOneWidget);
+      expect(find.text('Ingresa el nombre del responsable'), findsOneWidget);
     });
 
     testWidgets('shows email validation error on invalid format', (tester) async {

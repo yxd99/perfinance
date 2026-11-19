@@ -3,7 +3,7 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
 const String _dbName = 'perfinance.db';
-const int appSchemaVersion = 15;
+const int appSchemaVersion = 16;
 
 const String tableCreditCards = 'credit_cards';
 const String tablePaymentMethods = 'payment_methods';
@@ -268,6 +268,32 @@ Future<void> upgradeAppSchema(Database db, int oldVersion, int newVersion) async
     // completa y las recupera; las filas pendientes no se pisan.
     await db.delete(tableSyncCursors);
   }
+  if (oldVersion < 16) {
+    // Color elegido por el usuario (posición en la paleta); NULL = automático.
+    await _addColumnIfMissing(db, tableCreditCards, 'color_slot', 'INTEGER');
+    await _addColumnIfMissing(db, tablePaymentMethods, 'color_slot', 'INTEGER');
+    // Sin cursor, la próxima bajada de estas tablas es completa y trae el color
+    // que otro dispositivo ya eligió; si no, al editar se subiría null encima.
+    final hasCursors = (await db.rawQuery(
+      "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+      [tableSyncCursors],
+    ) as List)
+        .isNotEmpty;
+    if (hasCursors) {
+      await db.delete(
+        tableSyncCursors,
+        where: 'table_name IN (?, ?)',
+        whereArgs: [tableCreditCards, tablePaymentMethods],
+      );
+    }
+  }
+}
+
+/// Agrega la columna solo si no está: una migración repetida no rompe la base.
+Future<void> _addColumnIfMissing(dynamic db, String table, String column, String type) async {
+  final info = await db.rawQuery('PRAGMA table_info($table)') as List;
+  if (info.any((c) => c['name'] == column)) return;
+  await db.execute('ALTER TABLE $table ADD COLUMN $column $type');
 }
 
 Future<void> createAppSchema(Database db, int version) async {
@@ -279,6 +305,7 @@ Future<void> createAppSchema(Database db, int version) async {
       cut_off_day INTEGER NOT NULL,
       management_fee REAL NOT NULL DEFAULT 0,
       is_active INTEGER NOT NULL DEFAULT 1,
+      color_slot INTEGER,
       $columnSyncStatus TEXT NOT NULL DEFAULT 'synced',
       $columnUpdatedAt TEXT,
       created_at TEXT
@@ -290,6 +317,7 @@ Future<void> createAppSchema(Database db, int version) async {
       user_id TEXT NOT NULL,
       name TEXT NOT NULL,
       type TEXT NOT NULL DEFAULT 'other',
+      color_slot INTEGER,
       $columnSyncStatus TEXT NOT NULL DEFAULT 'synced',
       $columnUpdatedAt TEXT,
       created_at TEXT

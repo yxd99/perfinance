@@ -48,7 +48,9 @@ class HomeTabBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
+    // Las secciones pesan 2 y el botón de egreso 3: así entra su texto.
     Widget tab(int i) => Expanded(
+          flex: 2,
           child: _TabItem(
             tab: homeTabs[i],
             selected: i == currentIndex,
@@ -69,7 +71,7 @@ class HomeTabBar extends StatelessWidget {
             children: [
               tab(0),
               tab(1),
-              Expanded(child: _AddButton(onPressed: onAdd)),
+              Expanded(flex: 3, child: _AddButton(onPressed: onAdd)),
               tab(2),
               tab(3),
             ],
@@ -144,31 +146,53 @@ class _AddButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
+    const shape = StadiumBorder();
+    // Pastilla «+ Egreso»: dice qué registra, así no se confunde con el
+    // «Nueva deuda» de Deudas. Con letra grande se achica en vez de cortarse.
     return Center(
       child: Semantics(
         button: true,
         label: 'Registrar egreso',
         excludeSemantics: true,
-        child: Transform.translate(
-          offset: const Offset(0, -6),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
           child: DecoratedBox(
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              boxShadow: [BoxShadow(color: c.shadow, offset: const Offset(0, 3), blurRadius: 10)],
+            decoration: ShapeDecoration(
+              shape: shape,
+              shadows: [BoxShadow(color: c.shadow, offset: const Offset(0, 3), blurRadius: 10)],
             ),
             child: Material(
               color: c.accent,
-              shape: const CircleBorder(),
+              shape: shape,
               child: InkWell(
-                customBorder: const CircleBorder(),
+                customBorder: shape,
                 onTap: () {
                   HapticFeedback.lightImpact();
                   onPressed();
                 },
-                child: SizedBox(
-                  width: 52,
-                  height: 52,
-                  child: Icon(CupertinoIcons.plus, size: 26, color: c.onAccent),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 44, minWidth: 44),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(CupertinoIcons.plus, size: 20, color: c.onAccent),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Egreso',
+                            maxLines: 1,
+                            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                                  color: c.onAccent,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),

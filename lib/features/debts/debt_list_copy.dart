@@ -9,11 +9,11 @@ String debtsEmptyMessage(DebtListFilter filter, String query) {
   if (q.isNotEmpty) return 'Ninguna deuda coincide con «$q».';
   switch (filter) {
     case DebtListFilter.active:
-      return 'No tenés deudas activas.';
+      return 'No tienes deudas activas.';
     case DebtListFilter.paid:
       return 'Todavía no pagaste ninguna deuda.';
     case DebtListFilter.hidden:
-      return 'No tenés deudas ocultas.';
+      return 'No tienes deudas ocultas.';
     case DebtListFilter.all:
       return 'Todavía no registraste deudas.';
   }

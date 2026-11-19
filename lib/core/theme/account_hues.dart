@@ -21,3 +21,16 @@ Map<String, int> assignHueSlots(Iterable<({String id, String? createdAt})> accou
   }
   return slots;
 }
+
+/// Cantidad de tonos en la paleta de billetes ([AppColors.noteHues]).
+const noteHueCount = 5;
+
+/// Aplica los colores que el usuario eligió sobre los automáticos. Una cuenta
+/// sin elección (null) o con un valor fuera de la paleta queda como estaba.
+Map<String, int> applyChosenHueSlots(Map<String, int> auto, Map<String, int?> chosen) {
+  final slots = Map<String, int>.of(auto);
+  chosen.forEach((id, slot) {
+    if (slot != null && slot >= 0 && slot < noteHueCount) slots[id] = slot;
+  });
+  return slots;
+}

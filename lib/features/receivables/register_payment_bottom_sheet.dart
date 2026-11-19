@@ -266,7 +266,7 @@ class _RegisterPaymentSheetState extends ConsumerState<_RegisterPaymentSheet> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('No se pudo guardar el cobro. Probá de nuevo.', style: TextStyle(color: context.colors.onDanger)),
+            content: Text('No se pudo guardar el cobro. Prueba de nuevo.', style: TextStyle(color: context.colors.onDanger)),
             backgroundColor: context.colors.danger,
           ),
         );

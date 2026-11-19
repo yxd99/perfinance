@@ -7,7 +7,7 @@ related_targets: ["lib/features/dashboard/dashboard_screen.dart","lib/features/e
 
 Scope: app shell + Mes (month) screen + Egresos + quick-add sheet. Visitor mode: Operate. Platform: iOS (Flutter).
 
-Audience/job: single expert user, one-handed; review the month and log manual expenses (cash, Nequi) in seconds. Constraints: offline-first, voseo copy, SF Pro + Dynamic Type, 44pt targets, WCAG AA (AppColors tokens). Chosen sketch: .impeccable/mocks/decision/model-pick.html.
+Audience/job: single expert user, one-handed; review the month and log manual expenses (cash, Nequi) in seconds. Constraints: offline-first, Colombian neutral copy (tú), SF Pro + Dynamic Type, 44pt targets, WCAG AA (AppColors tokens). Chosen sketch: .impeccable/mocks/decision/model-pick.html.
 
 ## Direction contract
 

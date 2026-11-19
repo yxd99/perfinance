@@ -89,7 +89,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         Semantics(
                           header: true,
                           child: Text(
-                            'Iniciá sesión',
+                            'Inicia sesión',
                             style: t.headlineSmall?.copyWith(color: c.ink),
                             textAlign: TextAlign.center,
                           ),
@@ -129,11 +129,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           style: TextButton.styleFrom(minimumSize: const Size.fromHeight(44)),
                           child: Text.rich(
                             TextSpan(
-                              text: '¿No tenés cuenta? ',
+                              text: '¿No tienes cuenta? ',
                               style: TextStyle(color: c.textMuted),
                               children: [
                                 TextSpan(
-                                  text: 'Creá una',
+                                  text: 'Crea una',
                                   style: TextStyle(color: c.accent, fontWeight: FontWeight.w600),
                                 ),
                               ],

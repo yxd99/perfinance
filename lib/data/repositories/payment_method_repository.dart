@@ -9,10 +9,14 @@ final paymentMethodRepositoryProvider = Provider<PaymentMethodRepository>((ref) 
 });
 
 class PaymentMethodRepository {
-  PaymentMethodRepository(this._ref);
-  final Ref _ref;
+  PaymentMethodRepository(this._ref, {dynamic dbOverride}) : _dbOverride = dbOverride;
+  final Ref? _ref;
+  final dynamic _dbOverride;
 
-  Future<Database> get _db => _ref.read(databaseProvider.future);
+  Future<Database> get _db async {
+    if (_dbOverride != null) return _dbOverride as Database;
+    return _ref!.read(databaseProvider.future);
+  }
 
   Future<List<PaymentMethod>> getAll(String userId) async {
     final db = await _db;
@@ -44,6 +48,7 @@ class PaymentMethodRepository {
         'user_id': pm.userId,
         'name': pm.name,
         'type': pm.type,
+        'color_slot': pm.colorSlot,
         columnSyncStatus: 'pending_insert',
         columnUpdatedAt: now,
         'created_at': now,
@@ -59,6 +64,7 @@ class PaymentMethodRepository {
       {
         'name': pm.name,
         'type': pm.type,
+        'color_slot': pm.colorSlot,
         columnSyncStatus: 'pending_update',
         columnUpdatedAt: now,
       },
@@ -113,6 +119,7 @@ class PaymentMethodRepository {
         'user_id': pm.userId,
         'name': pm.name,
         'type': pm.type,
+        'color_slot': pm.colorSlot,
         columnSyncStatus: 'synced',
         columnUpdatedAt: pm.updatedAt ?? now,
         'created_at': pm.createdAt ?? now,
@@ -127,6 +134,7 @@ class PaymentMethodRepository {
       userId: r['user_id'] as String,
       name: r['name'] as String,
       type: r['type'] as String? ?? 'other',
+      colorSlot: r['color_slot'] as int?,
       syncStatus: r[columnSyncStatus] as String? ?? 'synced',
       updatedAt: r[columnUpdatedAt] as String?,
       createdAt: r['created_at'] as String?,

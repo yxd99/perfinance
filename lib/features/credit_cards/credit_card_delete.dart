@@ -38,7 +38,7 @@ Future<bool> confirmAndDeleteCard(BuildContext context, CreditCard card) async {
     await container.read(creditCardRepositoryProvider).delete(card.id);
   } catch (e, st) {
     ErrorReporter.capture(e, st, operation: 'credit_cards.delete', details: {'card_id': card.id});
-    messenger?.showSnackBar(const SnackBar(content: Text('No pudimos eliminar la tarjeta. Probá de nuevo.')));
+    messenger?.showSnackBar(const SnackBar(content: Text('No pudimos eliminar la tarjeta. Prueba de nuevo.')));
     return false;
   }
   container.invalidate(creditCardsListProvider);

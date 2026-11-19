@@ -30,9 +30,9 @@ void main() {
 
     test('edit mode caption contains the locked effectiveDay', () {
       const effectiveDay = 10;
-      final caption = 'Solo podés modificar el monto este mes. La fecha de referencia queda fija en el día $effectiveDay.';
+      final caption = 'Solo puedes modificar el monto este mes. La fecha de referencia queda fija en el día $effectiveDay.';
       expect(caption, contains('10'));
-      expect(caption, contains('Solo podés modificar'));
+      expect(caption, contains('Solo puedes modificar'));
     });
 
     test('effectiveDay > 25 warning text is correct', () {

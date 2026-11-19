@@ -67,7 +67,7 @@ void main() {
 
     // Alta como última fila del grupo de tarjetas, sin textos de ayuda de gestos.
     expect(find.widgetWithText(InsetAddRow, 'Agregar tarjeta'), findsOneWidget);
-    expect(find.textContaining('Mantené presionada'), findsNothing);
+    expect(find.textContaining('Mantén presionada'), findsNothing);
   });
 
   testWidgets('tocar una tarjeta abre su detalle, que trae la acción Editar', (tester) async {
@@ -112,7 +112,7 @@ void main() {
     await tester.pumpWidget(_app([]));
     await tester.pumpAndSettle();
 
-    expect(find.text('Todavía no tenés tarjetas.'), findsOneWidget);
+    expect(find.text('Todavía no tienes tarjetas.'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'Agregar tarjeta'), findsOneWidget);
   });
 }

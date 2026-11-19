@@ -89,7 +89,7 @@ function eventMeta(
     : "";
   const appVisibility =
     isRegistered && event === "created"
-      ? ` Podés verla en tu app PerFinance.`
+      ? ` Puedes verla en tu app PerFinance.`
       : "";
 
   switch (event) {

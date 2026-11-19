@@ -5,6 +5,9 @@ class CreditCard {
   final int cutOffDay;
   final double managementFee;
   final bool isActive;
+
+  /// Posición en la paleta de billetes elegida por el usuario; null = automático.
+  final int? colorSlot;
   final String syncStatus;
   final String? updatedAt;
   final String? createdAt;
@@ -16,6 +19,7 @@ class CreditCard {
     required this.cutOffDay,
     required this.managementFee,
     this.isActive = true,
+    this.colorSlot,
     this.syncStatus = 'synced',
     this.updatedAt,
     this.createdAt,
@@ -28,6 +32,7 @@ class CreditCard {
         'cut_off_day': cutOffDay,
         'management_fee': managementFee,
         'is_active': isActive,
+        'color_slot': colorSlot,
         'sync_status': syncStatus,
         'updated_at': updatedAt,
         'created_at': createdAt,
@@ -41,6 +46,7 @@ class CreditCard {
       cutOffDay: json['cut_off_day'] as int,
       managementFee: (json['management_fee'] as num).toDouble(),
       isActive: _parseIsActive(json['is_active']),
+      colorSlot: (json['color_slot'] as num?)?.toInt(),
       syncStatus: json['sync_status'] as String? ?? 'synced',
       updatedAt: json['updated_at'] as String?,
       createdAt: json['created_at'] as String?,
@@ -61,6 +67,7 @@ class CreditCard {
     int? cutOffDay,
     double? managementFee,
     bool? isActive,
+    int? colorSlot,
     String? syncStatus,
     String? updatedAt,
     String? createdAt,
@@ -72,6 +79,7 @@ class CreditCard {
       cutOffDay: cutOffDay ?? this.cutOffDay,
       managementFee: managementFee ?? this.managementFee,
       isActive: isActive ?? this.isActive,
+      colorSlot: colorSlot ?? this.colorSlot,
       syncStatus: syncStatus ?? this.syncStatus,
       updatedAt: updatedAt ?? this.updatedAt,
       createdAt: createdAt ?? this.createdAt,

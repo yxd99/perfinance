@@ -13,6 +13,7 @@ import 'package:perfinance/features/credit_cards/credit_cards_provider.dart';
 import 'package:perfinance/features/expenses/expenses_provider.dart';
 import 'package:perfinance/features/expenses/last_account.dart';
 import 'package:perfinance/features/expenses/quick_add_expense.dart';
+import 'package:perfinance/features/expenses/widgets/account_picker.dart';
 import 'package:perfinance/features/savings/savings_provider.dart';
 import 'package:perfinance/services/sync_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -68,9 +69,19 @@ Widget _app({List<CreditCard> cards = const [], List<PaymentMethod> methods = co
       ),
     );
 
-bool _isSelected(WidgetTester tester, String label) => tester
-    .widget<ChoiceChip>(find.ancestor(of: find.text(label), matching: find.byType(ChoiceChip)))
-    .selected;
+/// El campo «Cuenta» del formulario muestra la cuenta elegida.
+Finder _inField(String text) => find.descendant(of: find.byKey(accountFieldKey), matching: find.text(text));
+
+List<CreditCard> _manyCards() => [
+      for (var i = 1; i <= 8; i++)
+        CreditCard(id: 'card-$i', userId: 'u1', alias: 'Tarjeta $i', cutOffDay: 15, managementFee: 0),
+    ];
+
+List<PaymentMethod> _manyMethods() => [
+      PaymentMethod(id: 'pm-1', userId: 'u1', name: 'Efectivo', type: 'cash'),
+      PaymentMethod(id: 'pm-2', userId: 'u1', name: 'Débito Bancolombia', type: 'debito'),
+      for (var i = 3; i <= 8; i++) PaymentMethod(id: 'pm-$i', userId: 'u1', name: 'Cuenta $i', type: 'other'),
+    ];
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -81,13 +92,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(BottomSheet), findsOneWidget);
-    expect(find.text('Registrá un egreso'), findsOneWidget);
+    expect(find.text('Registra un egreso'), findsOneWidget);
     expect(find.text('Hoy'), findsOneWidget);
 
     await tester.tap(find.text('Guardar egreso'));
     await tester.pumpAndSettle();
-    expect(find.text('Ingresá el monto'), findsOneWidget);
-    expect(find.text('Elegí una tarjeta o cuenta'), findsOneWidget);
+    expect(find.text('Ingresa el monto'), findsOneWidget);
+    expect(find.text('Elige una tarjeta o cuenta'), findsOneWidget);
 
     await tester.tap(find.text('Cancelar'));
     await tester.pumpAndSettle();
@@ -123,8 +134,9 @@ void main() {
     await tester.tap(find.text('+'));
     await tester.pumpAndSettle();
 
-    expect(_isSelected(tester, 'Efectivo'), isTrue);
-    expect(_isSelected(tester, 'Visa'), isFalse);
+    expect(_inField('Efectivo'), findsOneWidget);
+    expect(_inField('Cuenta de ahorro'), findsOneWidget);
+    expect(_inField('Visa'), findsNothing);
   });
 
   testWidgets('si la última cuenta ya no existe, no preselecciona ninguna', (tester) async {
@@ -136,8 +148,8 @@ void main() {
     await tester.tap(find.text('+'));
     await tester.pumpAndSettle();
 
-    expect(_isSelected(tester, 'Efectivo'), isFalse);
-    expect(_isSelected(tester, 'Visa'), isFalse);
+    expect(_inField('Elige con qué pagaste'), findsOneWidget);
+    expect(_inField('Visa'), findsNothing);
   });
 
   testWidgets('al guardar: vibra, cierra, confirma y recuerda la cuenta', (tester) async {
@@ -153,7 +165,11 @@ void main() {
     await tester.tap(find.text('+'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField).first, '25000');
+    await tester.tap(find.byKey(accountFieldKey));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Visa'));
+    await tester.pumpAndSettle();
+    expect(_inField('Visa'), findsOneWidget);
     await tester.tap(find.text('Guardar egreso'));
     await tester.pumpAndSettle();
 
@@ -167,4 +183,43 @@ void main() {
       const LastAccount(paymentType: 'credit_card', paymentRef: 'card-1'),
     );
   });
+
+  testWidgets('con muchas cuentas: hoja agrupada por tipo y con búsqueda', (tester) async {
+    await tester.pumpWidget(_app(cards: _manyCards(), methods: _manyMethods()));
+    await tester.tap(find.text('+'));
+    await tester.pumpAndSettle();
+
+    // El formulario ya no despliega todas las cuentas: solo el campo elegido.
+    expect(find.text('Tarjeta 1'), findsNothing);
+    await tester.tap(find.byKey(accountFieldKey));
+    await tester.pumpAndSettle();
+
+    expect(find.text('¿Con qué pagaste?'), findsOneWidget);
+    expect(find.text('TARJETAS DE CRÉDITO'), findsOneWidget);
+    expect(find.text('Tarjeta 1'), findsOneWidget);
+
+    await tester.enterText(find.byType(CupertinoSearchTextField), 'debito');
+    await tester.pumpAndSettle();
+    expect(find.text('Débito Bancolombia'), findsOneWidget);
+    expect(find.text('Tarjeta 1'), findsNothing);
+    expect(find.text('CUENTAS DE AHORRO'), findsOneWidget);
+    expect(find.text('TARJETAS DE CRÉDITO'), findsNothing);
+
+    await tester.tap(find.text('Débito Bancolombia'));
+    await tester.pumpAndSettle();
+    expect(find.text('¿Con qué pagaste?'), findsNothing);
+    expect(_inField('Débito Bancolombia'), findsOneWidget);
+  });
+
+  testWidgets('la búsqueda sin resultados lo dice', (tester) async {
+    await tester.pumpWidget(_app(cards: _manyCards(), methods: _manyMethods()));
+    await tester.tap(find.text('+'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(accountFieldKey));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(CupertinoSearchTextField), 'zzz');
+    await tester.pumpAndSettle();
+    expect(find.text('Ninguna cuenta coincide con «zzz».'), findsOneWidget);
+  });
 }
+

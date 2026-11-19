@@ -98,7 +98,7 @@ class _ReceivableDetailScreenState extends ConsumerState<ReceivableDetailScreen>
               child: Padding(
                 padding: const EdgeInsets.all(32),
                 child: Text(
-                  'No se pudieron cargar los cobros. Volvé a abrir esta deuda.',
+                  'No se pudieron cargar los cobros. Vuelve a abrir esta deuda.',
                   textAlign: TextAlign.center,
                   style: t.bodyLarge?.copyWith(color: c.textMuted),
                 ),
@@ -112,8 +112,8 @@ class _ReceivableDetailScreenState extends ConsumerState<ReceivableDetailScreen>
               .toDouble();
           final statusLine = switch (_receivable.status) {
             ReceivableStatus.writtenOff => 'Incobrable. No suma al total por cobrar.',
-            ReceivableStatus.hidden => 'Cancelada. Podés reactivarla cuando quieras.',
-            ReceivableStatus.settled => 'Cobrada en su totalidad. Reactivala para registrar nuevos cobros.',
+            ReceivableStatus.hidden => 'Cancelada. Puedes reactivarla cuando quieras.',
+            ReceivableStatus.settled => 'Cobrada en su totalidad. Reactívala para registrar nuevos cobros.',
             ReceivableStatus.active => null,
           };
 
@@ -243,7 +243,7 @@ class _ReceivableDetailScreenState extends ConsumerState<ReceivableDetailScreen>
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       decoration: BoxDecoration(color: c.warningSoft, borderRadius: BorderRadius.circular(12)),
                       child: Text(
-                        'El saldo llegó a \$0. ¿La marcás como cobrada?',
+                        'El saldo llegó a \$0. ¿La marcas como cobrada?',
                         style: t.bodyMedium?.copyWith(color: c.ink, fontWeight: FontWeight.w600),
                       ),
                     ),
@@ -310,7 +310,7 @@ class _ReceivableDetailScreenState extends ConsumerState<ReceivableDetailScreen>
         if (!mounted) return;
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('Podés enviar otro recordatorio en 24 horas.')));
+        ).showSnackBar(const SnackBar(content: Text('Puedes enviar otro recordatorio en 24 horas.')));
         return;
       }
     }
@@ -363,7 +363,7 @@ class _ReceivableDetailScreenState extends ConsumerState<ReceivableDetailScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'No se pudo enviar el recordatorio. Revisá tu conexión y probá de nuevo.',
+            'No se pudo enviar el recordatorio. Revisa tu conexión y prueba de nuevo.',
             style: TextStyle(color: context.colors.onDanger),
           ),
           backgroundColor: context.colors.danger,
@@ -379,7 +379,7 @@ class _ReceivableDetailScreenState extends ConsumerState<ReceivableDetailScreen>
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Cancelar deuda'),
-        content: Text('¿Cancelás la deuda de "${_receivable.debtorName}"? Podés reactivarla después.'),
+        content: Text('¿Cancelas la deuda de "${_receivable.debtorName}"? Puedes reactivarla después.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Volver')),
           TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Cancelar deuda')),
@@ -398,7 +398,7 @@ class _ReceivableDetailScreenState extends ConsumerState<ReceivableDetailScreen>
     if (deleted && mounted) Navigator.pop(context);
   }
 
-  /// «Cobrar todo» vive acá (antes era el deslizamiento de la fila en la lista,
+  /// «Cobrar todo» vive aquí (antes era el deslizamiento de la fila en la lista,
   /// que ahora elimina como en las demás listas).
   Future<void> _settleInFull(double remaining) async {
     final saved = await confirmAndSettleInFull(context, _receivable, remaining: remaining);
@@ -411,7 +411,7 @@ class _ReceivableDetailScreenState extends ConsumerState<ReceivableDetailScreen>
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Eliminar cobro'),
-        content: Text('¿Eliminás el cobro de \$${formatCurrency(p.amount)} del ${formatDisplayDate(p.date)}?'),
+        content: Text('¿Eliminas el cobro de \$${formatCurrency(p.amount)} del ${formatDisplayDate(p.date)}?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
           FilledButton(
