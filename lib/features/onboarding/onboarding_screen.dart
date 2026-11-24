@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:perfinance/core/config/features.dart';
 import 'package:perfinance/core/providers/onboarding_provider.dart';
 import 'package:perfinance/core/theme/app_theme.dart';
 import 'package:perfinance/features/credit_cards/credit_card_form_screen.dart';
@@ -119,11 +120,12 @@ const _steps = <_Step>[
     ],
   ),
   _Step(
-    icon: CupertinoIcons.chat_bubble_2,
-    title: 'Asesor, privacidad y respaldo',
+    icon: advisorEnabled ? CupertinoIcons.chat_bubble_2 : CupertinoIcons.lock_shield,
+    title: advisorEnabled ? 'Asesor, privacidad y respaldo' : 'Privacidad y respaldo',
     body: 'En Más encuentras también:',
     points: [
-      'Asesor financiero: un chat que conoce tus números y te da ideas para gastar mejor.',
+      if (advisorEnabled)
+        'Asesor financiero: un chat que conoce tus números y te da ideas para gastar mejor.',
       'Ocultar valores: tapa los montos cuando estás mostrando la pantalla.',
       'Sincronizar ahora: sube tus cambios a la nube. El número rojo en Más dice cuántos faltan.',
       'En iPhone, con Apple Wallet se registran solos los pagos con tarjeta, sin abrir la app.',

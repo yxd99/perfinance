@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:perfinance/core/config/features.dart';
 import 'package:perfinance/core/observability/error_reporter.dart';
 import 'package:perfinance/core/providers/hide_values_provider.dart';
 import 'package:perfinance/core/theme/app_colors.dart';
@@ -153,11 +154,12 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
             ),
             InsetGroup(
               children: [
-                _NavRow(
-                  icon: CupertinoIcons.chat_bubble_2,
-                  title: 'Asesor financiero',
-                  onTap: () => context.push('/chat'),
-                ),
+                if (advisorEnabled)
+                  _NavRow(
+                    icon: CupertinoIcons.chat_bubble_2,
+                    title: 'Asesor financiero',
+                    onTap: () => context.push('/chat'),
+                  ),
                 _NavRow(
                   icon: CupertinoIcons.square_stack,
                   title: 'Registro con Apple Wallet',

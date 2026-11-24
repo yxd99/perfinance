@@ -19,7 +19,7 @@ const _titles = [
   'Deudas: lo que debes',
   'Me deben: lo que prestaste',
   'Auto-pagos',
-  'Asesor, privacidad y respaldo',
+  'Privacidad y respaldo',
   'Empieza por tus cuentas',
 ];
 

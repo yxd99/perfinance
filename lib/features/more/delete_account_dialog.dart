@@ -41,7 +41,7 @@ class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
           children: [
             const Text(
               'Se borran tu cuenta y todos tus datos: egresos, tarjetas, ahorros, '
-              'deudas, cobros, pagos automáticos y conversaciones con el asesor. '
+              'deudas, cobros y pagos automáticos. '
               'Esto no se puede deshacer.',
             ),
             const SizedBox(height: 12),

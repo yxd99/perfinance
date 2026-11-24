@@ -67,7 +67,6 @@ void main() {
         'Débito, Nequi y efectivo',
         'Me deben',
         'Auto-pagos',
-        'Asesor financiero',
         'Registro con Apple Wallet',
         'Guía de la app',
         'Ocultar valores',
@@ -80,6 +79,8 @@ void main() {
       }
       await tester.scrollUntilVisible(find.text('Cerrar sesión'), 100);
       expect(find.text('Cerrar sesión'), findsOneWidget);
+      // El asesor con IA está deshabilitado (advisorEnabled = false).
+      expect(find.text('Asesor financiero'), findsNothing);
     });
 
     testWidgets('«Cerrar sesión» termina por encima de la barra inferior', (tester) async {
