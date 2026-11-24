@@ -60,6 +60,17 @@ void main() {
       expect(find.textContaining('Email inválido'), findsOneWidget);
     });
 
+    testWidgets('rejects an email with spaces or an empty domain label', (tester) async {
+      await tester.pumpWidget(buildScreen());
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Email (opcional)'),
+        'juan perez@gmail..com',
+      );
+      await tester.tap(find.text('Guardar'));
+      await tester.pump();
+      expect(find.textContaining('Email inválido'), findsOneWidget);
+    });
+
     testWidgets('shows "Guardar" FilledButton', (tester) async {
       await tester.pumpWidget(buildScreen());
       expect(find.widgetWithText(FilledButton, 'Guardar'), findsOneWidget);
