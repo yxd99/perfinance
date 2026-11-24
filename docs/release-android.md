@@ -17,6 +17,11 @@ Al abrir, la app (solo Android) descarga `version.json` y, si su `build` es mayo
 que el del APK instalado (`APP_BUILD`), muestra un banner con "Descargar".
 Los builds locales no tienen `APP_BUILD` y no muestran el aviso.
 
+El aviso solo se activa si el build lleva `DISTRIBUTION=drive`, que define el
+job de Drive del CI. El build de Google Play no debe definirlo: Play prohíbe que
+una app instalada desde la tienda se actualice por fuera de ella, y sin ese
+valor el aviso queda apagado aunque `UPDATE_MANIFEST_ID` esté presente.
+
 ## Setup (una sola vez)
 
 ### 1. Clave de firma
