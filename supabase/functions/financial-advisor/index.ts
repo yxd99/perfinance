@@ -714,6 +714,14 @@ Deno.serve(async (req: Request) => {
     return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405, headers: { "Content-Type": "application/json" } });
   }
 
+  // Interruptor del asesor: la app lo tiene deshabilitado (advisorEnabled en
+  // lib/core/config/features.dart). Mientras el secret ADVISOR_ENABLED no sea
+  // "true", la función no lee datos ni llama a OpenRouter, aunque alguien la
+  // invoque directo (por ejemplo, un APK viejo).
+  if (Deno.env.get("ADVISOR_ENABLED") !== "true") {
+    return new Response(JSON.stringify({ error: "Advisor disabled" }), { status: 403, headers: { "Content-Type": "application/json" } });
+  }
+
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) {
     return new Response(JSON.stringify({ error: "Missing Authorization" }), { status: 401, headers: { "Content-Type": "application/json" } });
