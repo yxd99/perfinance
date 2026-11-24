@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:perfinance/core/router/deep_link_debug_screen.dart';
@@ -31,7 +32,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/', builder: (_, __) => const HomeOrOnboardingWrapper()),
       GoRoute(path: '/chat', builder: (_, __) => const ChatScreen()),
       GoRoute(path: '/wallet-shortcut', builder: (_, __) => const WalletShortcutScreen()),
-      GoRoute(path: '/debug', builder: (_, __) => const DeepLinkDebugScreen()),
+      // Historial de deep links (puede incluir tokens de login): solo en debug.
+      if (kDebugMode) GoRoute(path: '/debug', builder: (_, __) => const DeepLinkDebugScreen()),
       GoRoute(
         path: '/log-expense',
         builder: (_, state) {
