@@ -79,7 +79,8 @@ jobs:
             --arg manifest "$UPDATE_MANIFEST_ID" \
             --arg build "$APP_BUILD" \
             '{SUPABASE_URL: $url, SUPABASE_ANON_KEY: $anon, SENTRY_DSN: $dsn,
-              SENTRY_ENVIRONMENT: "production", UPDATE_MANIFEST_ID: $manifest, APP_BUILD: $build}' \
+              SENTRY_ENVIRONMENT: "production", UPDATE_MANIFEST_ID: $manifest, APP_BUILD: $build,
+              DISTRIBUTION: "drive"}' \
             > dart_defines.json
 
       - name: Build APK

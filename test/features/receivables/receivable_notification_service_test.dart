@@ -13,6 +13,7 @@ class _FakeFunctions extends FunctionsClient {
   bool shouldThrow = false;
   int throwStatus = 500;
   Map<String, dynamic>? throwDetails;
+  Map<String, dynamic> responseData = {'ok': true};
 
   @override
   Future<FunctionResponse> invoke(
@@ -32,7 +33,7 @@ class _FakeFunctions extends FunctionsClient {
         details: throwDetails,
       );
     }
-    return FunctionResponse(data: {'ok': true}, status: 200);
+    return FunctionResponse(data: responseData, status: 200);
   }
 }
 
@@ -203,6 +204,22 @@ void main() {
         () => service.notify(payload()),
         throwsException,
       );
+    });
+  });
+
+  group('recipient allowlist', () {
+    test('returns sent when the function sent the email', () async {
+      expect(await service.notify(payload()), NotificationResult.sent);
+    });
+
+    test('returns pendingApproval without throwing when the recipient is not approved', () async {
+      fakeFunctions.responseData = {'ok': true, 'sent': false, 'status': 'pending_approval'};
+      expect(await service.notify(payload()), NotificationResult.pendingApproval);
+    });
+
+    test('skips invalid emails without calling the function', () async {
+      expect(await service.notify(payload(recipientEmail: 'juan@gmail')), NotificationResult.skipped);
+      expect(fakeFunctions.lastInvokedFunction, isNull);
     });
   });
 

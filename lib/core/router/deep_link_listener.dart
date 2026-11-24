@@ -22,8 +22,12 @@ class DeepLinkListener {
   late final StreamSubscription<Uri> _sub;
 
   void _handleUri(Uri uri) {
-    DeepLinkDebugLog.instance.add(uri);
-    debugPrint('[DeepLink] received: $uri');
+    // El link puede traer tokens de login: no guardarlo ni escribirlo en logcat
+    // fuera de debug.
+    if (kDebugMode) {
+      DeepLinkDebugLog.instance.add(uri);
+      debugPrint('[DeepLink] received: $uri');
+    }
     if (uri.scheme != 'perfinance') return;
     final path = uri.host.isEmpty ? '/' : '/${uri.host}${uri.path}';
     _router.go(Uri(path: path, queryParameters: uri.queryParameters).toString());

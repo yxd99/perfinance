@@ -1,3 +1,4 @@
+import 'package:perfinance/core/observability/error_reporter.dart';
 import 'package:perfinance/data/models/chat_conversation.dart';
 import 'package:perfinance/features/chat/chat_types.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -18,9 +19,13 @@ class ChatConversationRepository {
           .order('updated_at', ascending: false);
 
       return (rows as List).map((j) => ChatConversation.fromJson(Map<String, dynamic>.from(j as Map))).toList();
-    } catch (e) {
-      // ignore: avoid_print
-      print('[ChatRepo] getConversations error: $e');
+    } catch (e, st) {
+      ErrorReporter.capture(
+        e,
+        st,
+        operation: 'chat.get_conversations',
+        details: {'agent_type': agentType},
+      );
       return [];
     }
   }

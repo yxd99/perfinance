@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:perfinance/core/config/update_config.dart';
 import 'package:perfinance/core/update/app_update.dart';
 import 'package:perfinance/core/update/app_update_provider.dart';
 
@@ -12,6 +13,31 @@ void main() {
     'build': 15,
     'url': 'https://drive.google.com/uc?export=download&id=abc',
   };
+
+  group('updateCheckEnabled', () {
+    test('solo se activa en el build de Drive con build y manifiesto', () {
+      expect(
+        updateCheckEnabled(currentBuild: 12, manifestFileId: 'abc', distribution: 'drive'),
+        isTrue,
+      );
+    });
+
+    test('nunca se activa en el build de Play Store, aunque tenga manifiesto', () {
+      expect(
+        updateCheckEnabled(currentBuild: 12, manifestFileId: 'abc', distribution: 'play'),
+        isFalse,
+      );
+      expect(
+        updateCheckEnabled(currentBuild: 12, manifestFileId: 'abc', distribution: ''),
+        isFalse,
+      );
+    });
+
+    test('sigue apagado en builds locales sin build o sin manifiesto', () {
+      expect(updateCheckEnabled(currentBuild: 0, manifestFileId: 'abc', distribution: 'drive'), isFalse);
+      expect(updateCheckEnabled(currentBuild: 12, manifestFileId: '', distribution: 'drive'), isFalse);
+    });
+  });
 
   group('pendingUpdate', () {
     test('devuelve la versión publicada cuando su build es mayor', () {

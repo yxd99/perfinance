@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:perfinance/core/config/supabase_config.dart';
+import 'package:perfinance/core/utils/email.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 enum ReceivableNotificationEvent {
@@ -10,6 +11,19 @@ enum ReceivableNotificationEvent {
   paymentEdited,
   paymentDeleted,
   reminder,
+}
+
+/// Qué pasó con el aviso por email.
+enum NotificationResult {
+  /// El servidor envió el correo.
+  sent,
+
+  /// El destinatario aún no está aprobado en `email_recipient_allowlist`; el
+  /// servidor registró el intento y no envió nada.
+  pendingApproval,
+
+  /// No se llamó al servidor (sin email válido o sin Supabase configurado).
+  skipped,
 }
 
 class ReceivableNotificationPayload {
@@ -60,9 +74,9 @@ class ReceivableNotificationService {
   final SupabaseClient _client;
   final bool _isConfigured;
 
-  Future<void> notify(ReceivableNotificationPayload payload) async {
-    if (payload.recipientEmail.trim().isEmpty) return;
-    if (!_isConfigured) return;
+  Future<NotificationResult> notify(ReceivableNotificationPayload payload) async {
+    if (!isValidEmail(payload.recipientEmail)) return NotificationResult.skipped;
+    if (!_isConfigured) return NotificationResult.skipped;
 
     Future<String> ensureAccessToken() async {
       var session = _client.auth.currentSession;
@@ -131,6 +145,10 @@ class ReceivableNotificationService {
       if (data is Map && data['ok'] != true) {
         throw Exception(_parseError(data, res.status));
       }
+      if (data is Map && data['status'] == 'pending_approval') {
+        return NotificationResult.pendingApproval;
+      }
+      return NotificationResult.sent;
     } on FunctionException catch (e) {
       throw Exception(_parseError(e.details, e.status));
     }

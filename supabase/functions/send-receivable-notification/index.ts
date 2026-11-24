@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "@supabase/supabase-js";
+import { isValidEmail, normalizeEmail } from "./recipient.ts";
 
 type NotificationEvent =
   | "created"
@@ -284,10 +285,47 @@ Deno.serve(async (req: Request) => {
   const jwtToken = authHeader.replace(/^Bearer\s+/i, "").trim();
   const { data: { user }, error: userError } = await supabase.auth.getUser(jwtToken);
 
-  if (userError && !user) {
+  if (userError || !user) {
     return new Response(
-      JSON.stringify({ error: "Invalid or expired session", detail: userError.message }),
+      JSON.stringify({ error: "Invalid or expired session", detail: userError?.message ?? null }),
       { status: 401, headers: { "Content-Type": "application/json" } },
+    );
+  }
+
+  if (!isValidEmail(recipientEmail)) {
+    return new Response(
+      JSON.stringify({ error: "Invalid recipientEmail" }),
+      { status: 400, headers: { "Content-Type": "application/json" } },
+    );
+  }
+  const recipient = normalizeEmail(recipientEmail);
+
+  // Lista de destinatarios permitidos: cada intento queda registrado y solo se
+  // envía si el dueño del proyecto aprobó la fila en el dashboard de Supabase.
+  const admin = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
+    auth: { persistSession: false },
+  });
+  const { data: allowed, error: allowlistError } = await admin
+    .from("email_recipient_allowlist")
+    .upsert(
+      { requested_by: user.id, email: recipient, last_attempt_at: new Date().toISOString() },
+      { onConflict: "requested_by,email" },
+    )
+    .select("approved")
+    .single();
+
+  if (allowlistError || !allowed) {
+    console.error("[send-receivable-notification] allowlist upsert failed", allowlistError);
+    return new Response(
+      JSON.stringify({ error: "Could not verify recipient" }),
+      { status: 500, headers: { "Content-Type": "application/json" } },
+    );
+  }
+
+  if (!allowed.approved) {
+    return new Response(
+      JSON.stringify({ ok: true, sent: false, status: "pending_approval", event }),
+      { status: 202, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } },
     );
   }
 
@@ -333,7 +371,7 @@ Deno.serve(async (req: Request) => {
     },
     body: JSON.stringify({
       from: mailFrom,
-      to: [recipientEmail.trim()],
+      to: [recipient],
       subject: meta.subject,
       html,
     }),
@@ -364,6 +402,7 @@ Deno.serve(async (req: Request) => {
   return new Response(
     JSON.stringify({
       ok: true,
+      sent: true,
       message: "Notificación enviada",
       event,
       resendId: (resendJson as { id?: string }).id ?? null,
