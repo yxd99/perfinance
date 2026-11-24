@@ -2,11 +2,14 @@ import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:perfinance/core/observability/error_reporter.dart';
 import 'package:perfinance/core/providers/hide_values_provider.dart';
 import 'package:perfinance/core/theme/app_colors.dart';
 import 'package:perfinance/core/utils/user_friendly_errors.dart';
 import 'package:perfinance/data/database/database_provider.dart';
+import 'package:perfinance/features/auth/account_deletion_service.dart';
 import 'package:perfinance/features/auth/auth_service.dart';
+import 'package:perfinance/features/more/delete_account_dialog.dart';
 import 'package:perfinance/features/automatic_payments/automatic_payments_screen.dart';
 import 'package:perfinance/features/credit_cards/credit_cards_screen.dart';
 import 'package:perfinance/features/onboarding/onboarding_screen.dart';
@@ -68,6 +71,41 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
     ref.invalidate(databaseProvider);
     await ref.read(authServiceProvider).signOut();
     if (mounted) context.go('/login');
+  }
+
+  bool _deletingAccount = false;
+
+  /// Borra la cuenta en Supabase y, solo si el servidor lo confirmó, la base
+  /// local y la sesión. Lo pendiente de subir se descarta: la cuenta ya no existe.
+  Future<void> _deleteAccount() async {
+    if (!await showDeleteAccountDialog(context)) return;
+    if (!mounted) return;
+    setState(() => _deletingAccount = true);
+    try {
+      await ref.read(accountDeletionServiceProvider).deleteAccount();
+    } catch (e, st) {
+      ErrorReporter.capture(e, st, operation: 'account.delete');
+      if (mounted) {
+        setState(() => _deletingAccount = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No se pudo eliminar la cuenta. Revisa tu conexión e intenta de nuevo.'),
+          ),
+        );
+      }
+      return;
+    }
+    // La cuenta ya no existe en el servidor: aunque falle la limpieza local,
+    // siempre se vuelve al login.
+    try {
+      await ref.read(syncServiceProvider).clearLocalDataOnLogout();
+      ref.invalidate(databaseProvider);
+      await ref.read(authServiceProvider).signOut();
+    } catch (e, st) {
+      ErrorReporter.capture(e, st, operation: 'account.delete_local_cleanup');
+    } finally {
+      if (mounted) context.go('/login');
+    }
   }
 
   @override
@@ -159,6 +197,19 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
                     style: TextStyle(color: c.danger, fontWeight: FontWeight.w600),
                   ),
                   onTap: _logout,
+                ),
+              ],
+            ),
+            InsetGroup(
+              children: [
+                ListTile(
+                  title: Text(
+                    _deletingAccount ? 'Eliminando cuenta…' : 'Eliminar cuenta',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: c.danger),
+                  ),
+                  enabled: !_deletingAccount,
+                  onTap: _deleteAccount,
                 ),
               ],
             ),
