@@ -76,10 +76,17 @@ flutter:
     - assets/images/
 
 # App launcher icon (generates Android & iOS from assets/images/icon.png)
+# Fuentes en assets/icon/*.svg; los PNG se generan con rsvg-convert (ver assets/icon/README.md).
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/images/icon.png"
+  image_path: "assets/icon/icon.png"
+  adaptive_icon_background: "#432A5C"
+  adaptive_icon_foreground: "assets/icon/icon_foreground.png"
+  adaptive_icon_monochrome: "assets/icon/icon_monochrome.png"
+  # Los SVG ya respetan la zona segura de 66 dp; sin esto el paquete agrega un 16 % de margen.
+  adaptive_icon_foreground_inset: 0
+  remove_alpha_ios: true
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

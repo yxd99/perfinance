@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="1024" height="1024">
+  <!-- Ícono completo (iOS y Play Store): fondo + billetera. Cuadrado sin esquinas: la tienda y el sistema aplican la máscara. -->
+  <rect width="108" height="108" fill="#432A5C"/>
+  <!-- Sin la zona segura del ícono adaptativo, aquí el dibujo va un 25 % más grande y centrado. -->
+  <g transform="translate(54 54) scale(1.25) translate(-56.5 -51)">
+    <g transform="rotate(-10 52 40)">
+      <rect x="36" y="27" width="34" height="22" rx="3" fill="#6FBF94"/>
+      <rect x="36" y="32" width="34" height="4" fill="#2F6B4F"/>
+    </g>
+    <rect x="31" y="40" width="48" height="36" rx="7" fill="#FBF8F1"/>
+    <rect x="58" y="50" width="24" height="16" rx="6" fill="#E6DCCB"/>
+    <circle cx="67" cy="58" r="3.2" fill="#F0B45C"/>
+  </g>
+</svg>
