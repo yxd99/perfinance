@@ -1,5 +1,6 @@
 # One pull request per ecosystem per month, to keep the PR list quiet.
 # Security updates still open right away, grouped into a single PR.
+# Pub majors are ignored: they break the build and are migrated by hand.
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -22,10 +23,16 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 1
+    # Major upgrades (Riverpod, go_router, Sentry...) need code migration, so
+    # they are done by hand in their own PR instead of blocking the monthly group.
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       pub:
         applies-to: version-updates
         patterns: ["*"]
+        update-types: [minor, patch]
       pub-security:
         applies-to: security-updates
         patterns: ["*"]
