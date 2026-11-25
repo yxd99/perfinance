@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:perfinance/core/providers/hide_values_provider.dart';
 import 'package:perfinance/core/theme/app_theme.dart';
 import 'package:perfinance/features/home/home_tab_bar.dart';
+import 'package:perfinance/features/auth/account_service.dart';
 import 'package:perfinance/features/more/more_screen.dart';
 import 'package:perfinance/services/sync_service.dart';
 
@@ -55,6 +56,7 @@ void main() {
     final overrides = <Override>[
       hideValuesProvider.overrideWith(_FakeHideValues.new),
       pendingChangesCountProvider.overrideWith((ref) async => 2),
+      accountInfoProvider.overrideWith((ref) => const AccountInfo(email: 'ana@gmail.com', name: 'Ana')),
     ];
 
     testWidgets('lista las secciones, los ajustes y cerrar sesión', (tester) async {
@@ -62,6 +64,7 @@ void main() {
       await tester.pumpAndSettle();
 
       for (final label in [
+        'Tu cuenta',
         'Tarjetas de crédito',
         'Cuentas de ahorro',
         'Débito, Nequi y efectivo',
@@ -81,6 +84,9 @@ void main() {
       expect(find.text('Cerrar sesión'), findsOneWidget);
       // El asesor con IA está deshabilitado (advisorEnabled = false).
       expect(find.text('Asesor financiero'), findsNothing);
+      // "Tu cuenta" muestra el nombre de la cuenta como subtítulo.
+      await tester.scrollUntilVisible(find.text('Tu cuenta'), -100);
+      expect(find.text('Ana'), findsOneWidget);
     });
 
     testWidgets('«Cerrar sesión» termina por encima de la barra inferior', (tester) async {

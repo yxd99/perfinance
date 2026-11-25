@@ -9,8 +9,10 @@ import 'package:perfinance/core/theme/app_colors.dart';
 import 'package:perfinance/core/utils/user_friendly_errors.dart';
 import 'package:perfinance/data/database/database_provider.dart';
 import 'package:perfinance/features/auth/account_deletion_service.dart';
+import 'package:perfinance/features/auth/account_service.dart';
 import 'package:perfinance/features/auth/auth_service.dart';
 import 'package:perfinance/features/more/delete_account_dialog.dart';
+import 'package:perfinance/features/more/account_screen.dart';
 import 'package:perfinance/features/automatic_payments/automatic_payments_screen.dart';
 import 'package:perfinance/features/credit_cards/credit_cards_screen.dart';
 import 'package:perfinance/features/onboarding/onboarding_screen.dart';
@@ -124,6 +126,18 @@ class _MoreScreenState extends ConsumerState<MoreScreen> {
         ),
         SliverList.list(
           children: [
+            InsetGroup(
+              children: [
+                _NavRow(
+                  icon: CupertinoIcons.person_crop_circle,
+                  title: 'Tu cuenta',
+                  subtitle: ref.watch(accountInfoProvider).displayName,
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(builder: (_) => const AccountScreen()),
+                  ),
+                ),
+              ],
+            ),
             InsetGroup(
               children: [
                 _NavRow(
