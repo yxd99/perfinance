@@ -1,0 +1,9 @@
+# Every change needs the owner's review before it reaches main.
+* @yxd99
+
+# Sensitive areas: CI, release, database schema and security policy.
+/.github/ @yxd99
+/supabase/ @yxd99
+/android/ @yxd99
+/ios/ @yxd99
+/SECURITY.md @yxd99

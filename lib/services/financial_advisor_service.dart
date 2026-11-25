@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:perfinance/core/config/supabase_config.dart';
 import 'package:perfinance/features/chat/chat_agent.dart';
 import 'package:perfinance/features/chat/chat_types.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,7 +11,7 @@ class ChatAIService {
   ChatAIService();
 
   String get _edgeFunctionUrl =>
-      'https://zlvqggdvrqcchqaaemfd.supabase.co/functions/v1/financial-advisor';
+      '${SupabaseConfig.url}/functions/v1/financial-advisor';
 
   Future<String?> _authToken() async {
     final session = Supabase.instance.client.auth.currentSession;

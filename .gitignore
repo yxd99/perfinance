@@ -56,3 +56,15 @@ supabase/.temp
 
 # Registro local de skills de los agentes; se regenera solo y cambia en cada sesión
 .atl/
+
+# Configuración local de MCP (incluye el project ref de Supabase)
+.mcp.json
+
+# Firma de Android: nunca subir
+*.jks
+*.keystore
+android/key.properties
+*.p12
+*.pem
+.env
+.env.*

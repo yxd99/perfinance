@@ -1,0 +1,26 @@
+name: Reporte de error
+description: Algo no funciona como debería.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: Qué pasó
+      description: Qué hiciste, qué esperabas y qué ocurrió.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Pasos para reproducirlo
+      placeholder: "1. Abre...\n2. Toca...\n3. Ves..."
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Dispositivo y versión de la app
+      placeholder: "Pixel 7, Android 15, Perfinance 1.4.0"
+  - type: markdown
+    attributes:
+      value: "No pegues montos reales, correos ni capturas con datos personales."
