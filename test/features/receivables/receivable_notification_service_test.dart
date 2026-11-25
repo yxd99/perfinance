@@ -24,6 +24,7 @@ class _FakeFunctions extends FunctionsClient {
     Map<String, dynamic>? queryParameters,
     HttpMethod method = HttpMethod.post,
     String? region,
+    Future<void>? abortSignal,
   }) async {
     lastInvokedFunction = functionName;
     lastBody = body;
