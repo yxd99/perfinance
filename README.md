@@ -58,6 +58,13 @@ Requisitos: Flutter 3.47+, [Supabase CLI](https://supabase.com/docs/guides/cli) 
 4. **Edge Functions** (opcional): `supabase functions deploy <nombre>`. Los secretos
    (`RESEND_API_KEY`, etc.) se configuran con `supabase secrets set`, nunca en el repositorio.
 
+## Descargar
+
+El APK de Android se publica en [Releases](https://github.com/yxd99/perfinance/releases/latest),
+con su hash SHA-256 y una atestación de procedencia que puedes verificar con
+`gh attestation verify perfinance.apk --repo yxd99/perfinance`. Detalle en
+[`docs/release-android.md`](docs/release-android.md).
+
 ## Tests
 
 ```bash

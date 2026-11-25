@@ -36,6 +36,10 @@ jobs:
     runs-on: ubuntu-latest
     # Release secrets live in this environment, restricted to the main branch.
     environment: production
+    permissions:
+      contents: write # create the GitHub release
+      id-token: write # sign the build provenance attestation
+      attestations: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -55,8 +59,12 @@ jobs:
         id: version
         run: |
           name=$(grep -E '^version:' pubspec.yaml | sed -E 's/version: *//; s/\+.*//')
-          echo "name=${name}" >> "$GITHUB_OUTPUT"
-          echo "build=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          # pubspec keeps the same version name across builds, so the build makes the tag unique.
+          {
+            echo "name=${name}"
+            echo "build=${{ github.run_number }}"
+            echo "tag=v${name}-${{ github.run_number }}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Write signing config
         env:
@@ -78,18 +86,18 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
-          UPDATE_MANIFEST_ID: ${{ secrets.GDRIVE_MANIFEST_FILE_ID }}
+          UPDATE_REPOSITORY: ${{ github.repository }}
           APP_BUILD: ${{ steps.version.outputs.build }}
         run: |
           jq -n \
             --arg url "$SUPABASE_URL" \
             --arg anon "$SUPABASE_ANON_KEY" \
             --arg dsn "$SENTRY_DSN" \
-            --arg manifest "$UPDATE_MANIFEST_ID" \
+            --arg repo "$UPDATE_REPOSITORY" \
             --arg build "$APP_BUILD" \
             '{SUPABASE_URL: $url, SUPABASE_ANON_KEY: $anon, SENTRY_DSN: $dsn,
-              SENTRY_ENVIRONMENT: "production", UPDATE_MANIFEST_ID: $manifest, APP_BUILD: $build,
-              DISTRIBUTION: "drive"}' \
+              SENTRY_ENVIRONMENT: "production", UPDATE_REPOSITORY: $repo, APP_BUILD: $build,
+              DISTRIBUTION: "github"}' \
             > dart_defines.json
 
       - name: Build APK
@@ -99,16 +107,52 @@ jobs:
             --build-number=${{ steps.version.outputs.build }} \
             --dart-define-from-file=dart_defines.json
 
-      - name: Write version manifest
+      - name: Prepare release assets
         env:
+          REPO: ${{ github.repository }}
+          TAG: ${{ steps.version.outputs.tag }}
+          NAME: ${{ steps.version.outputs.name }}
+          BUILD: ${{ steps.version.outputs.build }}
           APK_FILE_ID: ${{ secrets.GDRIVE_APK_FILE_ID }}
         run: |
+          mkdir -p release
+          cp build/app/outputs/flutter-apk/app-release.apk release/perfinance.apk
+          (cd release && sha256sum perfinance.apk > perfinance.apk.sha256)
           jq -n \
-            --arg version "${{ steps.version.outputs.name }}" \
-            --argjson build "${{ steps.version.outputs.build }}" \
+            --arg version "$NAME" \
+            --argjson build "$BUILD" \
+            --arg url "https://github.com/${REPO}/releases/download/${TAG}/perfinance.apk" \
+            '{version: $version, build: $build, url: $url}' > release/version.json
+          # Transition: apps installed from Drive still read the Drive manifest.
+          jq -n \
+            --arg version "$NAME" \
+            --argjson build "$BUILD" \
             --arg url "https://drive.google.com/uc?export=download&id=${APK_FILE_ID}" \
-            '{version: $version, build: $build, url: $url}' > version.json
+            '{version: $version, build: $build, url: $url}' > drive-version.json
 
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+        with:
+          subject-path: release/perfinance.apk
+
+      # Created as a draft and published once every asset is uploaded, so
+      # releases/latest never serves a release without version.json.
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          TITLE: Perfinance ${{ steps.version.outputs.name }} (${{ steps.version.outputs.build }})
+        run: |
+          gh release create "$TAG" release/perfinance.apk release/perfinance.apk.sha256 release/version.json \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "$TITLE" \
+            --generate-notes \
+            --draft
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+
+      # Transition: keeps apps installed from Drive updating until they move to
+      # this build, which reads GitHub Releases. Remove with the GDRIVE_* secrets.
       # APK first: the manifest must never point to a build that is not uploaded yet.
       - name: Upload to Google Drive
         env:
@@ -119,10 +163,10 @@ jobs:
           MANIFEST_FILE_ID: ${{ secrets.GDRIVE_MANIFEST_FILE_ID }}
         run: |
           bash scripts/drive_upload.sh "$APK_FILE_ID" \
-            build/app/outputs/flutter-apk/app-release.apk perfinance.apk \
+            release/perfinance.apk perfinance.apk \
             application/vnd.android.package-archive
           bash scripts/drive_upload.sh "$MANIFEST_FILE_ID" \
-            version.json version.json application/json
+            drive-version.json version.json application/json
 
       - name: Remove signing files
         if: always()
