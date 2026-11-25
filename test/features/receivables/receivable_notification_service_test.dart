@@ -217,6 +217,24 @@ void main() {
       expect(await service.notify(payload()), NotificationResult.pendingApproval);
     });
 
+    test('notificationNotice tells the user what happened with the email', () {
+      expect(notificationNotice(NotificationResult.sent, 'ana@gmail.com'), 'Le avisamos a ana@gmail.com.');
+      expect(
+        notificationNotice(NotificationResult.pendingApproval, 'ana@gmail.com'),
+        'El aviso a ana@gmail.com quedó pendiente de aprobación.',
+      );
+      expect(
+        notificationNotice(NotificationResult.quotaExceeded, 'ana@gmail.com'),
+        'Llegaste al límite de correos de este mes; no le enviamos el aviso a ana@gmail.com.',
+      );
+      expect(notificationNotice(NotificationResult.skipped, 'ana@gmail.com'), isNull);
+    });
+
+    test('returns quotaExceeded without throwing when the monthly email limit is reached', () async {
+      fakeFunctions.responseData = {'ok': true, 'sent': false, 'status': 'quota_exceeded'};
+      expect(await service.notify(payload()), NotificationResult.quotaExceeded);
+    });
+
     test('skips invalid emails without calling the function', () async {
       expect(await service.notify(payload(recipientEmail: 'juan@gmail')), NotificationResult.skipped);
       expect(fakeFunctions.lastInvokedFunction, isNull);
