@@ -338,7 +338,7 @@ class _ReceivableDetailScreenState extends ConsumerState<ReceivableDetailScreen>
 
     setState(() => _sendingReminder = true);
     try {
-      await ref
+      final result = await ref
           .read(receivableNotificationServiceProvider)
           .notify(
             ReceivableNotificationPayload(
@@ -353,10 +353,16 @@ class _ReceivableDetailScreenState extends ConsumerState<ReceivableDetailScreen>
             ),
           );
 
-      await prefs.setString(lastSentKey, DateTime.now().toIso8601String());
+      // La espera de 24 horas solo corre si el correo salió de verdad.
+      if (result == NotificationResult.sent) {
+        await prefs.setString(lastSentKey, DateTime.now().toIso8601String());
+      }
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Recordatorio enviado.')));
+      final message = result == NotificationResult.sent
+          ? 'Recordatorio enviado.'
+          : notificationNotice(result, email) ?? 'No se envió el recordatorio.';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
     } catch (e, st) {
       ErrorReporter.capture(e, st, operation: 'receivables.send_reminder', details: {'receivable_id': _receivable.id});
       if (!mounted) return;

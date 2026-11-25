@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { encodeBase64 } from "jsr:@std/encoding@1/base64";
 import { createClient } from "@supabase/supabase-js";
 import XLSX from "xlsx-js-style";
+import { claimEmailSend, type EmailClaim, quotaExceededMessage, releaseEmailSend } from "../_shared/email_quota.ts";
 
 type Body = {
   rangeLabel?: string;
@@ -588,30 +589,23 @@ Deno.serve(async (req: Request) => {
     error: userError,
   } = await supabase.auth.getUser(jwtToken);
 
-  if (userError && !user) {
+  if (userError || !user) {
     return new Response(
       JSON.stringify({
         error: "Invalid or expired session",
-        detail: userError.message,
+        detail: userError?.message ?? null,
       }),
       { status: 401, headers: { "Content-Type": "application/json" } },
     );
   }
 
-  const fromAuth = user ? emailFromAuthUser(user) : null;
+  const fromAuth = emailFromAuthUser(user);
   const fromBody = normalizeClientEmail(recipientEmailFromBody);
   const fromJwt = emailFromJwtAuthHeader(authHeader);
 
   const recipientEmail = fromAuth ?? fromBody ?? fromJwt;
   if (!recipientEmail) {
-    console.error(
-      "resolve email",
-      userError?.message ?? "(no userError)",
-      "has_user",
-      Boolean(user),
-      "jwt_len",
-      jwtToken.length,
-    );
+    console.error("resolve email: user has no email", "jwt_len", jwtToken.length);
     return new Response(
       JSON.stringify({
         error: "Unable to resolve user email",
@@ -703,6 +697,28 @@ Deno.serve(async (req: Request) => {
   const subject =
     `Egresos — ${periodDescription} (${stamp.replace("_", " ")})`;
 
+  // Tope mensual de correos de la cuenta (migración 020). Se reserva justo antes
+  // de enviar y se devuelve si Resend falla.
+  const admin = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
+    auth: { persistSession: false },
+  });
+  let claim: EmailClaim;
+  try {
+    claim = await claimEmailSend(admin, user.id, "expense_export", recipientEmail);
+  } catch (e) {
+    console.error("[send-expense-export] quota check failed", e);
+    return new Response(
+      JSON.stringify({ error: "Could not verify email quota" }),
+      { status: 500, headers: { "Content-Type": "application/json" } },
+    );
+  }
+  if (!claim.allowed) {
+    return new Response(
+      JSON.stringify({ error: quotaExceededMessage(claim.quota), code: "monthly_email_limit" }),
+      { status: 429, headers: { "Content-Type": "application/json" } },
+    );
+  }
+
   // API REST: usar `contentType` (camelCase) como el SDK de Node; `content_type` puede invalidar el adjunto.
   const resendRes = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -741,6 +757,7 @@ Deno.serve(async (req: Request) => {
       resendRes.status,
       resendText,
     );
+    await releaseEmailSend(admin, claim.logId);
     // 4xx de Resend = configuración (dominio, modo prueba, etc.); 5xx = incidente Resend.
     const fnStatus = resendRes.status >= 400 && resendRes.status < 500
       ? 422

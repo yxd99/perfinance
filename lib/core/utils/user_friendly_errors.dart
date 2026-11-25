@@ -30,6 +30,11 @@ class UserFriendlyErrors {
         : raw.trim();
     final lower = inner.toLowerCase();
 
+    // Tope mensual de correos (send-expense-export responde 429 con el mensaje ya en español).
+    if (inner.startsWith('Llegaste al límite de ')) {
+      return inner.replaceFirst(RegExp(r'\s*\(\d+\)$'), '');
+    }
+
     if (lower.contains('timeoutexception') ||
         lower.contains('tiempo de espera agotado') ||
         lower.contains('tiempo de espera')) {

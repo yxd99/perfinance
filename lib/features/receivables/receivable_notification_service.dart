@@ -22,9 +22,22 @@ enum NotificationResult {
   /// servidor registró el intento y no envió nada.
   pendingApproval,
 
+  /// La cuenta llegó a su tope mensual de correos (`email_quotas`); no se envió.
+  quotaExceeded,
+
   /// No se llamó al servidor (sin email válido o sin Supabase configurado).
   skipped,
 }
+
+/// Frase para el usuario sobre lo que pasó con el aviso a [email]. Null cuando
+/// no hay nada que contar ([NotificationResult.skipped]).
+String? notificationNotice(NotificationResult result, String email) => switch (result) {
+      NotificationResult.sent => 'Le avisamos a $email.',
+      NotificationResult.pendingApproval => 'El aviso a $email quedó pendiente de aprobación.',
+      NotificationResult.quotaExceeded =>
+        'Llegaste al límite de correos de este mes; no le enviamos el aviso a $email.',
+      NotificationResult.skipped => null,
+    };
 
 class ReceivableNotificationPayload {
   const ReceivableNotificationPayload({
@@ -147,6 +160,9 @@ class ReceivableNotificationService {
       }
       if (data is Map && data['status'] == 'pending_approval') {
         return NotificationResult.pendingApproval;
+      }
+      if (data is Map && data['status'] == 'quota_exceeded') {
+        return NotificationResult.quotaExceeded;
       }
       return NotificationResult.sent;
     } on FunctionException catch (e) {

@@ -155,6 +155,8 @@ class _RegisterPaymentSheetState extends ConsumerState<_RegisterPaymentSheet> {
 
     final payRepo = ref.read(receivablePaymentRepositoryProvider);
     final notifService = ref.read(receivableNotificationServiceProvider);
+    // Null si no se intentó avisar o si el aviso falló.
+    NotificationResult? notifResult;
 
     try {
       if (_isEdit) {
@@ -174,7 +176,7 @@ class _RegisterPaymentSheetState extends ConsumerState<_RegisterPaymentSheet> {
             updatedPayments.fold(0.0, (s, p) => s + p.amount);
         if (widget.receivable.debtorEmail != null) {
           try {
-            await notifService.notify(ReceivableNotificationPayload(
+            notifResult = await notifService.notify(ReceivableNotificationPayload(
               event: ReceivableNotificationEvent.paymentEdited,
               recipientEmail: widget.receivable.debtorEmail!,
               debtorName: widget.receivable.debtorName,
@@ -208,7 +210,7 @@ class _RegisterPaymentSheetState extends ConsumerState<_RegisterPaymentSheet> {
             updatedPayments.fold(0.0, (s, p) => s + p.amount);
         if (widget.receivable.debtorEmail != null) {
           try {
-            await notifService.notify(ReceivableNotificationPayload(
+            notifResult = await notifService.notify(ReceivableNotificationPayload(
               event: ReceivableNotificationEvent.paymentRecorded,
               recipientEmail: widget.receivable.debtorEmail!,
               debtorName: widget.receivable.debtorName,
@@ -234,9 +236,9 @@ class _RegisterPaymentSheetState extends ConsumerState<_RegisterPaymentSheet> {
       if (mounted) {
         // Capturar ScaffoldMessenger y el messenger ANTES de hacer pop.
         final messenger = ScaffoldMessenger.of(context);
-        final successMsg = widget.receivable.debtorEmail != null
-            ? 'Cobro registrado. Le avisamos a ${widget.receivable.debtorEmail}.'
-            : 'Cobro registrado.';
+        final email = widget.receivable.debtorEmail;
+        final notice = notifResult == null || email == null ? null : notificationNotice(notifResult, email);
+        final successMsg = notice == null ? 'Cobro registrado.' : 'Cobro registrado. $notice';
 
         ref.invalidate(receivablesListProvider);
         Navigator.pop(context);

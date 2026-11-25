@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "@supabase/supabase-js";
 import { isValidEmail, normalizeEmail } from "./recipient.ts";
+import { claimEmailSend, type EmailClaim, quotaExceededMessage, releaseEmailSend } from "../_shared/email_quota.ts";
 
 type NotificationEvent =
   | "created"
@@ -360,6 +361,31 @@ Deno.serve(async (req: Request) => {
     );
   }
 
+  // Tope mensual de correos de la cuenta (migración 020).
+  let claim: EmailClaim;
+  try {
+    claim = await claimEmailSend(admin, user.id, "receivable_notification", recipient);
+  } catch (e) {
+    console.error("[send-receivable-notification] quota check failed", e);
+    return new Response(
+      JSON.stringify({ error: "Could not verify email quota" }),
+      { status: 500, headers: { "Content-Type": "application/json" } },
+    );
+  }
+  if (!claim.allowed) {
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        sent: false,
+        status: "quota_exceeded",
+        quota: claim.quota,
+        message: quotaExceededMessage(claim.quota),
+        event,
+      }),
+      { status: 200, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } },
+    );
+  }
+
   const meta = eventMeta(event, debtorName, body.creditorEmail, body.isRegistered);
   const html = buildEmailHtml(body);
 
@@ -388,6 +414,7 @@ Deno.serve(async (req: Request) => {
   if (!resendRes.ok) {
     const resendMsg = typeof resendJson.message === "string" ? resendJson.message : undefined;
     console.error("[send-receivable-notification] Resend HTTP", resendRes.status, resendText);
+    await releaseEmailSend(admin, claim.logId);
     const fnStatus = resendRes.status >= 400 && resendRes.status < 500 ? 422 : 502;
     return new Response(
       JSON.stringify({

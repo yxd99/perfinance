@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="1024" height="1024">
+  <!-- Capa monocromática (íconos temáticos de Android 13+): solo cuenta la opacidad, así que los huecos son máscaras. -->
+  <defs>
+    <mask id="cardGap">
+      <rect width="108" height="108" fill="#fff"/>
+      <rect x="29.5" y="38.5" width="51" height="39" rx="8.5" fill="#000"/>
+    </mask>
+    <mask id="claspGap">
+      <rect width="108" height="108" fill="#fff"/>
+      <rect x="56.5" y="48.5" width="27" height="19" rx="7.5" fill="#000"/>
+    </mask>
+    <mask id="claspHole">
+      <rect width="108" height="108" fill="#fff"/>
+      <circle cx="67" cy="58" r="3.2" fill="#000"/>
+    </mask>
+  </defs>
+  <g transform="rotate(-10 52 40)" mask="url(#cardGap)">
+    <rect x="36" y="27" width="34" height="22" rx="3" fill="#000"/>
+  </g>
+  <rect x="31" y="40" width="48" height="36" rx="7" fill="#000" mask="url(#claspGap)"/>
+  <rect x="58" y="50" width="24" height="16" rx="6" fill="#000" mask="url(#claspHole)"/>
+</svg>

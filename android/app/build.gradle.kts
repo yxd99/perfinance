@@ -28,8 +28,10 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.perfinance.perfinance"
+        // Fixed forever once the first build is uploaded to Google Play.
+        // Reverse of yesidhernandez.dev, the owner's domain. The namespace and
+        // the Kotlin package keep the old name; they do not need to match.
+        applicationId = "dev.yesidhernandez.perfinance"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
