@@ -1,11 +1,18 @@
+# One pull request per ecosystem per month, to keep the PR list quiet.
+# Security updates still open right away, grouped into a single PR.
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
+    open-pull-requests-limit: 1
     groups:
       actions:
+        applies-to: version-updates
+        patterns: ["*"]
+      actions-security:
+        applies-to: security-updates
         patterns: ["*"]
     commit-message:
       prefix: ci
@@ -13,7 +20,14 @@ updates:
   - package-ecosystem: pub
     directory: /
     schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
+      interval: monthly
+    open-pull-requests-limit: 1
+    groups:
+      pub:
+        applies-to: version-updates
+        patterns: ["*"]
+      pub-security:
+        applies-to: security-updates
+        patterns: ["*"]
     commit-message:
       prefix: build
