@@ -3,6 +3,7 @@ import { encodeBase64 } from "jsr:@std/encoding@1/base64";
 import { createClient } from "@supabase/supabase-js";
 import XLSX from "xlsx-js-style";
 import { claimEmailSend, type EmailClaim, quotaExceededMessage, releaseEmailSend } from "../_shared/email_quota.ts";
+import { buildExportEmail } from "./templates.ts";
 
 type Body = {
   rangeLabel?: string;
@@ -362,85 +363,6 @@ function buildExpenseWorkbook(
   return out;
 }
 
-function buildEmailHtml(params: {
-  primaryGreen: string;
-  periodLabel: string;
-  rowCount: number;
-  total: number;
-}): string {
-  const { primaryGreen, periodLabel, rowCount, total } = params;
-  const totalStr = formatCopAmount(total);
-  return `<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Egresos</title>
-</head>
-<body style="margin:0;padding:0;background:#f4fbf7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1c1c1e;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4fbf7;padding:24px 12px;">
-    <tr>
-      <td align="center">
-        <table role="presentation" width="100%" style="max-width:520px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,0.06);">
-          <tr>
-            <td style="padding:24px 24px 8px;background:linear-gradient(135deg,${primaryGreen},#27ae60);color:#ffffff;">
-              <div style="font-size:13px;letter-spacing:0.04em;opacity:0.9;text-transform:uppercase;">Perfinance</div>
-              <h1 style="margin:8px 0 0;font-size:22px;font-weight:700;line-height:1.2;">Exportación de egresos</h1>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:24px;">
-              <p style="margin:0 0 16px;font-size:15px;line-height:1.5;">Adjuntamos un archivo Excel (.xlsx) con dos hojas: detalle de movimientos y totales por tarjeta.</p>
-              <table role="presentation" width="100%" style="border-collapse:collapse;background:#f0f9f4;border-radius:12px;border:1px solid #d4eedc;">
-                <tr>
-                  <td style="padding:16px;">
-                    <div style="font-size:12px;color:#666;margin-bottom:4px;">Periodo</div>
-                    <div style="font-size:16px;font-weight:600;color:#1c1c1e;">${escapeHtml(
-                      periodLabel,
-                    )}</div>
-                  </td>
-                </tr>
-                <tr>
-                  <td style="padding:0 16px 16px;">
-                    <table width="100%" style="border-collapse:collapse;">
-                      <tr>
-                        <td style="width:50%;vertical-align:top;">
-                          <div style="font-size:12px;color:#666;margin-bottom:4px;">Movimientos</div>
-                          <div style="font-size:18px;font-weight:700;color:${primaryGreen};">${rowCount}</div>
-                        </td>
-                        <td style="width:50%;vertical-align:top;">
-                          <div style="font-size:12px;color:#666;margin-bottom:4px;">Total</div>
-                          <div style="font-size:18px;font-weight:700;color:${primaryGreen};">${totalStr}</div>
-                        </td>
-                      </tr>
-                    </table>
-                  </td>
-                </tr>
-              </table>
-              <p style="margin:20px 0 0;font-size:13px;color:#888;line-height:1.4;">Generado desde Perfinance. Hoja &quot;Detalle&quot;: TARJETA, FECHA, DESCRIPCION, VALOR (COP), más fila TOTAL. Hoja &quot;Totales por tarjeta&quot;: sumas por medio y fila TOTAL.</p>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:16px 24px 24px;border-top:1px solid #eee;font-size:12px;color:#aaa;">
-              Este mensaje es automático; responde a tu correo si necesitas ayuda con la app.
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`;
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
 function sanitizeFilenamePart(s: string): string {
   return s.replace(/[^a-zA-Z0-9._-]+/g, "_").slice(0, 40);
 }
@@ -656,8 +578,7 @@ Deno.serve(async (req: Request) => {
     timezoneOffsetMinutes,
   );
   const total = rows.reduce((s, e) => s + Number(e.amount), 0);
-  const html = buildEmailHtml({
-    primaryGreen: "#2ECC71",
+  const email = buildExportEmail({
     periodLabel: periodDescription,
     rowCount: rows.length,
     total,
@@ -695,7 +616,7 @@ Deno.serve(async (req: Request) => {
   }
 
   const subject =
-    `Egresos — ${periodDescription} (${stamp.replace("_", " ")})`;
+    `Tus egresos de ${periodDescription} (${stamp.replace("_", " ")})`;
 
   // Tope mensual de correos de la cuenta (migración 020). Se reserva justo antes
   // de enviar y se devuelve si Resend falla.
@@ -730,7 +651,8 @@ Deno.serve(async (req: Request) => {
       from: mailFrom,
       to: [recipientEmail],
       subject,
-      html,
+      html: email.html,
+      text: email.text,
       attachments: [{
         filename,
         content: attachmentB64,
