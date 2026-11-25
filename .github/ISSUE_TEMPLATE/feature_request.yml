@@ -1,0 +1,19 @@
+name: Propuesta de mejora
+description: Una idea para mejorar la app.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Qué problema resuelve
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Propuesta
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: "La app registra solo egresos: las propuestas de registrar ingresos quedan fuera del alcance."
