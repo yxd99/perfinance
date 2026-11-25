@@ -2,13 +2,8 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "@supabase/supabase-js";
 import { isValidEmail, normalizeEmail } from "./recipient.ts";
 import { claimEmailSend, type EmailClaim, quotaExceededMessage, releaseEmailSend } from "../_shared/email_quota.ts";
-
-type NotificationEvent =
-  | "created"
-  | "payment_recorded"
-  | "payment_edited"
-  | "payment_deleted"
-  | "reminder";
+import { fromWithDisplayName } from "../_shared/email_layout.ts";
+import { buildNotificationEmail, type NotificationEvent } from "./templates.ts";
 
 type Body = {
   event: NotificationEvent;
@@ -16,7 +11,7 @@ type Body = {
   debtorName: string;
   totalAmount: number;
   remainingBalance: number;
-  /** The creditor's email — always included (spec S5). */
+  /** Kept for older app versions; the email uses the authenticated user's email instead. */
   creditorEmail?: string;
   /** True when the debtor is a registered app user.
    * Drives the email template to mention app visibility. */
@@ -28,39 +23,6 @@ type Body = {
   /** Optional description of the receivable, shown so the debtor knows what it is about. */
   description?: string;
 };
-
-const MONTH_NAMES_ES = [
-  "",
-  "enero", "febrero", "marzo", "abril", "mayo", "junio",
-  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
-];
-
-const copCurrency = new Intl.NumberFormat("es-CO", {
-  style: "currency",
-  currency: "COP",
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 0,
-});
-
-function formatCopAmount(n: number): string {
-  return copCurrency.format(n);
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function formatReadableDate(isoDate: string): string {
-  const d = new Date(isoDate);
-  const day = d.getUTCDate();
-  const month = MONTH_NAMES_ES[d.getUTCMonth() + 1];
-  const year = d.getUTCFullYear();
-  return `${day} de ${month} de ${year}`;
-}
 
 function normalizeMailFrom(raw: string): string {
   let s = raw.trim();
@@ -75,161 +37,6 @@ function normalizeMailFrom(raw: string): string {
 
 function authorizationHeader(req: Request): string | null {
   return req.headers.get("Authorization") ?? req.headers.get("authorization");
-}
-
-type EventMeta = { subject: string; title: string; intro: string };
-
-function eventMeta(
-  event: NotificationEvent,
-  debtorName: string,
-  creditorEmail?: string,
-  isRegistered?: boolean,
-): EventMeta {
-  const name = escapeHtml(debtorName);
-  const creditorInfo = creditorEmail
-    ? ` (registrada por <strong>${escapeHtml(creditorEmail)}</strong>)`
-    : "";
-  const appVisibility =
-    isRegistered && event === "created"
-      ? ` Puedes verla en tu app PerFinance.`
-      : "";
-
-  switch (event) {
-    case "created":
-      return {
-        subject: `Nueva deuda registrada — PerFinance`,
-        title: "Nueva deuda registrada",
-        intro: `Hola <strong>${name}</strong>, se ha registrado una deuda a tu nombre${creditorInfo}.${appVisibility}`,
-      };
-    case "payment_recorded":
-      return {
-        subject: `Cobro registrado — PerFinance`,
-        title: "Cobro registrado",
-        intro: `Hola <strong>${name}</strong>, se ha registrado un cobro en tu cuenta${creditorInfo}.`,
-      };
-    case "payment_edited":
-      return {
-        subject: `Cobro modificado — PerFinance`,
-        title: "Cobro modificado",
-        intro: `Hola <strong>${name}</strong>, se ha modificado un cobro en tu cuenta${creditorInfo}.`,
-      };
-    case "payment_deleted":
-      return {
-        subject: `Cobro eliminado — PerFinance`,
-        title: "Cobro eliminado",
-        intro: `Hola <strong>${name}</strong>, se ha eliminado un cobro de tu cuenta${creditorInfo}.`,
-      };
-    case "reminder":
-      return {
-        subject: `Actualización de saldo — PerFinance`,
-        title: "Actualización de saldo",
-        intro: `Hola <strong>${name}</strong>, este es un mensaje automático generado por PerFinance. Se ha enviado porque no se ha registrado ningún movimiento en el último mes.`,
-      };
-  }
-}
-
-function buildEmailHtml(body: Body): string {
-  const {
-    event,
-    debtorName,
-    totalAmount,
-    remainingBalance,
-    paymentAmount,
-    paymentDate,
-    creditorEmail,
-    isRegistered,
-    description,
-  } = body;
-  const primaryGreen = "#2ECC71";
-  const meta = eventMeta(event, debtorName, creditorEmail, isRegistered);
-  const isFullyPaid = remainingBalance <= 0;
-
-  const trimmedDescription = description?.trim();
-  const descriptionRow = trimmedDescription
-    ? `<tr>
-        <td style="padding:8px 0;border-bottom:1px solid #eef;">
-          <span style="font-size:12px;color:#666;">Descripción</span><br/>
-          <span style="font-size:15px;font-weight:600;color:#1c1c1e;">${escapeHtml(trimmedDescription)}</span>
-        </td>
-       </tr>`
-    : "";
-
-  const paymentRow = paymentAmount != null
-    ? `<tr>
-        <td style="padding:8px 0;border-bottom:1px solid #eef;">
-          <span style="font-size:12px;color:#666;">${event === "payment_deleted" ? "Monto eliminado" : "Monto abonado"}</span><br/>
-          <span style="font-size:16px;font-weight:700;color:${primaryGreen};">${formatCopAmount(paymentAmount)}</span>
-        </td>
-       </tr>`
-    : "";
-
-  const dateRow = paymentDate
-    ? `<tr>
-        <td style="padding:8px 0;border-bottom:1px solid #eef;">
-          <span style="font-size:12px;color:#666;">Fecha</span><br/>
-          <span style="font-size:15px;font-weight:600;color:#1c1c1e;">${formatReadableDate(paymentDate)}</span>
-        </td>
-       </tr>`
-    : "";
-
-  const paidBanner = isFullyPaid && event !== "payment_deleted"
-    ? `<div style="margin-top:16px;padding:12px 16px;background:#e8f5e9;border-radius:8px;border:1px solid #c8e6c9;font-size:14px;color:#2e7d32;font-weight:600;">
-         ✓ ¡Deuda saldada en su totalidad!
-       </div>`
-    : "";
-
-  return `<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>${meta.title}</title>
-</head>
-<body style="margin:0;padding:0;background:#f4fbf7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1c1c1e;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4fbf7;padding:24px 12px;">
-    <tr>
-      <td align="center">
-        <table role="presentation" width="100%" style="max-width:520px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,0.06);">
-          <tr>
-            <td style="padding:24px 24px 8px;background:linear-gradient(135deg,${primaryGreen},#27ae60);color:#ffffff;">
-              <div style="font-size:13px;letter-spacing:0.04em;opacity:0.9;text-transform:uppercase;">Perfinance</div>
-              <h1 style="margin:8px 0 0;font-size:22px;font-weight:700;line-height:1.2;">${meta.title}</h1>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:24px;">
-              <p style="margin:0 0 16px;font-size:15px;line-height:1.5;">${meta.intro}</p>
-              <table role="presentation" width="100%" style="border-collapse:collapse;background:#f0f9f4;border-radius:12px;border:1px solid #d4eedc;">
-                <tr>
-                  <td style="padding:16px;">
-                    <table width="100%" style="border-collapse:collapse;">
-                      ${descriptionRow}
-                      ${paymentRow}
-                      ${dateRow}
-                      <tr>
-                        <td style="padding:8px 0;">
-                          <span style="font-size:12px;color:#666;">Falta por pagar</span><br/>
-                          <span style="font-size:18px;font-weight:700;color:${isFullyPaid ? primaryGreen : "#e53e3e"};">${isFullyPaid ? "Saldado ✓" : formatCopAmount(remainingBalance)}</span>
-                        </td>
-                      </tr>
-                    </table>
-                    ${paidBanner}
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:16px 24px 24px;border-top:1px solid #eee;font-size:12px;color:#aaa;">
-              Este mensaje es automático generado desde Perfinance.
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`;
 }
 
 Deno.serve(async (req: Request) => {
@@ -386,8 +193,22 @@ Deno.serve(async (req: Request) => {
     );
   }
 
-  const meta = eventMeta(event, debtorName, body.creditorEmail, body.isRegistered);
-  const html = buildEmailHtml(body);
+  // Quien cobra sale de la sesión, no del cuerpo: su nombre (Tu cuenta) y su
+  // correo, que también es la dirección de respuesta del deudor.
+  const creditorEmail = user.email ?? body.creditorEmail ?? "";
+  const fullName = user.user_metadata?.full_name;
+  const email = buildNotificationEmail({
+    event,
+    debtorName,
+    description: body.description,
+    totalAmount,
+    remainingBalance,
+    paymentAmount: body.paymentAmount,
+    paymentDate: body.paymentDate,
+    creditorName: typeof fullName === "string" ? fullName : null,
+    creditorEmail,
+    isRegistered: body.isRegistered,
+  });
 
   const resendRes = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -396,10 +217,12 @@ Deno.serve(async (req: Request) => {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: mailFrom,
+      from: fromWithDisplayName(mailFrom, email.fromName),
       to: [recipient],
-      subject: meta.subject,
-      html,
+      ...(creditorEmail ? { reply_to: creditorEmail } : {}),
+      subject: email.subject,
+      html: email.html,
+      text: email.text,
     }),
   });
 
